@@ -58,8 +58,8 @@ export interface CfcfFundRow {
   number_of_cycles: number | null;
   number_of_shares: number | null;
   current_cycle: number;
-  cycle_payout_amounts: number[];
-  cycle_commissions: number[];
+  cycle_payout_amounts: unknown[];
+  cycle_commissions: unknown[];
   fund_net_balance: number;
   fund_total_billed_amount: number;
   fund_total_pending_amount: number;
