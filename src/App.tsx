@@ -786,6 +786,7 @@ export default function App() {
       {/* Non-sticky App Bar */}
       <StickyAppBar
         currentTenantId={currentTenantId}
+        managerLabel={managerEmail || ""}
         mathTemplates={mathTemplates}
         currentFormulaId={currentFormulaId}
         onSelectFormula={setCurrentFormulaId}
