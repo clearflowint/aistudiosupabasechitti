@@ -84,7 +84,7 @@ export async function listCfcfLedgerItems(
 
   const payments = (paymentsResult.data ?? []) as Pick<
     CfcfPaymentRow, "payment_id" | "fund_id" | "share_id" | "entry_type" | "amount" | "entry_date" | "payment_type" | "remarks"
-  >[] & { created_at?: string }[];
+  > & { created_at: string }>[];
 
   const fundEntries = (fundEntriesResult.data ?? []) as Pick<
     CfcfFundOtherEntryRow, "entry_id" | "fund_id" | "entry_type" | "amount" | "remarks" | "created_at"
