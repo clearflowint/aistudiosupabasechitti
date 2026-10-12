@@ -1,6 +1,6 @@
 {
-  "name": "Remix aistudiochittifinal",
-  "description": "Chitti WebApp for seamless task automation and real-time project collaboration",
+  "name": "ClearFlow",
+  "description": "ClearFlow workspace for managing contacts, funds, cycles, shares, and financial records.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
