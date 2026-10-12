@@ -101,7 +101,7 @@ export function WorkspaceLayout({
         aria-label="Main navigation"
         className="border-b border-slate-200 bg-white"
       >
-        <div className="mx-auto grid min-h-14 max-w-3xl grid-cols-3 gap-1 px-3 py-1.5 sm:px-5">
+        <div className="mx-auto grid min-h-14 max-w-3xl grid-cols-2 gap-1 px-3 py-1.5 sm:px-5">
           {product.navigation.map((item) => {
             const isSelected = activePage.id === item.id;
             const Icon = item.icon;
