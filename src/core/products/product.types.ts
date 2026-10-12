@@ -21,4 +21,6 @@ export interface ProductDefinition {
     navigationItem: WorkspaceNavigationItem,
     workspace: AuthorizedWorkspace,
   ) => ReactNode;
+  // MIX: Optional product-owned notification content mounted inside the neutral notification frame.
+  renderNotifications?: (workspace: AuthorizedWorkspace) => ReactNode;
 }
