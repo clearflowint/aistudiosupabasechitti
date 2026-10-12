@@ -112,6 +112,44 @@ export async function updateCfcfContact(
   return data as CfcfContactRow;
 }
 
+export async function deleteCfcfContact(
+  tenantId: string,
+  contactId: string,
+): Promise<void> {
+  const { data: linkedShares, error: sharesError } = await supabase
+    .from("cfcf_shares")
+    .select("share_id")
+    .eq("product_id", cfcfConfig.productId)
+    .eq("tenant_id", tenantId)
+    .eq("contact_id", contactId)
+    .limit(1);
+
+  if (sharesError) throw new Error("Unable to check whether this contact is in use: " + sharesError.message);
+  if (linkedShares && linkedShares.length > 0) {
+    throw new Error("This contact is linked to one or more Shares. Keep the contact to preserve existing records.");
+  }
+
+  const { data, error } = await supabase
+    .from("contacts")
+    .delete()
+    .eq("product_id", cfcfConfig.productId)
+    .eq("tenant_id", tenantId)
+    .eq("contact_id", contactId)
+    .select("contact_id")
+    .maybeSingle();
+
+  if (error) {
+    if (error.code === "23503") {
+      throw new Error("This contact is linked to existing records and cannot be deleted.");
+    }
+    if (error.code === "42501") {
+      throw new Error("Supabase did not permit this contact to be deleted. Check the workspace access policy.");
+    }
+    throw new Error("Unable to delete contact: " + error.message);
+  }
+  if (!data) throw new Error("Contact was not found or is no longer available in this workspace.");
+}
+
 function normalizeIndianPhone(value: string): string {
   let digits = value.replace(/\D/g, "");
 
