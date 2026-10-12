@@ -2,7 +2,7 @@
 // MIX: Reuses the shared Modal and the workspace identity supplied by the neutral app shell.
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Mail, Phone, Plus, RefreshCw, Search, UsersRound } from "lucide-react";
+import { Mail, MessageCircle, Phone, Plus, RefreshCw, Search, UsersRound } from "lucide-react";
 import type { AuthorizedWorkspace } from "../../../core/workspace/workspace.types";
 import { Modal } from "../../../components/ui/Modal";
 import type { CfcfContactRow } from "../types/database.types";
@@ -183,47 +183,62 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
           )}
         </section>
       ) : !loadError ? (
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[680px] border-collapse text-left">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="px-5 py-3 font-semibold">Contact</th>
-                  <th className="px-5 py-3 font-semibold">Phone</th>
-                  <th className="px-5 py-3 font-semibold">Email</th>
-                  <th className="px-5 py-3 font-semibold">Notes</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredContacts.map((contact) => (
-                  <tr key={contact.contact_id} className="transition hover:bg-slate-50/70">
-                    <td className="px-5 py-4">
-                      <div className="font-medium text-slate-900">{contact.name}</div>
-                      <div className="mt-1 text-xs text-slate-400">Added {new Date(contact.created_at).toLocaleDateString()}</div>
-                    </td>
-                    <td className="px-5 py-4 text-sm text-slate-600">
-                      <span className="inline-flex items-center gap-2"><Phone size={14} className="text-slate-400" />{contact.phone}</span>
-                    </td>
-                    <td className="px-5 py-4 text-sm text-slate-600">
-                      {contact.email ? (
-                        <span className="inline-flex items-center gap-2"><Mail size={14} className="text-slate-400" />{contact.email}</span>
-                      ) : <span className="text-slate-400">—</span>}
-                    </td>
-                    <td className="max-w-xs px-5 py-4 text-sm text-slate-500">
-                      <span className="block truncate" title={contact.remarks ?? undefined}>{contact.remarks || "—"}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <section className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
+          {filteredContacts.map((contact) => (
+            <article key={contact.contact_id} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+              <div className="flex min-w-0 items-start gap-3">
+                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-700">
+                  <UsersRound size={20} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="break-words text-base font-semibold text-slate-950">{contact.name}</h3>
+                  <p className="mt-1 break-words text-xs leading-5 text-slate-400">
+                    Added {new Date(contact.created_at).toLocaleDateString("en-IN")}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-2 border-t border-slate-100 pt-3">
+                <p className="flex min-w-0 items-start gap-2 break-all text-sm text-slate-700">
+                  <Phone size={15} className="mt-0.5 shrink-0 text-slate-400" />
+                  <span>{contact.phone}</span>
+                </p>
+                {contact.email && (
+                  <p className="flex min-w-0 items-start gap-2 break-all text-sm text-slate-600">
+                    <Mail size={15} className="mt-0.5 shrink-0 text-slate-400" />
+                    <span>{contact.email}</span>
+                  </p>
+                )}
+                {contact.remarks && (
+                  <p className="break-words text-sm leading-5 text-slate-500">{contact.remarks}</p>
+                )}
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <a
+                  href={"tel:" + contact.phone}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 px-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  <Phone size={15} /> Call
+                </a>
+                <a
+                  href={"https://wa.me/" + contact.phone.replace(/\\D/g, "")}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                >
+                  <MessageCircle size={15} /> WhatsApp
+                </a>
+              </div>
+            </article>
+          ))}
           {search.trim() && (
-            <div className="border-t border-slate-100 px-5 py-3 text-xs text-slate-500">
+            <p className="col-span-full px-1 py-2 text-xs text-slate-500">
               Showing {filteredContacts.length} matching {filteredContacts.length === 1 ? "contact" : "contacts"}.
-            </div>
+            </p>
           )}
         </section>
-      ) : null}
+
 
       <Modal
         isOpen={isModalOpen}
