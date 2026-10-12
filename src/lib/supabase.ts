@@ -53,34 +53,35 @@ export async function checkSupabaseConnection(): Promise<{
       return {
         connected: false,
         url: config.url,
-        tables: ["chittis", "shares", "transactions", "chitti_expenses", "tenants"],
+        tables: ["tenants", "persons", "contacts", "cfcf_funds", "cfcf_shares", "cfcf_payments", "cfcf_fund_other_entries", "cfcf_product_data"],
         error: "Supabase URL and Anon Key are not configured yet. Please configure them in the Database Settings.",
       };
     }
 
-    // Ping chittis or tenants table
-    const { error: chittisErr } = await supabase.from("chittis").select("chitti_id").limit(1);
-    const { error: fundsErr } = await supabase.from("funds").select("id").limit(1);
+    // Probe a real CFCF table. Missing tables, denied access, and network errors
+    // must not be reported as a successful connection.
+    const { error } = await supabase.from("cfcf_funds").select("fund_id").limit(1);
+    const tables = ["tenants", "persons", "contacts", "cfcf_funds", "cfcf_shares", "cfcf_payments", "cfcf_fund_other_entries", "cfcf_product_data"];
 
-    if (chittisErr && fundsErr && (chittisErr.message.includes("Failed to fetch") || fundsErr.message.includes("Failed to fetch"))) {
+    if (error) {
       return {
         connected: false,
         url: config.url,
-        tables: ["chittis", "shares", "transactions", "chitti_expenses", "tenants"],
-        error: "Network error connecting to Supabase instance.",
+        tables,
+        error: error.message,
       };
     }
 
     return {
       connected: true,
       url: config.url,
-      tables: ["chittis", "shares", "transactions", "chitti_expenses", "tenants"],
+      tables,
     };
   } catch (err: any) {
     return {
       connected: false,
       url: getStoredSupabaseConfig().url,
-      tables: ["chittis", "shares", "transactions", "chitti_expenses", "tenants"],
+      tables: ["tenants", "persons", "contacts", "cfcf_funds", "cfcf_shares", "cfcf_payments", "cfcf_fund_other_entries", "cfcf_product_data"],
       error: err.message || "Failed to reach Supabase database.",
     };
   }
