@@ -36,9 +36,9 @@ export default function App() {
 
   const [chittis, setChittis] = useState<ChittiMaster[]>([]);
   const [chittisLoading, setChittisLoading] = useState<boolean>(true);
-  const [currentChittiId, setCurrentChittiId] = useState<string>(() => {
-    return localStorage.getItem("clearflow_chitti_id") || "";
-  });
+  // Resolve the selected fund from live CFCF records after authentication.
+  // Never restore a legacy chitti ID from localStorage.
+  const [currentChittiId, setCurrentChittiId] = useState<string>("");
 
   // Database Offline / Client-Side Cached Snapshot States
   const [isDbOffline, setIsDbOffline] = useState<boolean>(false);
@@ -61,7 +61,6 @@ export default function App() {
   useEffect(() => {
     if (managerEmail) {
       localStorage.setItem("clearflow_manager_email", managerEmail);
-      if (!currentTenantId) setCurrentTenantId(managerEmail);
     } else {
       localStorage.removeItem("clearflow_manager_email");
     }
