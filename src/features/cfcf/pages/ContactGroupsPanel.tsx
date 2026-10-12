@@ -12,11 +12,11 @@ import {
   deleteCfcfContactGroup,
   listCfcfContactGroups,
   listCfcfGroupMembers,
-  prepareCfcfCampaignRequest,
+  dispatchCfcfCampaign,
   removeCfcfContactFromGroup,
   renameCfcfContactGroup,
   type CfcfCampaignChannel,
-  type CfcfCampaignRequest,
+  type CfcfCampaignDispatchReceipt,
   type CfcfContactGroupMemberRow,
   type CfcfContactGroupRow,
 } from "../services/contact-groups.service";
@@ -55,7 +55,7 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
   const [message, setMessage] = useState("");
   const [isPreparingCampaign, setIsPreparingCampaign] = useState(false);
   const [campaignError, setCampaignError] = useState<string | null>(null);
-  const [preparedCampaign, setPreparedCampaign] = useState<CfcfCampaignRequest | null>(null);
+  const [preparedCampaign, setPreparedCampaign] = useState<CfcfCampaignDispatchReceipt | null>(null);
 
   async function loadGroups(showRefresh = false) {
     const requestId = ++loadRequestId.current;
@@ -232,15 +232,14 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
     setPreparedCampaign(null);
     setIsPreparingCampaign(true);
     try {
-      const request = await prepareCfcfCampaignRequest(
+      const receipt = await dispatchCfcfCampaign(
         workspace.tenantId,
         campaignGroupIds,
         channels,
         message,
       );
-      setPreparedCampaign(request);
-      // MIX: Replace this preparation-only result with the configured n8n webhook dispatcher later.
-      // Do not log Contact details or claim delivery before n8n confirms acceptance.
+      setPreparedCampaign(receipt);
+      setNotice("n8n acknowledged campaign " + receipt.campaign_id + ". Delivery is processing; final results will appear in Notifications.");
     } catch (prepareFailure) {
       setCampaignError(prepareFailure instanceof Error ? prepareFailure.message : "Unable to prepare this campaign.");
     } finally {
@@ -401,24 +400,17 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
           </div>
           {campaignError && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{campaignError}</p>}
           {preparedCampaign && (
-            <div role="status" className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-              <div className="flex items-center gap-2 font-semibold"><CheckCircle2 size={17} /> Campaign request prepared</div>
-              <p>Prepared {preparedCampaign.contact_ids.length} unique recipients across {preparedCampaign.channels.join(", ")}. <strong>No messages were sent.</strong> The n8n webhook is not connected yet.</p>
-              <details>
-                <summary className="cursor-pointer font-medium">View handoff payload preview</summary>
-                <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-white/80 p-3 text-xs">{JSON.stringify({
-                  ...preparedCampaign,
-                  contact_ids: preparedCampaign.contact_ids.map(() => "[contact_id]"),
-                  recipients: preparedCampaign.recipients.map(() => ({ contact_id: "[contact_id]", name: "[name]", phone: "[phone]", email: "[email]" })),
-                }, null, 2)}</pre>
-                <p className="mt-1 text-xs text-amber-800">Contact IDs are masked in this preview. The prepared request retains the real IDs in memory for the future n8n dispatcher.</p>
-              </details>
+            <div role="status" className="space-y-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+              <div className="flex items-center gap-2 font-semibold"><CheckCircle2 size={17} /> n8n acknowledged receipt</div>
+              <p>{preparedCampaign.recipient_count} unique recipients queued across {preparedCampaign.channels.join(", ")}. This is an acceptance receipt, not a delivery confirmation.</p>
+              <p className="break-all text-xs text-emerald-800">Campaign ID: {preparedCampaign.campaign_id}</p>
+              <p className="text-xs text-emerald-800">Final delivery status will be recorded in Notifications when n8n calls the delivery callback.</p>
             </div>
           )}
           <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
             <button type="button" onClick={() => setIsCampaignOpen(false)} disabled={isPreparingCampaign} className={buttonClass + " border border-slate-200 text-slate-700"}>Close</button>
             <button type="submit" disabled={isPreparingCampaign || campaignGroupIds.length === 0 || channels.length === 0 || !message.trim() || campaignEligibleRecipientCount === 0} className={buttonClass + " bg-emerald-600 text-white hover:bg-emerald-700"}>
-              <Megaphone size={16} /> {isPreparingCampaign ? "Preparing…" : "Send campaign"}
+              {isPreparingCampaign ? <RefreshCw size={16} className="animate-spin" /> : <Megaphone size={16} />} {isPreparingCampaign ? "Waiting for n8n acknowledgement…" : "Send campaign"}
             </button>
           </div>
         </form>
