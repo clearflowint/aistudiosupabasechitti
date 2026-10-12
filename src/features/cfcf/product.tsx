@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import type { ProductDefinition } from "../../core/products/product.types";
 import { FeatureModulePage } from "../../components/workspace/FeatureModulePage";
+import { ContactsPage } from "./pages/ContactsPage";
 import { resolveCfcfWorkspace } from "./services/access.service";
 
 export const cfcfProduct: ProductDefinition = {
@@ -63,7 +64,8 @@ export const cfcfProduct: ProductDefinition = {
     },
   ],
   resolveWorkspace: resolveCfcfWorkspace,
-  renderPage: (navigationItem, workspace) => (
-    <FeatureModulePage navigationItem={navigationItem} workspace={workspace} />
-  ),
+  // MIX: Wire the first real feature while keeping the shared shell unchanged.
+  renderPage: (navigationItem, workspace) => navigationItem.id === "contacts"
+    ? <ContactsPage workspace={workspace} />
+    : <FeatureModulePage navigationItem={navigationItem} workspace={workspace} />,
 };
