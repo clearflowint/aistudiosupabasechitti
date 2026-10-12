@@ -59,10 +59,54 @@ export async function createCfcfContact(
     .single();
 
   if (error) {
+    if (error.code === "23505") {
+      throw new Error("A contact with this mobile number already exists in this workspace.");
+    }
     if (error.code === "42501") {
       throw new Error("Supabase did not permit this contact to be added. Check the workspace access policy.");
     }
     throw new Error("Unable to add contact: " + error.message);
+  }
+
+  return data as CfcfContactRow;
+}
+
+export async function updateCfcfContact(
+  tenantId: string,
+  contactId: string,
+  input: CreateContactInput,
+): Promise<CfcfContactRow> {
+  const name = input.name.trim();
+  if (!name) throw new Error("Enter the contact's name.");
+
+  const phone = normalizeIndianPhone(input.phone);
+  const email = input.email?.trim().toLowerCase() || null;
+  if (email && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {
+    throw new Error("Enter a valid email address or leave it blank.");
+  }
+
+  const { data, error } = await supabase
+    .from("contacts")
+    .update({
+      name,
+      phone,
+      email,
+      remarks: input.remarks?.trim() || null,
+    })
+    .eq("product_id", cfcfConfig.productId)
+    .eq("tenant_id", tenantId)
+    .eq("contact_id", contactId)
+    .select(CONTACT_FIELDS)
+    .single();
+
+  if (error) {
+    if (error.code === "23505") {
+      throw new Error("A contact with this mobile number already exists in this workspace.");
+    }
+    if (error.code === "42501") {
+      throw new Error("Supabase did not permit this contact to be updated. Check the workspace access policy.");
+    }
+    throw new Error("Unable to update contact: " + error.message);
   }
 
   return data as CfcfContactRow;
