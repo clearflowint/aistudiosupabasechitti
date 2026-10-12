@@ -6,7 +6,7 @@ import {
   ShieldCheck,
   Users,
 } from "lucide-react";
-import type { AuthorizedWorkspace } from "../../features/cfcf/services/access.service";
+import type { AuthorizedWorkspace } from "../../core/workspace/workspace.types";
 import type { WorkspacePage } from "./workspace.types";
 
 type WorkspaceSection = {
@@ -55,7 +55,6 @@ export function WorkspaceIdentity({ workspace }: { workspace: AuthorizedWorkspac
         <div>
           <div className="text-xs text-slate-500">Tenant ID</div>
           <div className="mt-1 break-all font-mono text-xs">{workspace.tenantId}</div>
-          <div className="mt-1 text-xs text-slate-500">Person ID: {workspace.personId}</div>
         </div>
       </div>
     </section>
