@@ -2,7 +2,7 @@
 // MIX: Uses shared workspace identity, existing database types, and the existing contacts service.
 // SKELETON: All financial values shown here are stored values; no balances or totals are calculated in the UI.
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import {
   ArrowDownLeft,
   ArrowUpRight,
@@ -10,13 +10,16 @@ import {
   ChevronRight,
   CreditCard,
   Layers3,
+  Plus,
   RefreshCw,
   UsersRound,
   WalletCards,
 } from "lucide-react";
 import type { AuthorizedWorkspace } from "../../../core/workspace/workspace.types";
+import { Modal } from "../../../components/ui/Modal";
 import { listCfcfContacts } from "../services/contacts.service";
 import {
+  createCfcfFund,
   listCfcfFunds,
   listCfcfLedgerItems,
   listCfcfShares,
@@ -30,6 +33,8 @@ type WorkspaceTab = "funds" | "cycles" | "shares" | "ledger";
 interface WorkspacePageProps {
   workspace: AuthorizedWorkspace;
 }
+
+const emptyFundForm = { fundName: "", startDate: "", numberOfCycles: "", numberOfShares: "" };
 
 const workspaceTabs: { id: WorkspaceTab; label: string; icon: typeof Layers3 }[] = [
   { id: "funds", label: "Funds", icon: Layers3 },
@@ -53,6 +58,11 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [detailsError, setDetailsError] = useState<string | null>(null);
   const [fundReloadKey, setFundReloadKey] = useState(0);
   const [detailReloadKey, setDetailReloadKey] = useState(0);
+  const [isFundModalOpen, setIsFundModalOpen] = useState(false);
+  const [isSavingFund, setIsSavingFund] = useState(false);
+  const [fundForm, setFundForm] = useState(emptyFundForm);
+  const [fundFormError, setFundFormError] = useState<string | null>(null);
+  const [fundNotice, setFundNotice] = useState<string | null>(null);
   const lastTenantId = useRef(workspace.tenantId);
 
   const selectedFund = useMemo(
@@ -141,6 +151,57 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     return () => { isCurrent = false; };
   }, [workspace.tenantId, selectedFundId, activeTab, detailReloadKey]);
 
+  function openFundModal() {
+    setFundForm(emptyFundForm);
+    setFundFormError(null);
+    setFundNotice(null);
+    setIsFundModalOpen(true);
+  }
+
+  function closeFundModal() {
+    if (isSavingFund) return;
+    setIsFundModalOpen(false);
+    setFundForm(emptyFundForm);
+    setFundFormError(null);
+  }
+
+  async function handleCreateFund(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setFundFormError(null);
+
+    const numberOfCycles = fundForm.numberOfCycles.trim() ? Number(fundForm.numberOfCycles) : null;
+    const numberOfShares = fundForm.numberOfShares.trim() ? Number(fundForm.numberOfShares) : null;
+
+    if (numberOfCycles !== null && (!Number.isSafeInteger(numberOfCycles) || numberOfCycles < 1)) {
+      setFundFormError("Cycle count must be a positive whole number.");
+      return;
+    }
+    if (numberOfShares !== null && (!Number.isSafeInteger(numberOfShares) || numberOfShares < 1)) {
+      setFundFormError("Share count must be a positive whole number.");
+      return;
+    }
+
+    setIsSavingFund(true);
+    try {
+      const created = await createCfcfFund(workspace.tenantId, workspace.personId, {
+        fundName: fundForm.fundName,
+        startDate: fundForm.startDate,
+        numberOfCycles,
+        numberOfShares,
+      });
+      setFunds((current) => [created, ...current].sort((a, b) => b.created_at.localeCompare(a.created_at)));
+      setSelectedFundId(created.fund_id);
+      setActiveTab("funds");
+      setFundNotice("Fund created successfully. Its stored details are shown below.");
+      setIsFundModalOpen(false);
+      setFundForm(emptyFundForm);
+    } catch (error) {
+      setFundFormError(error instanceof Error ? error.message : "Unable to create fund.");
+    } finally {
+      setIsSavingFund(false);
+    }
+  }
+
   function openFundTab(fundId: string, tab: WorkspaceTab) {
     setSelectedFundId(fundId);
     setSelectedShareId(null);
@@ -173,15 +234,24 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               Choose a fund, then open its cycles, shares, or ledger.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => setFundReloadKey((current) => current + 1)}
-            disabled={isLoadingFunds}
-            aria-label="Refresh funds"
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-200 text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
-          >
-            <RefreshCw size={17} className={isLoadingFunds ? "animate-spin" : ""} />
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={openFundModal}
+              className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-sky-600 px-3 text-sm font-semibold text-white transition hover:bg-sky-700"
+            >
+              <Plus size={16} /> New fund
+            </button>
+            <button
+              type="button"
+              onClick={() => setFundReloadKey((current) => current + 1)}
+              disabled={isLoadingFunds}
+              aria-label="Refresh funds"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-200 text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+            >
+              <RefreshCw size={17} className={isLoadingFunds ? "animate-spin" : ""} />
+            </button>
+          </div>
         </div>
 
         <div role="tablist" aria-label="Workspace sections" className="mt-4 grid grid-cols-4 gap-1 rounded-2xl bg-slate-100 p-1">
@@ -208,6 +278,12 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         </div>
       </section>
 
+      {fundNotice && (
+        <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          {fundNotice}
+        </div>
+      )}
+
       {fundsError && (
         <section role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
           <p className="font-semibold">Funds could not be loaded</p>
@@ -226,7 +302,16 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         <EmptyState
           icon={<WalletCards size={22} />}
           title="Your fund workspace is ready"
-          description="No funds have been added to this workspace yet. The next wiring step is the fund setup modal, using the existing CFCF schema."
+          description="Create your first fund. Cycle counts and share counts are saved as setup inputs; totals are not calculated by the screen."
+          action={
+            <button
+              type="button"
+              onClick={openFundModal}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white hover:bg-sky-700"
+            >
+              <Plus size={16} /> Create first fund
+            </button>
+          }
         />
       ) : selectedFund ? (
         <>
@@ -484,6 +569,87 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           )}
         </>
       ) : null}
+
+      <Modal
+        isOpen={isFundModalOpen}
+        title="Create a fund"
+        description="Enter the setup details that should be stored for this fund. You can review cycles and shares inside the workspace."
+        onClose={closeFundModal}
+      >
+        <form onSubmit={(event) => void handleCreateFund(event)} className="space-y-4">
+          <div>
+            <label htmlFor="fund-name" className="mb-1.5 block text-sm font-medium text-slate-700">
+              Fund name <span className="text-rose-500">*</span>
+            </label>
+            <input
+              id="fund-name"
+              value={fundForm.fundName}
+              onChange={(event) => setFundForm((current) => ({ ...current, fundName: event.target.value }))}
+              required
+              autoFocus
+              maxLength={120}
+              placeholder="Enter a name for this fund"
+              className="min-h-11 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+            />
+          </div>
+          <div>
+            <label htmlFor="fund-start-date" className="mb-1.5 block text-sm font-medium text-slate-700">Start date <span className="text-slate-400">(optional)</span></label>
+            <input
+              id="fund-start-date"
+              type="date"
+              value={fundForm.startDate}
+              onChange={(event) => setFundForm((current) => ({ ...current, startDate: event.target.value }))}
+              className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="min-w-0">
+              <label htmlFor="fund-cycle-count" className="mb-1.5 block text-sm font-medium text-slate-700">Cycle count</label>
+              <input
+                id="fund-cycle-count"
+                type="number"
+                inputMode="numeric"
+                min="1"
+                step="1"
+                value={fundForm.numberOfCycles}
+                onChange={(event) => setFundForm((current) => ({ ...current, numberOfCycles: event.target.value }))}
+                placeholder="Optional"
+                className="min-h-11 w-full min-w-0 rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+              />
+            </div>
+            <div className="min-w-0">
+              <label htmlFor="fund-share-count" className="mb-1.5 block text-sm font-medium text-slate-700">Share count</label>
+              <input
+                id="fund-share-count"
+                type="number"
+                inputMode="numeric"
+                min="1"
+                step="1"
+                value={fundForm.numberOfShares}
+                onChange={(event) => setFundForm((current) => ({ ...current, numberOfShares: event.target.value }))}
+                placeholder="Optional"
+                className="min-h-11 w-full min-w-0 rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+              />
+            </div>
+          </div>
+          <p className="rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-500">
+            These fields are saved as entered. ClearFlow does not calculate payout amounts, commissions, or balances when creating a fund.
+          </p>
+          {fundFormError && (
+            <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm leading-5 text-rose-800">
+              {fundFormError}
+            </div>
+          )}
+          <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
+            <button type="button" onClick={closeFundModal} disabled={isSavingFund} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+              Cancel
+            </button>
+            <button type="submit" disabled={isSavingFund} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60">
+              <Plus size={16} /> {isSavingFund ? "Saving…" : "Save fund"}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
@@ -497,12 +663,13 @@ function StoredValue({ label, value }: { label: string; value: string | number }
   );
 }
 
-function EmptyState({ icon, title, description }: { icon: ReactNode; title: string; description: string }) {
+function EmptyState({ icon, title, description, action }: { icon: ReactNode; title: string; description: string; action?: ReactNode }) {
   return (
     <section className="rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-10 text-center">
       <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-sky-50 text-sky-700">{icon}</div>
       <h3 className="mt-4 text-base font-semibold text-slate-900">{title}</h3>
       <p className="mx-auto mt-2 max-w-sm break-words text-sm leading-6 text-slate-500">{description}</p>
+      {action && <div className="mt-5 flex justify-center">{action}</div>}
     </section>
   );
 }
