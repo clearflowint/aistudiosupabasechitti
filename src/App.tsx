@@ -448,7 +448,7 @@ function DatabaseStatus({ status }: { status: ConnectionStatus | null }) {
   );
 }
 
-function toAuthenticatedUser(user: { id: string; email?: string } | null): AuthenticatedUser | null {
+function toAuthenticatedUser(user: { email?: string } | null): AuthenticatedUser | null {
   return user?.email ? { email: user.email } : null;
 }
 
