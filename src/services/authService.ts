@@ -9,129 +9,77 @@ export interface AuthState {
 
 export const authService = {
   async getSession() {
-    try {
-      const { data, error } = await supabase.auth.getSession();
-      if (error) throw error;
-      return data.session;
-    } catch (err) {
-      console.warn("Could not get Supabase session:", err);
-      return null;
-    }
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    return data.session;
   },
 
   async getCurrentUser() {
-    try {
-      const { data, error } = await supabase.auth.getUser();
-      if (error) throw error;
-      return data.user;
-    } catch (err) {
-      return null;
-    }
+    const { data, error } = await supabase.auth.getUser();
+    if (error) return null;
+    return data.user;
   },
 
   async signInWithGoogle(): Promise<{ error?: string }> {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: {
-          redirectTo: window.location.origin,
-        },
+        options: { redirectTo: window.location.origin },
       });
       if (error) return { error: error.message };
       return {};
     } catch (err: any) {
-      return { error: err.message || "Google sign-in failed" };
+      return { error: err?.message || "Google sign-in failed" };
     }
   },
 
-  async verifyManager(email: string): Promise<{ authorized: boolean; email?: string; message?: string }> {
-    if (!email) {
-      return { authorized: false, message: "Email is required." };
+  // Authorization must come from a real Supabase session and an active whitelist row.
+  // Never grant access because a query failed or because the user supplied an email.
+  async verifyManager(email?: string): Promise<{ authorized: boolean; email?: string; tenantId?: string; message?: string }> {
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    const user = userData?.user;
+    if (userError || !user?.email) {
+      return { authorized: false, message: "Please sign in with Google first." };
     }
-    const cleanEmail = email.trim().toLowerCase();
 
-    try {
-      // 1. Check if manager exists in Supabase 'tenants' table
-      const { data: tenants, error: tenantErr } = await supabase
-        .from("tenants")
-        .select("tenant_id, name, status")
-        .or(`tenant_id.ilike.${cleanEmail},name.ilike.%${cleanEmail}%`);
-
-      if (!tenantErr && tenants && tenants.length > 0) {
-        const matching = tenants.find(
-          (t: any) =>
-            t.tenant_id?.toLowerCase() === cleanEmail ||
-            t.status === "active"
-        );
-        if (matching) {
-          return { authorized: true, email: matching.tenant_id || cleanEmail };
-        }
-      }
-
-      // 2. Check current Supabase authenticated user session
-      const { data: userData } = await supabase.auth.getUser();
-      if (userData?.user?.email?.toLowerCase() === cleanEmail) {
-        return { authorized: true, email: cleanEmail };
-      }
-
-      // 3. Fallback: Check if there are any existing chittis created by this tenant
-      const { data: chittis } = await supabase
-        .from("chittis")
-        .select("tenant_id")
-        .eq("tenant_id", cleanEmail)
-        .limit(1);
-
-      if (chittis && chittis.length > 0) {
-        return { authorized: true, email: cleanEmail };
-      }
-
-      // If registered or known manager account
-      return { authorized: true, email: cleanEmail };
-    } catch (err: any) {
-      console.warn("Tenant verification fallback:", err);
-      return { authorized: true, email: cleanEmail };
+    const cleanEmail = user.email.trim().toLowerCase();
+    if (email && email.trim().toLowerCase() !== cleanEmail) {
+      return { authorized: false, message: "The signed-in account could not be verified." };
     }
+
+    const { data, error } = await supabase
+      .from("global_access_list")
+      .select("tenant_id, status, access_type, product_id, email")
+      .eq("product_id", "CFCF")
+      .eq("status", "active")
+      .eq("access_type", "tenantowner")
+      .ilike("email", cleanEmail)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Manager whitelist verification failed:", error);
+      return { authorized: false, message: "Could not verify access with the database. Please try again." };
+    }
+    if (!data?.tenant_id) {
+      return { authorized: false, message: "This Google account is not authorized for the CFCF manager workspace." };
+    }
+
+    return { authorized: true, email: cleanEmail, tenantId: data.tenant_id };
   },
 
   async getTenants(): Promise<Tenant[]> {
-    try {
-      const { data, error } = await supabase
-        .from("tenants")
-        .select("tenant_id, name")
-        .eq("status", "active");
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData.user?.email) return [];
 
-      if (error || !data || data.length === 0) {
-        // Return existing active managers from stored session or tenant table
-        const stored = localStorage.getItem("clearflow_manager_email");
-        if (stored) {
-          return [{ manager_email: stored, name: stored.split("@")[0] }];
-        }
-        return [
-          { manager_email: "mahirocks66@gmail.com", name: "Mahi Rocks" },
-          { manager_email: "manager.apex@chits.com", name: "Apex Manager" },
-          { manager_email: "clearflowint@gmail.com", name: "ClearFlow International" },
-        ];
-      }
-
-      return data.map((t: any) => ({
-        manager_email: t.tenant_id,
-        name: t.name || t.tenant_id,
-      }));
-    } catch (err) {
-      return [
-        { manager_email: "mahirocks66@gmail.com", name: "Mahi Rocks" },
-        { manager_email: "manager.apex@chits.com", name: "Apex Manager" },
-      ];
-    }
+    const result = await this.verifyManager(userData.user.email);
+    if (!result.authorized || !result.email) return [];
+    return [{ manager_email: result.email, name: result.email.split("@")[0] }];
   },
 
   async signOut() {
-    try {
-      await supabase.auth.signOut();
-    } catch (e) {
-      // ignore
-    }
+    await supabase.auth.signOut();
     localStorage.removeItem("clearflow_manager_email");
     localStorage.removeItem("clearflow_tenant_id");
+    localStorage.removeItem("clearflow_view");
   },
 };
