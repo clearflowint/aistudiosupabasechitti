@@ -2,11 +2,11 @@
 // MIX: Reuses the shared Modal and the workspace identity supplied by the neutral app shell.
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { ContactRound, Mail, MessageCircle, Phone, Plus, RefreshCw, Search, UsersRound, Pencil } from "lucide-react";
+import { ContactRound, Mail, MessageCircle, Phone, Plus, RefreshCw, Search, UsersRound, Pencil, Trash2 } from "lucide-react";
 import type { AuthorizedWorkspace } from "../../../core/workspace/workspace.types";
 import { Modal } from "../../../components/ui/Modal";
 import type { CfcfContactRow } from "../types/database.types";
-import { createCfcfContact, listCfcfContacts, updateCfcfContact } from "../services/contacts.service";
+import { createCfcfContact, deleteCfcfContact, listCfcfContacts, updateCfcfContact } from "../services/contacts.service";
 
 interface ContactsPageProps {
   workspace: AuthorizedWorkspace;
@@ -22,6 +22,9 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
   const [search, setSearch] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<CfcfContactRow | null>(null);
+  const [deletingContact, setDeletingContact] = useState<CfcfContactRow | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -95,6 +98,22 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
       remarks: contact.remarks ?? "",
     });
     setIsModalOpen(true);
+  }
+
+  async function handleDeleteContact() {
+    if (!deletingContact || isDeleting) return;
+    setDeleteError(null);
+    setIsDeleting(true);
+    try {
+      await deleteCfcfContact(workspace.tenantId, deletingContact.contact_id);
+      setContacts((current) => current.filter((contact) => contact.contact_id !== deletingContact.contact_id));
+      setNotice("Contact deleted.");
+      setDeletingContact(null);
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "Unable to delete contact.");
+    } finally {
+      setIsDeleting(false);
+    }
   }
 
   async function handleImportContacts() {
@@ -320,13 +339,20 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
                 )}
               </div>
 
-              <div className="mt-3 grid grid-cols-3 gap-2">
+              <div className="mt-3 grid grid-cols-4 gap-2">
                 <button
                   type="button"
                   onClick={() => openEditModal(contact)}
                   className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
                 >
                   <Pencil size={14} /> Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setDeleteError(null); setDeletingContact(contact); }}
+                  className="inline-flex min-h-10 items-center justify-center gap-1 rounded-xl border border-rose-200 bg-rose-50 px-1.5 text-xs font-semibold text-rose-800 transition hover:bg-rose-100"
+                >
+                  <Trash2 size={14} /> Delete
                 </button>
                 <a
                   href={"tel:" + contact.phone}
@@ -433,6 +459,43 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
             </button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        isOpen={Boolean(deletingContact)}
+        title="Delete contact?"
+        description="This permanently removes the contact only if no existing Share uses it."
+        onClose={() => { if (!isDeleting) { setDeletingContact(null); setDeleteError(null); } }}
+      >
+        <div className="space-y-4">
+          <p className="text-sm leading-6 text-slate-600">
+            {deletingContact ? <>Delete <strong className="text-slate-900">{deletingContact.name}</strong> from this workspace?</> : "Choose a contact to delete."}
+            {" "}Contacts linked to existing Shares cannot be deleted, so their records remain intact.
+          </p>
+          {deleteError && (
+            <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm leading-5 text-rose-800">
+              {deleteError}
+            </div>
+          )}
+          <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
+            <button
+              type="button"
+              onClick={() => { setDeletingContact(null); setDeleteError(null); }}
+              disabled={isDeleting}
+              className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleDeleteContact()}
+              disabled={isDeleting}
+              className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Trash2 size={16} /> {isDeleting ? "Deleting…" : "Delete contact"}
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   );
