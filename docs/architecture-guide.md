@@ -16,7 +16,7 @@
 ## Ownership markers — use consistently
 
 - `// SKELETON:` Universal, product-neutral contracts, utilities, layout, or reusable UI primitives. Must not encode CFCF table names, share/fund terminology, or CFCF financial rules.
-- `// CFCF PRODUCT:` CFCF-specific UI, types, queries, validation, schema mapping, and chitti business operations.
+- `// CFCF PRODUCT:` CFCF-specific UI, types, queries, validation, schema mapping, and CFCF business operations.
 - `// MIX:` An intentional boundary where generic infrastructure receives product-provided configuration, navigation, identity, or rendering. Keep these integration points small and explicit.
 
 Markers describe ownership, not merely the technology used. A TypeScript interface is not automatically skeleton: database row interfaces are CFCF PRODUCT; the generic authorized-workspace contract is SKELETON.
