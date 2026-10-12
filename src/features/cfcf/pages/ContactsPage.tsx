@@ -271,7 +271,7 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
         </div>
       </section>
 
-      <ContactGroupsPanel workspace={workspace} contacts={contacts} />
+      <ContactGroupsPanel workspace={workspace} contacts={contacts} contactsLoaded={!isLoading && !loadError} />
 
       {notice && (
         <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
