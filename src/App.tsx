@@ -155,10 +155,10 @@ function LoadingScreen({ message }: { message: string }) {
 
 export default function App() {
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
-  const currentEmail = useRef<string | null>(null);
+  const authenticatedEmailRef = useRef<string | null>(null);
   const [workspace, setWorkspace] = useState<AuthorizedWorkspace | null>(null);
   const [activePage, setActivePage] = useState<WorkspacePage>("overview");
-  const [isRestoringSession, setIsRestoringSession] = useState(true);
+  const [isLoadingWorkspace, setIsRestoringSession] = useState(true);
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [databaseStatus, setDatabaseStatus] = useState<ConnectionStatus | null>(null);
@@ -170,7 +170,7 @@ export default function App() {
     void authService.getCurrentUser().then((currentUser) => {
       if (!isMounted) return;
       const authenticatedUser = toAuthenticatedUser(currentUser);
-      currentEmail.current = authenticatedUser?.email ?? null;
+      authenticatedEmailRef.current = authenticatedUser?.email ?? null;
       setUser(authenticatedUser);
     }).finally(() => {
       if (isMounted) setIsRestoringSession(false);
@@ -181,8 +181,8 @@ export default function App() {
       const authenticatedUser = toAuthenticatedUser(currentUser);
       const nextEmail = authenticatedUser?.email ?? null;
 
-      if (currentEmail.current !== nextEmail) {
-        currentEmail.current = nextEmail;
+      if (authenticatedEmailRef.current !== nextEmail) {
+        authenticatedEmailRef.current = nextEmail;
         setWorkspace(null);
         setDatabaseStatus(null);
         setErrorMessage(null);
@@ -273,7 +273,7 @@ export default function App() {
     }
   }
 
-  if (isRestoringSession && !workspace && !errorMessage) {
+  if (isLoadingWorkspace && !workspace && !errorMessage) {
     return <LoadingScreen message="Restoring secure session…" />;
   }
 
@@ -307,7 +307,7 @@ export default function App() {
     );
   }
 
-  if (isRestoringSession || !workspace) {
+  if (isLoadingWorkspace || !workspace) {
     return <LoadingScreen message="Loading authorized workspace…" />;
   }
 
