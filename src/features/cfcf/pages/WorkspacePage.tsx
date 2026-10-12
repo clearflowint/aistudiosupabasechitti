@@ -2,12 +2,11 @@
 // MIX: Uses shared workspace identity, existing database types, contacts service, and shared Modal patterns.
 // SKELETON: All financial values shown here are stored values; no balances or totals are calculated in the UI.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ArrowDownLeft,
   ArrowUpRight,
   CalendarDays,
-  CheckCircle2,
   ChevronRight,
   CreditCard,
   Layers3,
@@ -51,43 +50,53 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [selectedShareId, setSelectedShareId] = useState<string | null>(null);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
   const [detailsError, setDetailsError] = useState<string | null>(null);
+  const [fundReloadKey, setFundReloadKey] = useState(0);
+  const [detailReloadKey, setDetailReloadKey] = useState(0);
+  const lastTenantId = useRef(workspace.tenantId);
 
   const selectedFund = useMemo(
     () => funds.find((fund) => fund.fund_id === selectedFundId) ?? null,
     [funds, selectedFundId],
   );
 
-  async function loadFunds() {
+  // MIX: Discard previous-tenant data and ignore stale responses after a tenant switch.
+  useEffect(() => {
+    let isCurrent = true;
+    const tenantChanged = lastTenantId.current !== workspace.tenantId;
+    lastTenantId.current = workspace.tenantId;
+
+    if (tenantChanged) {
+      setFunds([]);
+      setShares([]);
+      setContacts([]);
+      setLedgerItems([]);
+      setSelectedShareId(null);
+      setSelectedFundId("");
+      setActiveTab("funds");
+    }
+
     setIsLoadingFunds(true);
     setFundsError(null);
-    try {
-      const rows = await listCfcfFunds(workspace.tenantId);
-      setFunds(rows);
-      setSelectedFundId((current) =>
-        rows.some((fund) => fund.fund_id === current) ? current : rows[0]?.fund_id ?? "",
-      );
-    } catch (error) {
-      setFunds([]);
-      setSelectedFundId("");
-      setFundsError(error instanceof Error ? error.message : "Unable to load funds.");
-    } finally {
-      setIsLoadingFunds(false);
-    }
-  }
+    void listCfcfFunds(workspace.tenantId)
+      .then((rows) => {
+        if (!isCurrent) return;
+        setFunds(rows);
+        setSelectedFundId((current) =>
+          rows.some((fund) => fund.fund_id === current) ? current : rows[0]?.fund_id ?? "",
+        );
+      })
+      .catch((error: unknown) => {
+        if (!isCurrent) return;
+        setFunds([]);
+        setSelectedFundId("");
+        setFundsError(error instanceof Error ? error.message : "Unable to load funds.");
+      })
+      .finally(() => {
+        if (isCurrent) setIsLoadingFunds(false);
+      });
 
-  // MIX: Discard the previous tenant's UI data before resolving the next tenant's funds.
-  useEffect(() => {
-    setFunds([]);
-    setShares([]);
-    setContacts([]);
-    setLedgerItems([]);
-    setSelectedShareId(null);
-    setSelectedFundId("");
-    setActiveTab("funds");
-    void loadFunds();
-    // loadFunds is intentionally scoped to the tenant identity.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspace.tenantId]);
+    return () => { isCurrent = false; };
+  }, [workspace.tenantId, fundReloadKey]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -96,7 +105,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     setContacts([]);
     setLedgerItems([]);
     setDetailsError(null);
-    setSelectedShareId(null);
 
     if (!selectedFundId || (activeTab !== "shares" && activeTab !== "ledger")) {
       setIsLoadingDetails(false);
@@ -129,7 +137,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
 
     void loadDetails();
     return () => { isCurrent = false; };
-  }, [workspace.tenantId, selectedFundId, activeTab]);
+  }, [workspace.tenantId, selectedFundId, activeTab, detailReloadKey]);
 
   function openFundTab(fundId: string, tab: WorkspaceTab) {
     setSelectedFundId(fundId);
@@ -165,7 +173,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           </div>
           <button
             type="button"
-            onClick={() => void loadFunds()}
+            onClick={() => setFundReloadKey((current) => current + 1)}
             disabled={isLoadingFunds}
             aria-label="Refresh funds"
             className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-200 text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
@@ -350,7 +358,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               {isLoadingDetails ? (
                 <LoadingCard message="Loading shares…" />
               ) : detailsError ? (
-                <ErrorCard message={detailsError} onRetry={() => setActiveTab("funds")} />
+                <ErrorCard message={detailsError} onRetry={() => setDetailReloadKey((current) => current + 1)} />
               ) : shares.length === 0 ? (
                 <EmptyState icon={<UsersRound size={22} />} title="No shares in this fund yet" description="When shares are created, each share will appear here with its contact, saved billing entries, payment status, and payout details." />
               ) : (
@@ -472,7 +480,7 @@ function StoredValue({ label, value }: { label: string; value: string | number }
   );
 }
 
-function EmptyState({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
+function EmptyState({ icon, title, description }: { icon: ReactNode; title: string; description: string }) {
   return (
     <section className="rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-10 text-center">
       <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-sky-50 text-sky-700">{icon}</div>
