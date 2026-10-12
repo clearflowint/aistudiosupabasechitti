@@ -24,11 +24,19 @@ export interface CfcfContactGroupMemberRow {
 
 export type CfcfCampaignChannel = "whatsapp" | "sms" | "email";
 
+export interface CfcfCampaignRecipient {
+  contact_id: string;
+  name: string;
+  phone: string;
+  email: string | null;
+}
+
 export interface CfcfCampaignRequest {
   product_id: "CFCF";
   tenant_id: string;
   group_ids: string[];
   contact_ids: string[];
+  recipients: CfcfCampaignRecipient[];
   channels: CfcfCampaignChannel[];
   message: string;
 }
@@ -52,20 +60,31 @@ export async function listCfcfContactGroups(tenantId: string): Promise<CfcfConta
 }
 
 export async function listCfcfGroupMembers(tenantId: string, groupIds?: string[]): Promise<CfcfContactGroupMemberRow[]> {
-  let query = supabase
-    .from("contact_group_members")
-    .select("group_id, contact_id, product_id, tenant_id, created_at")
-    .eq("product_id", cfcfConfig.productId)
-    .eq("tenant_id", tenantId);
+  if (groupIds && groupIds.length === 0) return [];
+  const rows: CfcfContactGroupMemberRow[] = [];
+  const pageSize = 1000;
 
-  if (groupIds) {
-    if (groupIds.length === 0) return [];
-    query = query.in("group_id", groupIds);
+  // Supabase REST responses are paginated so large audiences are not silently truncated.
+  for (let offset = 0; ; offset += pageSize) {
+    let query = supabase
+      .from("contact_group_members")
+      .select("group_id, contact_id, product_id, tenant_id, created_at")
+      .eq("product_id", cfcfConfig.productId)
+      .eq("tenant_id", tenantId)
+      .order("group_id", { ascending: true })
+      .order("contact_id", { ascending: true })
+      .range(offset, offset + pageSize - 1);
+
+    if (groupIds) query = query.in("group_id", groupIds);
+
+    const { data, error } = await query;
+    if (error) throw new Error("Unable to load Contact Group members: " + error.message);
+    const page = (data ?? []) as CfcfContactGroupMemberRow[];
+    rows.push(...page);
+    if (page.length < pageSize) break;
   }
 
-  const { data, error } = await query;
-  if (error) throw new Error("Unable to load Contact Group members: " + error.message);
-  return (data ?? []) as CfcfContactGroupMemberRow[];
+  return rows;
 }
 
 export async function createCfcfContactGroup(
@@ -193,12 +212,33 @@ export async function prepareCfcfCampaignRequest(
   const contactIds = [...new Set(memberships.map((membership) => membership.contact_id))];
   if (contactIds.length === 0) throw new Error("The selected groups do not contain any contacts.");
 
-  // Only pass IDs belonging to selected groups in the current tenant/product.
+  // Include delivery addresses for n8n, but only after tenant-scoped IDs have been resolved.
+  // Chunk requests so a large audience does not exceed URL/query limits.
+  const recipients: CfcfCampaignRequest["recipients"] = [];
+  for (let offset = 0; offset < contactIds.length; offset += 500) {
+    const idChunk = contactIds.slice(offset, offset + 500);
+    const { data, error } = await supabase
+      .from("contacts")
+      .select("contact_id, name, phone, email")
+      .eq("product_id", cfcfConfig.productId)
+      .eq("tenant_id", tenantId)
+      .in("contact_id", idChunk);
+
+    if (error) throw new Error("Unable to resolve campaign recipients: " + error.message);
+    recipients.push(...((data ?? []) as CfcfCampaignRequest["recipients"]));
+  }
+
+  if (recipients.length !== contactIds.length) {
+    throw new Error("Some selected Contacts are no longer available. Refresh the groups and try again.");
+  }
+
+  // The future n8n request includes unique IDs plus current recipient delivery details.
   return {
     product_id: cfcfConfig.productId,
     tenant_id: tenantId,
     group_ids: selectedGroupIds,
     contact_ids: contactIds,
+    recipients,
     channels: selectedChannels,
     message: trimmedMessage,
   };
