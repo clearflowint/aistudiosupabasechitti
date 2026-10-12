@@ -15,7 +15,7 @@ This is a measured source-file subset, not a claim about every file in the repos
 - Replaced `src/App.tsx`: **1,142 → 167 lines** (975 fewer).
 - Replaced `src/components/LandingPage.tsx`: **158 → 52 lines** (106 fewer).
 - Moved the CFCF database row types under `src/features/cfcf/types/database.types.ts`; this was a relocation, not a deletion.
-- The latest line-by-line pass measured **1,007 lines across 17 inspected files** (application source, PWA/build configuration, the audit document, and `.gitignore`). The 15 application/configuration files excluding this audit document and `.gitignore` total **957 lines**. This is still not a full-repository line count; an exhaustive root inventory is pending.
+- The latest line-by-line pass measured **1,013 lines across 18 inspected files** (application source, PWA/build configuration, the audit document, and `.gitignore`). The 15 application/configuration files excluding this audit document and `.gitignore` total **957 lines**. This is still not a full-repository line count; an exhaustive root inventory is pending.
 
 ## Architecture now in place
 
