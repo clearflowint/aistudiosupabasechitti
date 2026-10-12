@@ -10,7 +10,7 @@ interface LandingPageProps {
 export function LandingPage({ onSignIn, isLoading, errorMessage }: LandingPageProps) {
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-      <header className="border-b border-white/10 px-6 py-5">
+      <header className="border-b border-white/10 px-4 py-4 sm:px-6 sm:py-5">
         <div className="mx-auto flex max-w-6xl items-center gap-3">
           <div className="grid h-10 w-10 place-items-center rounded-xl bg-sky-500/15 text-sky-300">
             <Layers3 size={21} />
@@ -21,19 +21,19 @@ export function LandingPage({ onSignIn, isLoading, errorMessage }: LandingPagePr
           </div>
         </div>
       </header>
-      <section className="mx-auto flex w-full max-w-6xl flex-1 items-center px-6 py-16">
-        <div className="grid w-full gap-12 md:grid-cols-2 md:items-center">
+      <section className="mx-auto flex w-full max-w-6xl flex-1 items-center px-4 py-8 sm:px-6 sm:py-12 md:py-16">
+        <div className="grid w-full gap-7 sm:gap-10 md:grid-cols-2 md:items-center">
           <div>
             <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-sky-400/20 bg-sky-400/10 px-3 py-1.5 text-xs text-sky-200">
               <ShieldCheck size={14} /> Secure workspace access
             </div>
-            <h1 className="max-w-xl text-4xl font-bold tracking-tight sm:text-5xl">A clean foundation for your work.</h1>
+            <h1 className="max-w-xl break-words text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl">A clean foundation for your work.</h1>
             <p className="mt-5 max-w-lg text-base leading-7 text-slate-400">
               A reusable workspace with secure sign-in, clear navigation, and modular features.
               Business workflows live in separate feature modules.
             </p>
           </div>
-          <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-7 shadow-2xl shadow-black/20">
+          <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20 sm:p-7">
             <h2 className="text-lg font-semibold">Sign in to continue</h2>
             <p className="mt-2 text-sm leading-6 text-slate-400">Use the Google account authorized for this workspace.</p>
             {errorMessage && <div role="alert" className="mt-5 rounded-xl border border-rose-400/20 bg-rose-400/10 p-3 text-sm text-rose-200">{errorMessage}</div>}
@@ -46,7 +46,7 @@ export function LandingPage({ onSignIn, isLoading, errorMessage }: LandingPagePr
           </div>
         </div>
       </section>
-      <footer className="border-t border-white/10 px-6 py-5 text-center text-xs text-slate-500">ClearFlow · Reusable PWA foundation</footer>
+      <footer className="border-t border-white/10 px-4 py-4 text-center text-xs text-slate-500 sm:px-6 sm:py-5">ClearFlow · Reusable PWA foundation</footer>
     </main>
   );
 }
