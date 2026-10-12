@@ -1,5 +1,5 @@
-// CFCF PRODUCT: Workspace reads and fund setup writes against the existing CFCF tables.
-// MIX: Tenant identity is always passed from the shared, authorized workspace.
+// CFCF PRODUCT: CFCF workspace reads and fund mutations against the existing CFCF tables.
+// MIX: Receives tenant/person identity from the universal authorized workspace; enforce RLS and parent ownership in the database.
 
 import { supabase } from "../../../core/database/supabaseClient";
 import { cfcfConfig } from "../config/cfcf.config";
