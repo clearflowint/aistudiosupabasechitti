@@ -1,5 +1,5 @@
-// CFCF PRODUCT: CFCF navigation and authorization live here; page presentation is owned by feature modules.
-// MIX: The shared shell receives only these three top-level destinations.
+// CFCF PRODUCT: Defines CFCF's navigation, authorization, and product-specific page ownership.
+// MIX: Implements the universal product contract; the shared shell knows only neutral navigation and authorized identity.
 
 import { ContactRound, LayoutDashboard, WalletCards } from "lucide-react";
 import type { ProductDefinition } from "../../core/products/product.types";
