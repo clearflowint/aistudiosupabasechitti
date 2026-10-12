@@ -64,82 +64,114 @@ export const fundsService = {
   },
 
   async getFundDetails(fundId: string, tenantId: string, requestedMonth?: number): Promise<ChittiDetails> {
-    if (!fundId) throw new Error("Fund ID is required");
+    const authorizedTenantId = tenantId.trim();
+    if (!fundId.trim() || !authorizedTenantId) throw new Error("Fund ID and authorized tenant ID are required.");
 
-    // 1. Fetch fund master record
-    const { data: fundData, error: fundErr } = await supabase
-      .from("chittis")
+    const { data: fundRow, error: fundError } = await supabase
+      .from("cfcf_funds")
       .select("*")
-      .eq("chitti_id", fundId)
-      .single();
+      .eq("product_id", "CFCF")
+      .eq("tenant_id", authorizedTenantId)
+      .eq("fund_id", fundId)
+      .maybeSingle();
 
-    if (fundErr || !fundData) {
-      throw new Error(fundErr?.message || "Fund not found");
-    }
+    if (fundError) throw new Error(`Unable to load fund: ${fundError.message}`);
+    if (!fundRow) throw new Error("Fund not found for this authorized tenant.");
 
+    const [{ data: shareRows, error: sharesError }, { data: paymentRows, error: paymentsError }, { data: contactRows, error: contactsError }] = await Promise.all([
+      supabase.from("cfcf_shares").select("*").eq("product_id", "CFCF").eq("tenant_id", authorizedTenantId).eq("fund_id", fundId).order("created_at", { ascending: true }),
+      supabase.from("cfcf_payments").select("*").eq("product_id", "CFCF").eq("tenant_id", authorizedTenantId).eq("fund_id", fundId).order("entry_date", { ascending: false }),
+      supabase.from("contacts").select("contact_id, tenant_id, product_id, name, phone, email, remarks").eq("product_id", "CFCF").eq("tenant_id", authorizedTenantId),
+    ]);
+
+    if (sharesError) throw new Error(`Unable to load shares: ${sharesError.message}`);
+    if (paymentsError) throw new Error(`Unable to load payments: ${paymentsError.message}`);
+    if (contactsError) throw new Error(`Unable to load contacts: ${contactsError.message}`);
+
+    const contactsById = new Map((contactRows ?? []).map((contact: any) => [contact.contact_id, contact]));
+    const activeCycle = Math.max(1, requestedMonth ?? Number(fundRow.current_cycle ?? 1));
+    const payments = (paymentRows ?? []).map((row: any): Transaction => ({
+      tx_id: row.payment_id,
+      share_id: row.share_id,
+      chitti_id: row.fund_id,
+      tenant_id: row.tenant_id,
+      amount: Number(row.amount) || 0,
+      date_paid: row.entry_date,
+      payment_mode: row.payment_type || "Other",
+    }));
+
+    const members: MemberShare[] = (shareRows ?? []).map((row: any) => {
+      const contact: any = contactsById.get(row.contact_id);
+      const billed = Number(row.share_total_billed_amount) || 0;
+      const paid = Number(row.share_net_payment_received) || 0;
+      const billingValue = row.billing_entries?.[String(activeCycle)];
+      const currentDue = typeof billingValue === "number" || typeof billingValue === "string"
+        ? Number(billingValue) || 0
+        : Number(billingValue?.amount ?? billingValue?.billed_amount ?? 0) || 0;
+      const sharePayments = payments.filter((payment) => payment.share_id === row.share_id);
+      return {
+        share_id: row.share_id,
+        chitti_id: row.fund_id,
+        tenant_id: row.tenant_id,
+        member_name: contact?.name || "Member",
+        phone: contact?.phone || "",
+        win_month: row.payout_status === "drawn" ? Number(row.payout_cycle_number) || null : null,
+        status: row.payout_status || "undrawn",
+        monthly_due_current: currentDue,
+        total_billed: billed,
+        total_paid: paid,
+        net_balance: paid - billed,
+        pending_amount: Number(row.total_pending) || 0,
+        advance_amount: Number(row.total_advance) || 0,
+        transactions: sharePayments,
+      };
+    });
+
+    const totalMonths = Number(fundRow.number_of_cycles) || 0;
+    const totalMembers = Number(fundRow.number_of_shares) || members.length;
+    const schedule = Array.isArray(fundRow.cycle_payout_amounts) ? fundRow.cycle_payout_amounts : [];
+    const payoutValue = schedule[activeCycle - 1];
+    const payoutAmount = typeof payoutValue === "number" ? payoutValue : Number(payoutValue?.amount ?? payoutValue?.payout ?? 0) || 0;
     const fund: ChittiMaster = {
-      chitti_id: fundData.chitti_id || fundData.id,
-      tenant_id: fundData.tenant_id,
-      formula_id: fundData.formula_id || "standard_chit_v1",
-      name: fundData.name,
-      start_date: fundData.start_date,
-      total_members: Number(fundData.total_members) || 20,
-      total_months: Number(fundData.total_months) || 20,
-      u_due: Number(fundData.u_due) || 5000,
-      d_due: Number(fundData.d_due) || 6000,
-      commission: Number(fundData.commission) || 2000,
-      current_month: fundData.current_month,
-      last_checked_date: fundData.last_checked_date,
-      payout_schedule: fundData.payout_schedule,
+      chitti_id: fundRow.fund_id,
+      tenant_id: fundRow.tenant_id,
+      formula_id: "manual",
+      name: fundRow.fund_name,
+      start_date: fundRow.start_date || "",
+      total_members: totalMembers,
+      total_months: totalMonths,
+      u_due: 0,
+      d_due: 0,
+      commission: 0,
+      current_month: activeCycle,
+      payout_schedule: JSON.stringify(schedule),
     };
 
-    // 2. Fetch member shares
-    const { data: sharesData, error: sharesErr } = await supabase
-      .from("shares")
-      .select("*")
-      .eq("chitti_id", fundId)
-      .order("share_id", { ascending: true });
+    const totalPaid = (paymentRows ?? []).filter((row: any) => row.entry_type === "credit").reduce((sum: number, row: any) => sum + (Number(row.amount) || 0), 0);
+    const totalDebits = (paymentRows ?? []).filter((row: any) => row.entry_type === "debit").reduce((sum: number, row: any) => sum + (Number(row.amount) || 0), 0);
+    const drawnCount = members.filter((member) => member.win_month !== null).length;
+    const pending = members.reduce((sum, member) => sum + (Number(member.pending_amount) || 0), 0);
 
-    if (sharesErr) throw sharesErr;
-
-    // 3. Fetch transactions
-    const { data: txsData, error: txsErr } = await supabase
-      .from("transactions")
-      .select("*")
-      .eq("chitti_id", fundId)
-      .eq("is_void", false);
-
-    if (txsErr) throw txsErr;
-
-    const shares: MemberShare[] = (sharesData || []).map((s: any) => ({
-      share_id: s.share_id || s.id,
-      chitti_id: s.chitti_id,
-      tenant_id: s.tenant_id,
-      member_name: s.member_name || "Member",
-      phone: s.phone || "",
-      win_month: s.win_month !== null && s.win_month !== undefined ? Number(s.win_month) : null,
-      status: "undrawn",
-      monthly_due_current: Number(s.monthly_due_current) || fund.u_due,
-      total_billed: Number(s.total_billed) || 0,
-      total_paid: Number(s.total_paid) || 0,
-      net_balance: Number(s.net_balance) || 0,
-      pending_amount: Number(s.pending_amount) || 0,
-      advance_amount: Number(s.advance_amount) || 0,
-      transactions: [],
-    }));
-
-    const transactions: Transaction[] = (txsData || []).map((tx: any) => ({
-      tx_id: tx.tx_id || tx.id,
-      share_id: tx.share_id,
-      chitti_id: tx.chitti_id,
-      tenant_id: tx.tenant_id,
-      amount: Number(tx.amount) || 0,
-      date_paid: tx.date_paid,
-      payment_mode: tx.payment_mode || "UPI",
-    }));
-
-    // Authoritative calculations performed in financialEngine
-    return financialEngine.computeTreasuryAndDetails(fund, shares, transactions, requestedMonth);
+    return {
+      chitti: fund,
+      active_month: activeCycle,
+      payout_t: payoutAmount,
+      total_pending_market: pending,
+      members,
+      treasury: {
+        gross_collection: totalPaid,
+        actual_cash_collected: totalPaid,
+        undrawn_count: members.length - drawnCount,
+        drawn_count: drawnCount,
+        winners_this_month: members.filter((member) => member.win_month === activeCycle).length,
+        total_disbursement: Number(fundRow.fund_total_withdrawn) || 0,
+        cumulative_disbursement: Number(fundRow.fund_total_withdrawn) || 0,
+        flat_commission: Number(fundRow.fund_total_commissions) || 0,
+        cumulative_commission: Number(fundRow.fund_total_commissions) || 0,
+        net_cashflow: Number(fundRow.fund_net_balance) || 0,
+        closing_ledger_balance: Number(fundRow.fund_net_balance) || 0,
+      },
+    };
   },
 
   async createFund(
