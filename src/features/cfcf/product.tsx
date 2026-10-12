@@ -6,6 +6,7 @@ import type { ProductDefinition } from "../../core/products/product.types";
 import { FeatureModulePage } from "../../components/workspace/FeatureModulePage";
 import { ContactsPage } from "./pages/ContactsPage";
 import { WorkspacePage } from "./pages/WorkspacePage";
+import { NotificationsPanel } from "./pages/NotificationsPanel";
 import { resolveCfcfWorkspace } from "./services/access.service";
 
 export const cfcfProduct: ProductDefinition = {
@@ -34,6 +35,7 @@ export const cfcfProduct: ProductDefinition = {
     },
   ],
   resolveWorkspace: resolveCfcfWorkspace,
+  renderNotifications: (workspace) => <NotificationsPanel workspace={workspace} />,
   // MIX: Only the product adapter maps neutral navigation IDs to product screens.
   renderPage: (navigationItem, workspace) => {
     if (navigationItem.id === "crm") return <ContactsPage workspace={workspace} />;
