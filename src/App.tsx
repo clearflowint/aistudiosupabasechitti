@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Activity,
   BookOpen,
@@ -154,7 +154,7 @@ function LoadingScreen({ message }: { message: string }) {
 }
 
 export default function App() {
-  const [user, setUser] = useState<AuthenticatedUser | null>(null);
+  const [user, setUser] = useState<AuthenticatedUser | null>(null);\n  const currentEmail = useRef<string | null>(null);
   const [workspace, setWorkspace] = useState<AuthorizedWorkspace | null>(null);
   const [activePage, setActivePage] = useState<WorkspacePage>("overview");
   const [isRestoringSession, setIsRestoringSession] = useState(true);
