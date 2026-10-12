@@ -1,6 +1,6 @@
-// CFCF PRODUCT: One mobile-first workspace view for funds, cycles, shares, and ledger.
-// MIX: Uses shared workspace identity, existing database types, and the existing contacts service.
-// SKELETON: All financial values shown here are stored values; no balances or totals are calculated in the UI.
+// CFCF PRODUCT: This entire page is the CFCF-specific Workspace UI boundary: funds, cycles, shares, and ledger.
+// MIX: Receives the universal authorized workspace identity and calls CFCF-owned services.
+// CFCF PRODUCT: Display stored financial values only; this page does not calculate balances or totals.
 
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import {
