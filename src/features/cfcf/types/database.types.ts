@@ -1,4 +1,4 @@
-// CFCF PRODUCT: Database field names mirror the existing CFCF Supabase schema.
+// CFCF PRODUCT: These are schema-bound CFCF database types, not universal application contracts. Keep names aligned with existing Supabase columns.
 /**
  * Database-facing types for the existing CFCF Supabase schema.
  * Keep these names and fields aligned with Supabase; do not rename database columns
