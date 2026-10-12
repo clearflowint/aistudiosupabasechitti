@@ -1,42 +1,70 @@
-# ClearFlow architecture guide
+# ClearFlow architecture and code ownership guide
 
-The goal is to add new products and features without rewriting the shared app shell or mixing product-specific database logic into the UI.
+// SKELETON: This document describes product-neutral architecture rules.
+// MIX: Product adapters connect the shared shell to a product module.
 
-## How the app is assembled
+## Operational flow
 
-1. src/App.tsx is the composition root. It coordinates the signed-in user, asks the selected product to resolve access, and chooses the current page. It must not query CFCF tables or declare CFCF navigation.
-2. src/products/productRegistry.ts registers products and selects the active one. When multiple products exist, set VITE_DEFAULT_PRODUCT_ID for that deployment.
-3. src/core/products/product.types.ts defines the contract every product implements: identity, navigation, workspace resolution, and page rendering.
-4. src/core/ contains shared infrastructure and types. It must not import anything from a product folder.
-5. src/features/<product>/ contains that product's authorization checks, database-facing types, services, navigation, and page composition.
-6. src/components/ contains shared visual components. It must not contain product table names or business rules.
-7. src/reference/ui-and-modal-reference.tsx is design-only and is shown at /ui-reference, outside the live workspace navigation; its buttons never persist data.
+1. Authentication establishes the signed-in identity.
+2. The active product's authorization resolver validates access and returns the minimal `AuthorizedWorkspace` identity.
+3. The universal tenant home displays basic account/workspace information and entry points such as CRM and Workspace. It does not contain fund, cycle, share, or ledger business logic.
+4. The selected product owns its complete Workspace UI and its operational flow. For CFCF, this includes the fund selector, fund summary, cycles, share filters and cards, payments, ledger, reports, and destructive actions.
+5. Product services query and mutate that product's data. Tenant identity comes from the authorized workspace; every operation must enforce tenant and record ownership through query filters and database policies.
+6. Shared UI primitives (buttons, modal frame, form controls, confirmation dialog, loading/error states) can be reused, but the fields, composition, business rules, and presentation remain product-owned.
+7. Fund/tab changes clear previous fund-scoped client state before fetching current data. Stale async responses must not overwrite the currently selected tenant or fund.
 
-## Code markers
+## Ownership markers — use consistently
 
-- // SKELETON: shared foundation or a reusable starting point. Keep it free of product table names and product business rules.
-- // CFCF PRODUCT: logic or UI that belongs only to CFCF.
-- // MIX: intentional composition between the generic shell and a product adapter. Prefer keeping this to registry/composition files.
+- `// SKELETON:` Universal, product-neutral contracts, utilities, layout, or reusable UI primitives. Must not encode CFCF table names, share/fund terminology, or CFCF financial rules.
+- `// CFCF PRODUCT:` CFCF-specific UI, types, queries, validation, schema mapping, and chitti business operations.
+- `// MIX:` An intentional boundary where generic infrastructure receives product-provided configuration, navigation, identity, or rendering. Keep these integration points small and explicit.
 
-Markers are signposts, not a substitute for folder boundaries. If a shared file begins to accumulate CFCF-only fields or conditions, move those details into the CFCF product module.
+Markers describe ownership, not merely the technology used. A TypeScript interface is not automatically skeleton: database row interfaces are CFCF PRODUCT; the generic authorized-workspace contract is SKELETON.
 
-## Usual flow
+## File ownership
 
-Google sign-in → shared auth service → app asks the active product to resolve the user's workspace → product checks the current Supabase access rules → shared shell receives a minimal AuthorizedWorkspace object → product-provided navigation is rendered → product page uses its own service for data.
+| Path | Ownership | Responsibility |
+|---|---|---|
+| `src/core/products/product.types.ts` | SKELETON | Contract each product implements |
+| `src/core/workspace/workspace.types.ts` | SKELETON | Product-neutral authorized tenant identity |
+| `src/products/productRegistry.ts` | MIX | Registers products and chooses the active product |
+| `src/components/workspace/WorkspaceLayout.tsx` | SKELETON + MIX | Shared header, top navigation, notification entry point, content frame |
+| `src/components/workspace/WorkspaceHomePage.tsx` | SKELETON + MIX | Basic tenant home and product-provided entry points only |
+| `src/components/ui/` | SKELETON | Reusable presentational primitives; no product business rules |
+| `src/features/cfcf/product.tsx` | CFCF PRODUCT + MIX | CFCF product contract, navigation, resolver, and page dispatch |
+| `src/features/cfcf/pages/WorkspacePage.tsx` | CFCF PRODUCT | Entire CFCF operational workspace UI |
+| `src/features/cfcf/services/` | CFCF PRODUCT + MIX where shared identity is injected | CFCF queries and mutations against the existing schema |
+| `src/features/cfcf/types/database.types.ts` | CFCF PRODUCT | Types mapped to CFCF database columns |
+| `src/features/cfcf/pages/ContactsPage.tsx` | CFCF PRODUCT | Current CRM screen; reuse universal form/modal primitives |
 
-Keep authentication separate from product authorization. A Google-authenticated user is not automatically an authorized workspace user.
+## CFCF Workspace ownership boundary
 
-## UI and modal rule
+The CFCF Workspace is one product-specific operational screen. Its intended vertical flow is:
+- Tenant-level header/context comes from the authorized workspace, outside the fund data model.
+- Fund selector shows the tenant's funds.
+- Selected-fund summary and actions.
+- Cycle cards and cycle-specific modals.
+- Four share filters: All, Pending, Drawn, Undrawn.
+- Share cards and their relevant actions.
+- Fund-level actions: add share, edit fund details/cycle count, reports.
+- Danger zone with explicit confirmation flows for share/fund deletion.
 
-The shared Modal component owns presentation and close behavior only. Each feature owns its fields, validation, error messages, and save action. Financial or otherwise trusted mutations must go through an appropriately secured database transaction or server-side function; a modal must never be treated as a security boundary.
+Do not move fund selectors, cycle cards, share cards, CFCF tab state, or CFCF database queries into universal components. Other products are free to define different workspace layouts.
 
-The reference file demonstrates three patterns: add-record form, larger transaction form, and confirmation dialog. Copy the pattern, not its sample field list or mock actions.
+## Service and data rules
 
-## Adding a new product
+- `tenantId` and `personId` are supplied from the authorized workspace, never manually entered by the user.
+- A client-side tenant filter is not a substitute for Supabase Row Level Security (RLS).
+- Scope reads and writes by tenant and the relevant parent record; verify affected-row counts for mutations.
+- Never calculate financial balances in the UI. Display stored values or explicitly defined server/database results.
+- On fund or view changes, clear relevant previous selections/data, show a loading state, fetch the required records, and ignore responses from obsolete requests.
+- Use a deliberate refresh/refetch after successful mutations so UI state reflects persisted data.
+- Never call a feature complete until TypeScript/build and access-boundary tests have been run.
 
-1. Create src/features/<product>/product.tsx with a ProductDefinition.
-2. Give it exactly one navigation item with isHome: true, unique IDs, a workspace resolver, and a page renderer.
-3. Add the product to registeredProducts in the registry.
-4. Deploy that product with VITE_DEFAULT_PRODUCT_ID=<PRODUCT_ID> configured.
-5. Build the feature's data types and service against the existing schema. Do not alter the Supabase schema unless separately approved.
-6. Typecheck/build and test allowed access, denied access, session restore, sign-out, mobile navigation, and each modal before calling the feature complete.
+## Adding another product
+
+1. Add a product module under `src/features/<product>/`.
+2. Implement the universal product contract and provide product-specific navigation, authorization, and page rendering.
+3. Build its Workspace inside its own product folder; do not inherit the CFCF workspace layout.
+4. Reuse universal UI primitives where they fit; do not force a shared visual composition when the products have different workflows.
+5. Register it in `src/products/productRegistry.ts` and validate tenant isolation, session restore, refresh, mobile behavior, and mutations.
