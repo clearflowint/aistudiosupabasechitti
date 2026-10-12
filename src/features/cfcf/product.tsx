@@ -1,71 +1,43 @@
-// CFCF PRODUCT: CFCF-specific navigation, access resolution, and page composition live here.
-// MIX: This adapter uses a shared workspace page; the shell never imports this file directly.
-import {
-  BookOpen,
-  ContactRound,
-  CreditCard,
-  LayoutDashboard,
-  Layers3,
-  Settings2,
-  UsersRound,
-} from "lucide-react";
+// CFCF PRODUCT: CFCF navigation and authorization live here; page presentation is owned by feature modules.
+// MIX: The shared shell receives only these three top-level destinations.
+
+import { ContactRound, LayoutDashboard, WalletCards } from "lucide-react";
 import type { ProductDefinition } from "../../core/products/product.types";
 import { FeatureModulePage } from "../../components/workspace/FeatureModulePage";
 import { ContactsPage } from "./pages/ContactsPage";
+import { WorkspacePage } from "./pages/WorkspacePage";
 import { resolveCfcfWorkspace } from "./services/access.service";
 
 export const cfcfProduct: ProductDefinition = {
   id: "CFCF",
-  name: "ClearFlow CFCF",
-  description: "A workspace foundation for contacts, funds, shares, and financial records.",
+  name: "ClearFlow",
+  description: "Contacts, funds, cycles, shares, and financial records in one simple workspace.",
   navigation: [
     {
       id: "home",
       label: "Home",
-      description: "Your workspace at a glance",
+      description: "Your ClearFlow starting point",
       icon: LayoutDashboard,
       isHome: true,
     },
     {
-      id: "contacts",
-      label: "Contacts",
-      description: "Organise people and business relationships",
+      id: "crm",
+      label: "CRM",
+      description: "Find and manage contacts",
       icon: ContactRound,
     },
     {
-      id: "funds",
-      label: "Funds and cycles",
-      description: "Set up funds and their cycle details",
-      icon: Layers3,
-    },
-    {
-      id: "shares",
-      label: "Shares",
-      description: "Organise shares and their assigned contacts",
-      icon: UsersRound,
-    },
-    {
-      id: "payments",
-      label: "Payments and ledger",
-      description: "Review financial entries and ledger activity",
-      icon: CreditCard,
-    },
-    {
-      id: "reports",
-      label: "Reports",
-      description: "Prepare workspace reports",
-      icon: BookOpen,
-    },
-    {
-      id: "settings",
-      label: "Settings",
-      description: "Manage workspace preferences",
-      icon: Settings2,
+      id: "workspace",
+      label: "Workspace",
+      description: "Funds, cycles, shares, and ledger",
+      icon: WalletCards,
     },
   ],
   resolveWorkspace: resolveCfcfWorkspace,
-  // MIX: Wire the first real feature while keeping the shared shell unchanged.
-  renderPage: (navigationItem, workspace) => navigationItem.id === "contacts"
-    ? <ContactsPage workspace={workspace} />
-    : <FeatureModulePage navigationItem={navigationItem} workspace={workspace} />,
+  // MIX: Only the product adapter maps neutral navigation IDs to product screens.
+  renderPage: (navigationItem, workspace) => {
+    if (navigationItem.id === "crm") return <ContactsPage workspace={workspace} />;
+    if (navigationItem.id === "workspace") return <WorkspacePage workspace={workspace} />;
+    return <FeatureModulePage navigationItem={navigationItem} workspace={workspace} />;
+  },
 };
