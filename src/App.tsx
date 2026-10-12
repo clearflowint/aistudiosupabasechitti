@@ -22,9 +22,7 @@ import {
   checkTenantDatabaseConnection,
   type ConnectionStatus,
 } from "./core/database/connection.service";
-import {
-  resolveCfcfWorkspace,
-} from "./features/cfcf/services/access.service";
+import { resolveCfcfWorkspace } from "./features/cfcf/services/access.service";
 
 type AuthenticatedUser = { email: string };
 
