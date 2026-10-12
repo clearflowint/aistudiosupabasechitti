@@ -41,7 +41,7 @@ export async function createCfcfContact(
   }
 
   const payload = {
-    // SKELETON: Use a browser-generated UUID in alphanumeric form because contact_id has no DB default.
+    // CFCF PRODUCT: contact_id has no database default, so this service supplies an alphanumeric UUID.
     // CFCF PRODUCT: Product and tenant are set here, never supplied as editable form fields.
     contact_id: crypto.randomUUID().replace(/-/g, "").toUpperCase(),
     product_id: cfcfConfig.productId,
