@@ -1,5 +1,5 @@
 // CFCF PRODUCT: Contact Group management and bulk campaign composer.
-// MIX: Receives authorized workspace identity and existing Contacts; n8n delivery is a future integration seam.
+// MIX: Receives authorized workspace identity and existing Contacts; campaign dispatch goes through the authenticated Edge Function.
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { FolderPlus, Pencil, Trash2, UsersRound, Megaphone, MessageCircle, Mail, Smartphone, RefreshCw, CheckCircle2 } from "lucide-react";
