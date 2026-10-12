@@ -1,5 +1,5 @@
 // CFCF PRODUCT: One mobile-first workspace view for funds, cycles, shares, and ledger.
-// MIX: Uses shared workspace identity, existing database types, contacts service, and shared Modal patterns.
+// MIX: Uses shared workspace identity, existing database types, and the existing contacts service.
 // SKELETON: All financial values shown here are stored values; no balances or totals are calculated in the UI.
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -210,7 +210,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         <section role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
           <p className="font-semibold">Funds could not be loaded</p>
           <p className="mt-1 break-words leading-5">{fundsError}</p>
-          <button type="button" onClick={() => void loadFunds()} className="mt-3 min-h-11 font-semibold underline">
+          <button type="button" onClick={() => setFundReloadKey((current) => current + 1)} className="mt-3 min-h-11 font-semibold underline">
             Try again
           </button>
         </section>
@@ -431,7 +431,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               {isLoadingDetails ? (
                 <LoadingCard message="Loading ledger entries…" />
               ) : detailsError ? (
-                <ErrorCard message={detailsError} onRetry={() => setActiveTab("funds")} />
+                <ErrorCard message={detailsError} onRetry={() => setDetailReloadKey((current) => current + 1)} />
               ) : selectedLedger.length === 0 ? (
                 <EmptyState
                   icon={<CreditCard size={22} />}
