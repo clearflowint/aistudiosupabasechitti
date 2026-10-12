@@ -1,7 +1,7 @@
 // CFCF PRODUCT: Contact Group management and bulk campaign composer.
 // MIX: Receives authorized workspace identity and existing Contacts; n8n delivery is a future integration seam.
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { FolderPlus, Pencil, Trash2, UsersRound, Megaphone, MessageCircle, Mail, Smartphone, RefreshCw, CheckCircle2 } from "lucide-react";
 import { Modal } from "../../../components/ui/Modal";
 import type { AuthorizedWorkspace } from "../../../core/workspace/workspace.types";
@@ -33,6 +33,7 @@ export function ContactGroupsPanel({ workspace, contacts }: ContactGroupsPanelPr
   const [groups, setGroups] = useState<CfcfContactGroupRow[]>([]);
   const [members, setMembers] = useState<CfcfContactGroupMemberRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const loadRequestId = useRef(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -56,19 +57,25 @@ export function ContactGroupsPanel({ workspace, contacts }: ContactGroupsPanelPr
   const [preparedCampaign, setPreparedCampaign] = useState<CfcfCampaignRequest | null>(null);
 
   async function loadGroups(showRefresh = false) {
+    const requestId = ++loadRequestId.current;
     if (showRefresh) setIsRefreshing(true);
     else setIsLoading(true);
     setError(null);
     try {
       const rows = await listCfcfContactGroups(workspace.tenantId);
       const memberRows = await listCfcfGroupMembers(workspace.tenantId, rows.map((group) => group.group_id));
+      if (requestId !== loadRequestId.current) return;
       setGroups(rows);
       setMembers(memberRows);
     } catch (loadFailure) {
-      setError(loadFailure instanceof Error ? loadFailure.message : "Unable to load Contact Groups.");
+      if (requestId === loadRequestId.current) {
+        setError(loadFailure instanceof Error ? loadFailure.message : "Unable to load Contact Groups.");
+      }
     } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
+      if (requestId === loadRequestId.current) {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
     }
   }
 
@@ -80,6 +87,12 @@ export function ContactGroupsPanel({ workspace, contacts }: ContactGroupsPanelPr
     // The authorized tenant is the only trigger for reloading group data.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspace.tenantId]);
+
+  // MIX: Keep membership UI aligned when a Contact is deleted from the directory.
+  useEffect(() => {
+    const existingContactIds = new Set(contacts.map((contact) => contact.contact_id));
+    setMembers((current) => current.filter((member) => existingContactIds.has(member.contact_id)));
+  }, [contacts]);
 
   const memberCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -374,7 +387,11 @@ export function ContactGroupsPanel({ workspace, contacts }: ContactGroupsPanelPr
               <p>Prepared {preparedCampaign.contact_ids.length} unique recipients across {preparedCampaign.channels.join(", ")}. <strong>No messages were sent.</strong> The n8n webhook is not connected yet.</p>
               <details>
                 <summary className="cursor-pointer font-medium">View handoff payload preview</summary>
-                <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-white/80 p-3 text-xs">{JSON.stringify({ ...preparedCampaign, contact_ids: preparedCampaign.contact_ids.map(() => "[contact_id]") }, null, 2)}</pre>
+                <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-white/80 p-3 text-xs">{JSON.stringify({
+                  ...preparedCampaign,
+                  contact_ids: preparedCampaign.contact_ids.map(() => "[contact_id]"),
+                  recipients: preparedCampaign.recipients.map(() => ({ contact_id: "[contact_id]", name: "[name]", phone: "[phone]", email: "[email]" })),
+                }, null, 2)}</pre>
                 <p className="mt-1 text-xs text-amber-800">Contact IDs are masked in this preview. The prepared request retains the real IDs in memory for the future n8n dispatcher.</p>
               </details>
             </div>
