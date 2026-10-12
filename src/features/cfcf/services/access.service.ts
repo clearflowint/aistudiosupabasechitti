@@ -1,4 +1,5 @@
 import { supabase } from "../../../core/database/supabaseClient";
+import { cfcfConfig } from "../config/cfcf.config";
 
 export interface AuthorizedWorkspace {
   email: string;
@@ -14,7 +15,7 @@ export async function resolveCfcfWorkspace(authenticatedEmail: string): Promise<
   const { data: access, error: accessError } = await supabase
     .from("global_access_list")
     .select("tenant_id, person_id, product_id, access_type, status, email")
-    .eq("product_id", "CFCF")
+    .eq("product_id", cfcfConfig.productId)
     .eq("status", "active")
     .eq("access_type", "tenantowner")
     .ilike("email", email)
