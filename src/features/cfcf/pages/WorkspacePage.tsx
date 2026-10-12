@@ -280,6 +280,13 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                     <StoredValue label="Shares configured" value={fund.number_of_shares ?? "—"} />
                     <StoredValue label="Current cycle" value={fund.current_cycle} />
                     <StoredValue label="Start date" value={fund.start_date ? formatDate(fund.start_date) : "—"} />
+                    <StoredValue label="Stored net balance" value={formatINR(fund.fund_net_balance)} />
+                    <StoredValue label="Total billed" value={formatINR(fund.fund_total_billed_amount)} />
+                    <StoredValue label="Total pending" value={formatINR(fund.fund_total_pending_amount)} />
+                    <StoredValue label="Total advance" value={formatINR(fund.fund_total_advance)} />
+                    <StoredValue label="Total withdrawn" value={formatINR(fund.fund_total_withdrawn)} />
+                    <StoredValue label="Total commissions" value={formatINR(fund.fund_total_commissions)} />
+                    <StoredValue label="Other amount" value={formatINR(fund.other_amount)} />
                   </div>
 
                   <div className="mt-4 grid grid-cols-2 gap-2">
