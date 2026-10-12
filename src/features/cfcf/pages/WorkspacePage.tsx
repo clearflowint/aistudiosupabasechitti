@@ -110,15 +110,19 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     return () => { isCurrent = false; };
   }, [workspace.tenantId, fundReloadKey]);
 
+  // MIX: Every fund/tab transition clears fund-scoped client state before fetching.
+  // CFCF PRODUCT: Shares and contact labels are reloaded for the selected fund; ledger is fetched when requested.
   useEffect(() => {
     let isCurrent = true;
 
     setShares([]);
     setContacts([]);
     setLedgerItems([]);
+    setSelectedShareId(null);
+    setExpandedBillingShareId(null);
     setDetailsError(null);
 
-    if (!selectedFundId || (activeTab !== "shares" && activeTab !== "ledger")) {
+    if (!selectedFundId) {
       setIsLoadingDetails(false);
       return () => { isCurrent = false; };
     }
@@ -126,15 +130,15 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     setIsLoadingDetails(true);
     const loadDetails = async () => {
       try {
-        if (activeTab === "shares") {
-          const [shareRows, contactRows] = await Promise.all([
-            listCfcfShares(workspace.tenantId, selectedFundId),
-            listCfcfContacts(workspace.tenantId),
-          ]);
-          if (!isCurrent) return;
-          setShares(shareRows);
-          setContacts(contactRows);
-        } else {
+        const [shareRows, contactRows] = await Promise.all([
+          listCfcfShares(workspace.tenantId, selectedFundId),
+          listCfcfContacts(workspace.tenantId),
+        ]);
+        if (!isCurrent) return;
+        setShares(shareRows);
+        setContacts(contactRows);
+
+        if (activeTab === "ledger") {
           const rows = await listCfcfLedgerItems(workspace.tenantId, selectedFundId);
           if (!isCurrent) return;
           setLedgerItems(rows);
