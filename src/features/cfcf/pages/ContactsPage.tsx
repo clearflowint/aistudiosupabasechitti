@@ -1,7 +1,7 @@
 // CFCF PRODUCT: Contacts screen wired to the existing Supabase contacts table.
 // MIX: Reuses the shared Modal and the workspace identity supplied by the neutral app shell.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Mail, Phone, Plus, RefreshCw, Search, UsersRound } from "lucide-react";
 import type { AuthorizedWorkspace } from "../../../core/workspace/workspace.types";
 import { Modal } from "../../../components/ui/Modal";
@@ -69,7 +69,7 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
     setFormError(null);
   }
 
-  async function handleCreateContact(event: React.FormEvent<HTMLFormElement>) {
+  async function handleCreateContact(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFormError(null);
     setIsSaving(true);
