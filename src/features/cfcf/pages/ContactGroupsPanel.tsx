@@ -288,7 +288,7 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
       {error && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-800">{error}</div>}
 
       {isLoading ? (
-        <div className="rounded-xl bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">Loading Contact Groups…</div>
+        <div aria-live="polite" className="flex items-center justify-center gap-2 rounded-xl bg-slate-50 px-4 py-8 text-center text-sm text-slate-500"><RefreshCw size={17} className="animate-spin" /> Loading Contact Groups from Supabase…</div>
       ) : groups.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 px-5 py-8 text-center">
           <FolderPlus className="mx-auto text-violet-600" size={25} />
