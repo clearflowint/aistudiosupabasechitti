@@ -168,61 +168,55 @@ export async function removeCfcfContactFromGroup(
 }
 
 /**
- * CFCF PRODUCT: Builds the future n8n handoff payload from persisted memberships.
- * This function intentionally does not make a network request or claim that delivery occurred.
+ * CFCF PRODUCT: Dispatches a campaign to the authenticated Edge Function.
+ * The Edge Function resolves the current full recipient records and sends them to n8n,
+ * avoiding a second database lookup inside n8n.
  */
-export async function prepareCfcfCampaignRequest(
+export interface CfcfCampaignDispatchReceipt {
+  accepted: true;
+  status: "accepted";
+  campaign_id: string;
+  accepted_at: string;
+  recipient_count: number;
+  channels: CfcfCampaignChannel[];
+  message: string;
+  execution_id: string | null;
+}
+
+export async function dispatchCfcfCampaign(
   tenantId: string,
   groupIds: string[],
   channels: CfcfCampaignChannel[],
   message: string,
-): Promise<CfcfCampaignRequest> {
-  const selectedGroupIds = [...new Set(groupIds)];
+): Promise<CfcfCampaignDispatchReceipt> {
+  const selectedGroupIds = [...new Set(groupIds.map((id) => id.trim()).filter(Boolean))];
   const selectedChannels = [...new Set(channels)];
   const trimmedMessage = message.trim();
 
+  if (!tenantId.trim()) throw new Error("No authorized workspace is selected.");
   if (selectedGroupIds.length === 0) throw new Error("Select at least one Contact Group.");
   if (selectedChannels.length === 0) throw new Error("Select at least one delivery channel.");
   if (!trimmedMessage) throw new Error("Enter a campaign message.");
 
-  const groups = await listCfcfContactGroups(tenantId);
-  const validGroupIds = new Set(groups.map((group) => group.group_id));
-  if (selectedGroupIds.some((id) => !validGroupIds.has(id))) {
-    throw new Error("One or more selected groups are not available in this workspace. Refresh and try again.");
+  const { data, error } = await supabase.functions.invoke("campaign-dispatch", {
+    body: {
+      tenant_id: tenantId,
+      group_ids: selectedGroupIds,
+      channels: selectedChannels,
+      message: trimmedMessage,
+    },
+  });
+
+  if (error) {
+    const details = data && typeof data === "object" && "error" in data
+      ? String((data as { error: unknown }).error)
+      : error.message;
+    throw new Error(details || "Campaign dispatch failed. Check Notifications before retrying.");
   }
 
-  const memberships = await listCfcfGroupMembers(tenantId, selectedGroupIds);
-  const contactIds = [...new Set(memberships.map((membership) => membership.contact_id))];
-  if (contactIds.length === 0) throw new Error("The selected groups do not contain any contacts.");
-
-  // Include delivery addresses for n8n, but only after tenant-scoped IDs have been resolved.
-  // Chunk requests so a large audience does not exceed URL/query limits.
-  const recipients: CfcfCampaignRequest["recipients"] = [];
-  for (let offset = 0; offset < contactIds.length; offset += 500) {
-    const idChunk = contactIds.slice(offset, offset + 500);
-    const { data, error } = await supabase
-      .from("contacts")
-      .select("contact_id, name, phone, email")
-      .eq("product_id", cfcfConfig.productId)
-      .eq("tenant_id", tenantId)
-      .in("contact_id", idChunk);
-
-    if (error) throw new Error("Unable to resolve campaign recipients: " + error.message);
-    recipients.push(...((data ?? []) as CfcfCampaignRequest["recipients"]));
+  if (!data || data.accepted !== true || data.status !== "accepted" || typeof data.campaign_id !== "string") {
+    throw new Error(typeof data?.error === "string" ? data.error : "n8n did not acknowledge campaign receipt.");
   }
 
-  if (recipients.length !== contactIds.length) {
-    throw new Error("Some selected Contacts are no longer available. Refresh the groups and try again.");
-  }
-
-  // The future n8n request includes unique IDs plus current recipient delivery details.
-  return {
-    product_id: cfcfConfig.productId,
-    tenant_id: tenantId,
-    group_ids: selectedGroupIds,
-    contact_ids: contactIds,
-    recipients,
-    channels: selectedChannels,
-    message: trimmedMessage,
-  };
+  return data as CfcfCampaignDispatchReceipt;
 }
