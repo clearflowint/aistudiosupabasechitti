@@ -13,6 +13,12 @@ In Supabase Dashboard → Edge Functions → Secrets, add:
 
 Do not put the webhook URL or callback secret in Vite variables, GitHub source, or a browser request.
 
+## ClearFlow UI launch gate (disabled by default)
+
+In `src/features/cfcf/pages/ContactGroupsPanel.tsx`, `CAMPAIGN_AUTOMATION_ENABLED` is intentionally set to `false`. While false, the Launch campaign button and the modal submit action are disabled, and the UI explicitly states that no messages will be sent. The dispatch handler also checks this flag before calling the Edge Function.
+
+Keep the flag false while configuring n8n. Enable it only after the production webhook URL and callback secret are saved as Supabase Edge Function secrets and a test campaign has verified both the immediate acceptance receipt and the final delivery callback. Do not enable the flag merely because the Edge Function is deployed.
+
 The deployed `campaign-dispatch` function has gateway JWT verification disabled so n8n can use the callback-secret route. The dispatch route validates the Supabase access token itself; the callback route requires the configured `x-cfcf-callback-secret` header.
 
 ## Inbound payload to n8n
