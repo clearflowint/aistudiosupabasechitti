@@ -5,39 +5,32 @@ Branch: main
 
 ## Baseline measurement
 
-The pre-cleanup audit counted 30 inspected application files totaling **5,155 lines**. One additional legacy file, `src/services/otherEntriesService.ts`, was measured at 113 lines but was outside that 30-file subtotal. Therefore the measured legacy source subset was **5,268 lines across 31 files**.
+The pre-cleanup audit counted 30 inspected application files totaling **5,155 lines**. One additional legacy file, src/services/otherEntriesService.ts, was measured at 113 lines but was outside that 30-file subtotal. Therefore the measured legacy source subset was **5,268 lines across 31 files**.
 
-This is a measured source-file subset, not a claim about every file in the repository. Configuration, lockfiles, public assets, and files not included in that inspection are excluded from the baseline.
+This was a measured source-file subset, not a complete repository line count.
 
-## Cleanup completed so far
+## Cleanup completed before the product-shell refactor
 
 - Deleted 27 legacy business/UI files containing **3,826 measured lines**.
-- Replaced `src/App.tsx`: **1,142 → 167 lines** (975 fewer).
-- Replaced `src/components/LandingPage.tsx`: **158 → 52 lines** (106 fewer).
-- Moved the CFCF database row types under `src/features/cfcf/types/database.types.ts`; this was a relocation, not a deletion.
-- The latest line-by-line pass measured **1,026 lines across 20 inspected files** (application source, PWA/build configuration, the audit document, and `.gitignore`). The 15 application/configuration files excluding this audit document and `.gitignore` total **970 lines**. This is still not a full-repository line count; an exhaustive root inventory is pending.
+- Replaced the old App.tsx and sign-in page with smaller modules.
+- Moved CFCF database row types under src/features/cfcf/types/database.types.ts.
+- Removed old Chitti math/formula modules, legacy fund/share/payment/expense services, old treasury and member/payment/winner modals, guest portal, database settings modal, old auth/service barrel, and old Supabase configuration module.
 
-## Architecture now in place
+## Product-neutral shell refactor
 
-- `src/core/auth/`: shared authentication operations.
-- `src/core/database/`: Supabase client and generic tenant connection check.
-- `src/core/config/`: shared application configuration.
-- `src/shared/types/`: generic shared types.
-- `src/features/cfcf/services/access.service.ts`: CFCF-specific access resolution.
-- `src/features/cfcf/types/`: CFCF database types.
-- `src/components/LandingPage.tsx` and `src/App.tsx`: clean workspace shell and sign-in UI.
-- `src/components/workspace/WorkspacePages.tsx`: reusable overview, placeholder, workspace identity, loading, and database status components.
-- `src/core/workspace/workspace.types.ts`: shared workspace contract independent of the CFCF feature.
-
-## Legacy code removed
-
-The fixed-increment Chitti math engine, formula registry, old Chitti month utility, legacy tenant/type model, old fund/share/payment/expense service modules, old treasury/reporting and member/payment/winner modals, guest portal, database settings modal, old auth/service barrel, and old Supabase configuration module were removed from the active source tree.
+- App.tsx now coordinates shared authentication, active-product workspace resolution, selected-page state, and rendering only. It does not import the CFCF resolver.
+- src/core/products/product.types.ts defines the product adapter contract.
+- src/products/productRegistry.ts is the explicit composition point for registering/selecting products.
+- src/features/cfcf/product.tsx owns CFCF navigation, workspace resolution, and its page renderer.
+- src/core/workspace/workspace.types.ts exposes a product-neutral workspace identity.
+- Rebuilt the Home page and navigation frame as reusable components.
+- Added a shared Modal presentation component plus an un-routed reference-only file for add-record, transaction, and confirmation designs.
+- Added docs/architecture-guide.md documenting architecture, ownership boundaries, and the // SKELETON, // CFCF PRODUCT, and // MIX markers.
+- No Supabase schema changes were made.
 
 ## Not yet certified
 
-- Strict TypeScript checks are enabled (`strict`, `noUnusedLocals`, and `noUnusedParameters`). A production build and typecheck must pass after the cleanup commits. The current environment could not clone the repository to run the build locally; GitHub reports no commit status checks for the latest cleanup commit.
-- OAuth, session restoration, unauthorized access, and sign-out must be retested in the deployed PWA.
-- Feature pages are skeleton placeholders; CFCF CRM/funds/shares/payments are not yet implemented.
-- The complete repository-wide line count and dependency/asset inventory still need a final pass. Unused dependencies were removed; the PWA plugin (Vite 8-compatible release) and SVG install icon were added explicitly.
-- Front-end state names were clarified, duplicate sign-out UI was removed, auth token-refresh events no longer clear the active workspace, and the retry action now repeats authorization rather than merely resetting the same user state.
-- No Supabase schema changes were made.
+- The local environment could not clone GitHub to run a build. The latest refactor still needs a production build and TypeScript check; no build success is claimed here.
+- OAuth sign-in, session restore, denied access, sign-out, connection retry, and mobile navigation need deployment testing.
+- Contacts, funds/cycles, shares, payments/ledger, and reports currently use explicitly labeled skeleton pages. These pages do not read or write records.
+- The full repository-wide audit for dead files/imports and exact line counts should be rerun after this refactor.

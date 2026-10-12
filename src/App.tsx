@@ -1,76 +1,54 @@
+// MIX: Composition root. Shared auth + product registry + neutral shell; no CFCF imports here.
 import { useEffect, useRef, useState } from "react";
-import {
-  BookOpen,
-  BriefcaseBusiness,
-  ChevronRight,
-  ContactRound,
-  CreditCard,
-  LayoutDashboard,
-  Layers3,
-  LogOut,
-  Menu,
-  Settings2,
-  ShieldCheck,
-  X,
-} from "lucide-react";
+import { ShieldCheck } from "lucide-react";
+import type { User } from "@supabase/supabase-js";
 import { LandingPage } from "./components/LandingPage";
-import { DatabaseStatus, LoadingScreen, OverviewPage, WorkspacePlaceholder } from "./components/workspace/WorkspacePages";
-import type { WorkspacePage } from "./components/workspace/workspace.types";
+import { WorkspaceHomePage } from "./components/workspace/WorkspaceHomePage";
+import { WorkspaceLayout } from "./components/workspace/WorkspaceLayout";
+import { LoadingScreen } from "./components/workspace/LoadingScreen";
+import { activeProduct } from "./products/productRegistry";
 import type { AuthorizedWorkspace } from "./core/workspace/workspace.types";
 import { authService } from "./core/auth/auth.service";
-import {
-  checkTenantDatabaseConnection,
-  type ConnectionStatus,
-} from "./core/database/connection.service";
-import { resolveCfcfWorkspace } from "./features/cfcf/services/access.service";
-
-type AuthenticatedUser = { email: string };
-
-const navigation = [
-  { id: "overview", label: "Overview", icon: LayoutDashboard, description: "Your workspace at a glance" },
-  { id: "contacts", label: "Contacts", icon: ContactRound, description: "Customer and business relationships" },
-  { id: "funds", label: "Funds", icon: BriefcaseBusiness, description: "Fund records and cycle details" },
-  { id: "payments", label: "Payments & ledger", icon: CreditCard, description: "Recorded transactions and entries" },
-  { id: "reports", label: "Reports", icon: BookOpen, description: "Workspace reports" },
-  { id: "settings", label: "Settings", icon: Settings2, description: "Workspace configuration" },
-] as const;
+import { checkTenantDatabaseConnection, type ConnectionStatus } from "./core/database/connection.service";
 
 export default function App() {
-  const [user, setUser] = useState<AuthenticatedUser | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const authenticatedEmailRef = useRef<string | null>(null);
   const [workspace, setWorkspace] = useState<AuthorizedWorkspace | null>(null);
-  const [activePage, setActivePage] = useState<WorkspacePage>("overview");
+  const [activePageId, setActivePageId] = useState(
+    () => activeProduct.navigation.find(({ isHome }) => isHome)?.id ?? "home",
+  );
   const [isLoadingWorkspace, setIsLoadingWorkspace] = useState(true);
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const [authorizationAttempt, setAuthorizationAttempt] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [databaseStatus, setDatabaseStatus] = useState<ConnectionStatus | null>(null);
-  const [isMobileNavigationOpen, setIsMobileNavigationOpen] = useState(false);
 
+  // SKELETON: Restore the shared Supabase session and react to sign-in/sign-out events.
   useEffect(() => {
     let isMounted = true;
 
     void authService.getCurrentUser().then((currentUser) => {
       if (!isMounted) return;
-      const authenticatedUser = toAuthenticatedUser(currentUser);
-      authenticatedEmailRef.current = authenticatedUser?.email ?? null;
-      setUser(authenticatedUser);
+      authenticatedEmailRef.current = currentUser?.email?.toLowerCase() ?? null;
+      setUser(currentUser);
     }).finally(() => {
       if (isMounted) setIsLoadingWorkspace(false);
     });
 
     const { data } = authService.onAuthStateChange((_event, currentUser) => {
       if (!isMounted) return;
-      const authenticatedUser = toAuthenticatedUser(currentUser);
-      const nextEmail = authenticatedUser?.email ?? null;
+      const nextEmail = currentUser?.email?.toLowerCase() ?? null;
 
       if (authenticatedEmailRef.current !== nextEmail) {
         authenticatedEmailRef.current = nextEmail;
         setWorkspace(null);
         setDatabaseStatus(null);
         setErrorMessage(null);
+        setActivePageId(activeProduct.navigation.find(({ isHome }) => isHome)?.id ?? "home");
       }
-
-      setUser(authenticatedUser);
+      setUser(currentUser);
     });
 
     return () => {
@@ -79,10 +57,12 @@ export default function App() {
     };
   }, []);
 
+  // MIX: The shell asks the active product to authorize the user; it never queries product tables itself.
   useEffect(() => {
     if (!user?.email) {
       setWorkspace(null);
       setDatabaseStatus(null);
+      setIsLoadingWorkspace(false);
       return;
     }
 
@@ -90,7 +70,7 @@ export default function App() {
     setIsLoadingWorkspace(true);
     setErrorMessage(null);
 
-    void resolveCfcfWorkspace(user.email)
+    void activeProduct.resolveWorkspace(user.email)
       .then(async (authorizedWorkspace) => {
         if (!isMounted) return;
         setWorkspace(authorizedWorkspace);
@@ -100,6 +80,7 @@ export default function App() {
       .catch((error: unknown) => {
         if (!isMounted) return;
         setWorkspace(null);
+        setDatabaseStatus(null);
         setErrorMessage(getErrorMessage(error, "Unable to authorize this workspace."));
       })
       .finally(() => {
@@ -109,12 +90,11 @@ export default function App() {
     return () => {
       isMounted = false;
     };
-  }, [user?.email]);
+  }, [user?.email, authorizationAttempt]);
 
   async function handleSignIn() {
     setIsSigningIn(true);
     setErrorMessage(null);
-
     try {
       await authService.signInWithGoogle();
     } catch (error) {
@@ -124,35 +104,27 @@ export default function App() {
   }
 
   async function handleSignOut() {
-    setIsLoadingWorkspace(true);
-
+    setIsSigningOut(true);
     try {
       await authService.signOut();
       setUser(null);
       setWorkspace(null);
-      setActivePage("overview");
+      setDatabaseStatus(null);
     } catch (error) {
       setErrorMessage(getErrorMessage(error, "Sign-out failed."));
     } finally {
-      setIsLoadingWorkspace(false);
+      setIsSigningOut(false);
     }
   }
 
-  async function retryWorkspaceAuthorization() {
-    if (!user?.email) return;
+  async function retryDatabaseConnection() {
+    if (!workspace) return;
+    setDatabaseStatus(await checkTenantDatabaseConnection(workspace.tenantId));
+  }
 
+  function retryWorkspaceAuthorization() {
     setErrorMessage(null);
-    setIsLoadingWorkspace(true);
-
-    try {
-      const authorizedWorkspace = await resolveCfcfWorkspace(user.email);
-      setWorkspace(authorizedWorkspace);
-      setDatabaseStatus(await checkTenantDatabaseConnection(authorizedWorkspace.tenantId));
-    } catch (error) {
-      setErrorMessage(getErrorMessage(error, "Unable to authorize this workspace."));
-    } finally {
-      setIsLoadingWorkspace(false);
-    }
+    setAuthorizationAttempt((attempt) => attempt + 1);
   }
 
   if (isLoadingWorkspace && !workspace && !errorMessage) {
@@ -160,13 +132,7 @@ export default function App() {
   }
 
   if (!user) {
-    return (
-      <LandingPage
-        onSignIn={handleSignIn}
-        isLoading={isSigningIn}
-        errorMessage={errorMessage}
-      />
-    );
+    return <LandingPage onSignIn={handleSignIn} isLoading={isSigningIn} errorMessage={errorMessage} />;
   }
 
   if (errorMessage && !workspace) {
@@ -176,11 +142,11 @@ export default function App() {
           <ShieldCheck className="mb-4 text-rose-300" size={28} />
           <h1 className="text-xl font-semibold">Workspace access not granted</h1>
           <p className="mt-3 text-sm leading-6 text-slate-300">{errorMessage}</p>
-          <div className="mt-6 flex gap-3">
-            <button onClick={() => void retryWorkspaceAuthorization()} className="rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-white">
+          <div className="mt-6 flex flex-wrap gap-3">
+            <button type="button" onClick={retryWorkspaceAuthorization} className="rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-white">
               Try again
             </button>
-            <button onClick={() => void handleSignOut()} className="rounded-lg border border-white/15 px-4 py-2 text-sm">
+            <button type="button" onClick={() => void handleSignOut()} className="rounded-lg border border-white/15 px-4 py-2 text-sm">
               Sign out
             </button>
           </div>
@@ -193,142 +159,34 @@ export default function App() {
     return <LoadingScreen message="Loading authorized workspace…" />;
   }
 
-  const selectedSection = navigation.find((item) => item.id === activePage)!;
-  const SelectedIcon = selectedSection.icon;
+  const activePage = activeProduct.navigation.find(({ id }) => id === activePageId)
+    ?? activeProduct.navigation.find(({ isHome }) => isHome)
+    ?? activeProduct.navigation[0];
+
+  if (!activePage) {
+    return <LoadingScreen message="No workspace pages are configured." />;
+  }
+
+  const pageContent = activePage.isHome
+    ? <WorkspaceHomePage product={activeProduct} workspace={workspace} onNavigate={setActivePageId} />
+    : activeProduct.renderPage(activePage, workspace);
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900">
-      {isMobileNavigationOpen && (
-        <button
-          aria-label="Close navigation overlay"
-          onClick={() => setIsMobileNavigationOpen(false)}
-          className="fixed inset-0 z-40 bg-slate-950/50 lg:hidden"
-        />
-      )}
-
-      <aside className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-slate-800 bg-slate-950 text-slate-200 transition-transform lg:translate-x-0 ${isMobileNavigationOpen ? "translate-x-0" : "-translate-x-full"}`}>
-        <div className="flex h-20 items-center gap-3 border-b border-white/10 px-6">
-          <div className="grid h-10 w-10 place-items-center rounded-xl bg-sky-500/15 text-sky-300">
-            <Layers3 size={21} />
-          </div>
-          <div>
-            <div className="font-semibold tracking-tight text-white">ClearFlow</div>
-            <div className="text-xs text-slate-400">Workspace platform</div>
-          </div>
-          <button
-            aria-label="Close menu"
-            onClick={() => setIsMobileNavigationOpen(false)}
-            className="ml-auto rounded-lg p-2 hover:bg-white/10 lg:hidden"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="px-4 py-5">
-          <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
-            <div className="text-xs text-slate-400">Signed in as</div>
-            <div className="mt-1 truncate text-sm font-medium text-white">{workspace.managerName}</div>
-            <div className="truncate text-xs text-slate-400">{workspace.email}</div>
-          </div>
-        </div>
-
-        <nav aria-label="Main navigation" className="flex-1 space-y-1 px-3">
-          {navigation.map(({ id, label, icon: Icon }) => {
-            const isSelected = activePage === id;
-            return (
-              <button
-                key={id}
-                onClick={() => {
-                  setActivePage(id);
-                  setIsMobileNavigationOpen(false);
-                }}
-                aria-current={isSelected ? "page" : undefined}
-                className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm transition ${isSelected ? "bg-sky-500/15 font-medium text-sky-200" : "text-slate-400 hover:bg-white/[0.05] hover:text-white"}`}
-              >
-                <Icon size={18} />
-                <span>{label}</span>
-                {isSelected && <ChevronRight className="ml-auto" size={16} />}
-              </button>
-            );
-          })}
-        </nav>
-
-        <div className="border-t border-white/10 p-4">
-          <button
-            onClick={() => void handleSignOut()}
-            className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm text-slate-400 hover:bg-rose-500/10 hover:text-rose-200"
-          >
-            <LogOut size={18} /> Sign out
-          </button>
-          <div className="mt-3 flex items-center gap-2 px-3 text-xs text-slate-500">
-            <ShieldCheck size={14} /> Access verified by Supabase
-          </div>
-        </div>
-      </aside>
-
-      <div className="min-h-screen lg:pl-72">
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200 bg-white/90 px-4 backdrop-blur sm:px-7">
-          <div className="flex items-center gap-3">
-            <button
-              aria-label="Open navigation"
-              onClick={() => setIsMobileNavigationOpen(true)}
-              className="rounded-lg p-2 hover:bg-slate-100 lg:hidden"
-            >
-              <Menu size={20} />
-            </button>
-            <div>
-              <div className="flex items-center gap-2 text-sm font-semibold">
-                <SelectedIcon size={17} className="text-sky-700" />
-                {selectedSection.label}
-              </div>
-              <div className="hidden text-xs text-slate-500 sm:block">{selectedSection.description}</div>
-            </div>
-          </div>
-          <DatabaseStatus connected={databaseStatus?.connected === true} />
-        </header>
-
-        <main className="mx-auto max-w-7xl space-y-6 p-4 sm:p-7">
-          {databaseStatus && !databaseStatus.connected && (
-            <div role="status" className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-              <Database size={19} className="mt-0.5 shrink-0" />
-              <div>
-                <div className="font-semibold">Database connection needs attention</div>
-                <div className="mt-1">{databaseStatus.message}</div>
-              </div>
-              <button
-                onClick={() => void checkTenantDatabaseConnection(workspace.tenantId).then(setDatabaseStatus)}
-                className="ml-auto shrink-0 font-semibold underline"
-              >
-                Retry
-              </button>
-            </div>
-          )}
-
-          <div>
-            <p className="text-sm text-slate-500">{workspace.productName}</p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight">
-              {activePage === "overview" ? `Welcome, ${workspace.managerName}` : selectedSection.label}
-            </h1>
-            <p className="mt-2 text-sm text-slate-500">
-              Reusable platform shell · Feature modules stay separate from shared infrastructure.
-            </p>
-          </div>
-
-          {activePage === "overview" ? (
-            <OverviewPage
-              workspace={workspace}
-              onNavigate={(page) => setActivePage(page)}
-            />
-          ) : (
-            <WorkspacePlaceholder section={selectedSection} workspace={workspace} />
-          )}
-        </main>
-
-        <footer className="border-t border-slate-200 px-7 py-5 text-xs text-slate-500">
-          ClearFlow · Reusable PWA skeleton
-        </footer>
-      </div>
-    </div>
+    <WorkspaceLayout
+      product={activeProduct}
+      workspace={workspace}
+      activePage={activePage}
+      databaseStatus={databaseStatus}
+      onNavigate={setActivePageId}
+      onSignOut={() => void handleSignOut()}
+      onRetryConnection={() => void retryDatabaseConnection()}
+      isSigningOut={isSigningOut}
+    >
+      {pageContent}
+    </WorkspaceLayout>
   );
 }
 
+function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
+}

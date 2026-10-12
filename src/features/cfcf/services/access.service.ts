@@ -1,3 +1,4 @@
+// CFCF PRODUCT: The existing CFCF tables and access rules are resolved here, not in the app shell.
 import { supabase } from "../../../core/database/supabaseClient";
 import type { AuthorizedWorkspace } from "../../../core/workspace/workspace.types";
 import { cfcfConfig } from "../config/cfcf.config";
@@ -15,7 +16,7 @@ export async function resolveCfcfWorkspace(authenticatedEmail: string): Promise<
     .ilike("email", email)
     .maybeSingle();
 
-  if (accessError) throw new Error(`Unable to verify workspace access: ${accessError.message}`);
+  if (accessError) throw new Error("Unable to verify workspace access: " + accessError.message);
   if (!access?.tenant_id) throw new Error("This account is not authorized for the CFCF workspace.");
 
   const { data: tenant, error: tenantError } = await supabase
@@ -26,11 +27,11 @@ export async function resolveCfcfWorkspace(authenticatedEmail: string): Promise<
     .eq("status", "active")
     .maybeSingle();
 
-  if (tenantError) throw new Error(`Unable to load workspace: ${tenantError.message}`);
+  if (tenantError) throw new Error("Unable to load workspace: " + tenantError.message);
   if (!tenant) throw new Error("The authorized workspace is missing or inactive.");
 
   let personId = access.person_id as string | null;
-  let managerName = tenant.name || tenant.business_name || email;
+  let displayName = tenant.name || tenant.business_name || email;
 
   if (personId) {
     const { data: person, error: personError } = await supabase
@@ -42,8 +43,8 @@ export async function resolveCfcfWorkspace(authenticatedEmail: string): Promise<
       .eq("status", "active")
       .maybeSingle();
 
-    if (personError) throw new Error(`Unable to resolve manager profile: ${personError.message}`);
-    if (person) managerName = person.name || managerName;
+    if (personError) throw new Error("Unable to resolve manager profile: " + personError.message);
+    if (person) displayName = person.name || displayName;
     else personId = null;
   }
 
@@ -57,11 +58,11 @@ export async function resolveCfcfWorkspace(authenticatedEmail: string): Promise<
       .ilike("email", email)
       .maybeSingle();
 
-    if (personError) throw new Error(`Unable to resolve manager profile: ${personError.message}`);
+    if (personError) throw new Error("Unable to resolve manager profile: " + personError.message);
     if (!person?.person_id) throw new Error("No active person profile is linked to this manager account.");
     personId = person.person_id;
-    managerName = person.name || managerName;
+    displayName = person.name || displayName;
   }
 
-  return { email, tenantId: tenant.tenant_id, personId, managerName, productName: cfcfConfig.productName };
+  return { email, tenantId: tenant.tenant_id, personId, displayName };
 }
