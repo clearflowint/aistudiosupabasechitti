@@ -21,12 +21,13 @@ function StatusIcon({ status }: { status: string }) {
   if (status === "sent") return <CheckCircle2 size={16} />;
   if (status === "partial") return <CircleAlert size={16} />;
   if (status === "failed") return <XCircle size={16} />;
-  return <Clock3 size={16} className={status === "submitting" || status === "accepted" ? "animate-pulse" : ""} />;
+  return <Clock3 size={16} className={status === "submitting" || status === "accepted" || status === "ack_timeout" ? "animate-pulse" : ""} />;
 }
 
 function statusLabel(status: string) {
   const labels: Record<string, string> = {
     submitting: "Submitting",
+    ack_timeout: "Acknowledgement delayed · checking for final result",
     accepted: "Accepted by n8n · processing",
     sent: "Delivery completed",
     partial: "Partially delivered",
