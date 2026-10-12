@@ -1,7 +1,8 @@
 // SKELETON: Shared mobile-first application frame. No sidebar; only the registered top-level destinations.
 // MIX: Product navigation supplies the three destinations while shared auth/database controls remain here.
 
-import { useState, type ReactNode } from "react";
+import { useState, useSyncExternalStore, type ReactNode } from "react";
+import { getActiveRequestCount, subscribeToRequestActivity } from "../../core/async/requestActivity";
 import { Bell, Database, Layers3, LogOut, X } from "lucide-react";
 import type { ProductDefinition, WorkspaceNavigationItem } from "../../core/products/product.types";
 import type { AuthorizedWorkspace } from "../../core/workspace/workspace.types";
@@ -32,6 +33,7 @@ export function WorkspaceLayout({
 }: WorkspaceLayoutProps) {
   const ActiveIcon = activePage.icon;
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const activeRequestCount = useSyncExternalStore(subscribeToRequestActivity, getActiveRequestCount, () => 0);
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-slate-100 text-slate-900">
@@ -47,6 +49,13 @@ export function WorkspaceLayout({
           <button type="button" onClick={() => setIsNotificationsOpen((open) => !open)} aria-label={isNotificationsOpen ? "Close notifications" : "Open notifications"} aria-expanded={isNotificationsOpen} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800">
             <Bell size={19} />
           </button>
+          {activeRequestCount > 0 && (
+            <div role="status" aria-live="polite" className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full bg-sky-50 px-2.5 text-[11px] font-semibold text-sky-800">
+              <span className="h-2 w-2 animate-spin rounded-full border-2 border-sky-600 border-t-transparent" />
+              <span className="hidden sm:inline">Syncing</span>
+              <span className="sr-only">{activeRequestCount} requests in progress</span>
+            </div>
+          )}
           <DatabaseStatus status={databaseStatus} onRetry={onRetryConnection} />
           <button
             type="button"
