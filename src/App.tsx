@@ -246,11 +246,20 @@ export default function App() {
   }
 
   async function retryWorkspaceAuthorization() {
+    if (!user?.email) return;
+
     setErrorMessage(null);
     setIsRestoringSession(true);
-    const currentUser = await authService.getCurrentUser();
-    setUser(toAuthenticatedUser(currentUser));
-    setIsRestoringSession(false);
+
+    try {
+      const authorizedWorkspace = await resolveCfcfWorkspace(user.email);
+      setWorkspace(authorizedWorkspace);
+      setDatabaseStatus(await checkTenantDatabaseConnection(authorizedWorkspace.tenantId));
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error, "Unable to authorize this workspace."));
+    } finally {
+      setIsRestoringSession(false);
+    }
   }
 
   if (isRestoringSession && !workspace && !errorMessage) {
