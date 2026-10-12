@@ -91,7 +91,7 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 space-y-4">
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div>
