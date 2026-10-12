@@ -21,7 +21,7 @@ begin
   v_campaign_id := nullif(trim(p_notification->>'campaign_id'), '');
   v_incoming_status := lower(coalesce(p_notification->>'status', ''));
   if v_campaign_id is null then raise exception 'campaign_id is required'; end if;
-  if v_incoming_status not in ('submitting', 'accepted', 'sent', 'partial', 'failed') then
+  if v_incoming_status not in ('submitting', 'ack_timeout', 'accepted', 'sent', 'partial', 'failed') then
     raise exception 'unsupported campaign notification status';
   end if;
   if not exists (
@@ -46,7 +46,7 @@ begin
 
   if found then
     v_existing_status := lower(coalesce(v_existing->>'status', ''));
-    if v_existing_status in ('sent', 'partial', 'failed') and v_incoming_status in ('submitting', 'accepted') then
+    if v_existing_status in ('sent', 'partial', 'failed') and v_incoming_status in ('submitting', 'ack_timeout', 'accepted') then
       return v_existing;
     end if;
     if v_existing_status in ('sent', 'partial', 'failed')
