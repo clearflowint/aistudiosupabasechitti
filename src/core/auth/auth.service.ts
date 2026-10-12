@@ -20,7 +20,7 @@ export const authService = {
     if (error) throw error;
   },
 
-  onAuthStateChange(callback: (user: Awaited<ReturnType<typeof authService.getCurrentUser>>) => void) {
+  onAuthStateChange(callback: (user: { id: string; email?: string } | null) => void) {
     return supabase.auth.onAuthStateChange((_event, session) => {
       callback(session?.user ?? null);
     });
