@@ -222,7 +222,7 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
                   <Phone size={15} /> Call
                 </a>
                 <a
-                  href={"https://wa.me/" + contact.phone.replace(/\\D/g, "")}
+                  href={"https://wa.me/" + contact.phone.replace(/\D/g, "")}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
