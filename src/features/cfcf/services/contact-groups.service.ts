@@ -1,5 +1,5 @@
 // CFCF PRODUCT: Relational Contact Group and bulk-campaign preparation services.
-// MIX: Uses the shared Supabase client and authorized workspace identity; campaign delivery is intentionally not connected yet.
+// MIX: Uses the shared Supabase client for group operations and authenticated Edge Function campaign dispatch.
 
 import { supabase } from "../../../core/database/supabaseClient";
 import { cfcfConfig } from "../config/cfcf.config";
