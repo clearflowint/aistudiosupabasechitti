@@ -1,0 +1,518 @@
+// CFCF PRODUCT: One mobile-first workspace view for funds, cycles, shares, and ledger.
+// MIX: Uses shared workspace identity, existing database types, contacts service, and shared Modal patterns.
+// SKELETON: All financial values shown here are stored values; no balances or totals are calculated in the UI.
+
+import { useEffect, useMemo, useState } from "react";
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  CalendarDays,
+  CheckCircle2,
+  ChevronRight,
+  CreditCard,
+  Layers3,
+  RefreshCw,
+  UsersRound,
+  WalletCards,
+} from "lucide-react";
+import type { AuthorizedWorkspace } from "../../../core/workspace/workspace.types";
+import { listCfcfContacts } from "../services/contacts.service";
+import {
+  listCfcfFunds,
+  listCfcfLedgerItems,
+  listCfcfShares,
+  type CfcfLedgerItem,
+} from "../services/workspace.service";
+import type { CfcfContactRow } from "../types/database.types";
+import type { CfcfFundRow, CfcfShareRow } from "../types/database.types";
+
+type WorkspaceTab = "funds" | "cycles" | "shares" | "ledger";
+
+interface WorkspacePageProps {
+  workspace: AuthorizedWorkspace;
+}
+
+const workspaceTabs: { id: WorkspaceTab; label: string; icon: typeof Layers3 }[] = [
+  { id: "funds", label: "Funds", icon: Layers3 },
+  { id: "cycles", label: "Cycles", icon: CalendarDays },
+  { id: "shares", label: "Shares", icon: UsersRound },
+  { id: "ledger", label: "Ledger", icon: CreditCard },
+];
+
+export function WorkspacePage({ workspace }: WorkspacePageProps) {
+  const [funds, setFunds] = useState<CfcfFundRow[]>([]);
+  const [selectedFundId, setSelectedFundId] = useState("");
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>("funds");
+  const [isLoadingFunds, setIsLoadingFunds] = useState(true);
+  const [fundsError, setFundsError] = useState<string | null>(null);
+  const [shares, setShares] = useState<CfcfShareRow[]>([]);
+  const [contacts, setContacts] = useState<CfcfContactRow[]>([]);
+  const [ledgerItems, setLedgerItems] = useState<CfcfLedgerItem[]>([]);
+  const [selectedShareId, setSelectedShareId] = useState<string | null>(null);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+  const [detailsError, setDetailsError] = useState<string | null>(null);
+
+  const selectedFund = useMemo(
+    () => funds.find((fund) => fund.fund_id === selectedFundId) ?? null,
+    [funds, selectedFundId],
+  );
+
+  async function loadFunds() {
+    setIsLoadingFunds(true);
+    setFundsError(null);
+    try {
+      const rows = await listCfcfFunds(workspace.tenantId);
+      setFunds(rows);
+      setSelectedFundId((current) =>
+        rows.some((fund) => fund.fund_id === current) ? current : rows[0]?.fund_id ?? "",
+      );
+    } catch (error) {
+      setFunds([]);
+      setSelectedFundId("");
+      setFundsError(error instanceof Error ? error.message : "Unable to load funds.");
+    } finally {
+      setIsLoadingFunds(false);
+    }
+  }
+
+  // MIX: Discard the previous tenant's UI data before resolving the next tenant's funds.
+  useEffect(() => {
+    setFunds([]);
+    setShares([]);
+    setContacts([]);
+    setLedgerItems([]);
+    setSelectedShareId(null);
+    setSelectedFundId("");
+    setActiveTab("funds");
+    void loadFunds();
+    // loadFunds is intentionally scoped to the tenant identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspace.tenantId]);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    setShares([]);
+    setContacts([]);
+    setLedgerItems([]);
+    setDetailsError(null);
+    setSelectedShareId(null);
+
+    if (!selectedFundId || (activeTab !== "shares" && activeTab !== "ledger")) {
+      setIsLoadingDetails(false);
+      return () => { isCurrent = false; };
+    }
+
+    setIsLoadingDetails(true);
+    const loadDetails = async () => {
+      try {
+        if (activeTab === "shares") {
+          const [shareRows, contactRows] = await Promise.all([
+            listCfcfShares(workspace.tenantId, selectedFundId),
+            listCfcfContacts(workspace.tenantId),
+          ]);
+          if (!isCurrent) return;
+          setShares(shareRows);
+          setContacts(contactRows);
+        } else {
+          const rows = await listCfcfLedgerItems(workspace.tenantId, selectedFundId);
+          if (!isCurrent) return;
+          setLedgerItems(rows);
+        }
+      } catch (error) {
+        if (!isCurrent) return;
+        setDetailsError(error instanceof Error ? error.message : "Unable to load workspace details.");
+      } finally {
+        if (isCurrent) setIsLoadingDetails(false);
+      }
+    };
+
+    void loadDetails();
+    return () => { isCurrent = false; };
+  }, [workspace.tenantId, selectedFundId, activeTab]);
+
+  function openFundTab(fundId: string, tab: WorkspaceTab) {
+    setSelectedFundId(fundId);
+    setSelectedShareId(null);
+    setActiveTab(tab);
+  }
+
+  const selectedLedger = useMemo(
+    () => selectedShareId
+      ? ledgerItems.filter((item) => item.shareId === selectedShareId)
+      : ledgerItems,
+    [ledgerItems, selectedShareId],
+  );
+
+  const contactById = useMemo(
+    () => new Map(contacts.map((contact) => [contact.contact_id, contact])),
+    [contacts],
+  );
+
+  return (
+    <div className="min-w-0 space-y-4 pb-2">
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-sm text-slate-500">
+              <WalletCards size={16} className="shrink-0 text-sky-700" />
+              Your funds
+            </div>
+            <h2 className="mt-1 break-words text-xl font-semibold tracking-tight text-slate-900">Workspace</h2>
+            <p className="mt-1 text-sm leading-5 text-slate-500">
+              Choose a fund, then open its cycles, shares, or ledger.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void loadFunds()}
+            disabled={isLoadingFunds}
+            aria-label="Refresh funds"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-200 text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+          >
+            <RefreshCw size={17} className={isLoadingFunds ? "animate-spin" : ""} />
+          </button>
+        </div>
+
+        <div role="tablist" aria-label="Workspace sections" className="mt-4 grid grid-cols-4 gap-1 rounded-2xl bg-slate-100 p-1">
+          {workspaceTabs.map((tab) => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.id;
+            return (
+              <button
+                type="button"
+                role="tab"
+                key={tab.id}
+                aria-selected={active}
+                onClick={() => { setSelectedShareId(null); setActiveTab(tab.id); }}
+                className={[
+                  "flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[11px] font-semibold transition sm:text-xs",
+                  active ? "bg-white text-sky-800 shadow-sm" : "text-slate-500 hover:text-slate-800",
+                ].join(" ")}
+              >
+                <Icon size={17} />
+                <span className="break-words text-center leading-4">{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {fundsError && (
+        <section role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
+          <p className="font-semibold">Funds could not be loaded</p>
+          <p className="mt-1 break-words leading-5">{fundsError}</p>
+          <button type="button" onClick={() => void loadFunds()} className="mt-3 min-h-11 font-semibold underline">
+            Try again
+          </button>
+        </section>
+      )}
+
+      {isLoadingFunds ? (
+        <div aria-live="polite" className="rounded-2xl border border-slate-200 bg-white px-4 py-12 text-center text-sm text-slate-500">
+          Loading funds…
+        </div>
+      ) : !fundsError && funds.length === 0 ? (
+        <EmptyState
+          icon={<WalletCards size={22} />}
+          title="Your fund workspace is ready"
+          description="No funds have been added to this workspace yet. The next wiring step is the fund setup modal, using the existing CFCF schema."
+        />
+      ) : selectedFund ? (
+        <>
+          {activeTab !== "funds" && (
+            <section className="rounded-2xl border border-sky-100 bg-sky-50 p-3">
+              <label htmlFor="workspace-selected-fund" className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-sky-900">
+                Current fund
+              </label>
+              <select
+                id="workspace-selected-fund"
+                value={selectedFundId}
+                onChange={(event) => setSelectedFundId(event.target.value)}
+                className="min-h-12 w-full min-w-0 rounded-xl border border-sky-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:ring-4 focus:ring-sky-100"
+              >
+                {funds.map((fund) => (
+                  <option value={fund.fund_id} key={fund.fund_id}>{fund.fund_name}</option>
+                ))}
+              </select>
+            </section>
+          )}
+
+          {activeTab === "funds" && (
+            <section className="space-y-3">
+              {funds.map((fund) => (
+                <article
+                  key={fund.fund_id}
+                  className={[
+                    "min-w-0 rounded-2xl border bg-white p-4 shadow-sm transition sm:p-5",
+                    selectedFundId === fund.fund_id ? "border-sky-300 ring-1 ring-sky-100" : "border-slate-200",
+                  ].join(" ")}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setSelectedFundId(fund.fund_id)}
+                    className="flex min-h-11 w-full min-w-0 items-start justify-between gap-3 text-left"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <h3 className="break-words text-base font-semibold text-slate-900">{fund.fund_name}</h3>
+                      <p className="mt-1 break-all text-xs text-slate-400">Fund ID · {fund.fund_id}</p>
+                    </div>
+                    <span className={[
+                      "shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold capitalize",
+                      fund.status === "active" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600",
+                    ].join(" ")}>
+                      {fund.status}
+                    </span>
+                  </button>
+
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    <StoredValue label="Cycles configured" value={fund.number_of_cycles ?? "—"} />
+                    <StoredValue label="Shares configured" value={fund.number_of_shares ?? "—"} />
+                    <StoredValue label="Current cycle" value={fund.current_cycle} />
+                    <StoredValue label="Start date" value={fund.start_date ? formatDate(fund.start_date) : "—"} />
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => openFundTab(fund.fund_id, "cycles")}
+                      className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-sky-600 px-2 text-sm font-semibold text-white transition hover:bg-sky-700"
+                    >
+                      Cycles <ChevronRight size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openFundTab(fund.fund_id, "shares")}
+                      className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Shares <ChevronRight size={15} />
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </section>
+          )}
+
+          {activeTab === "cycles" && (
+            <section className="space-y-3">
+              <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Selected fund</p>
+                <h3 className="mt-1 break-words text-lg font-semibold text-slate-900">{selectedFund.fund_name}</h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  Cycle cards display the values stored on the fund record; no payout or commission is calculated here.
+                </p>
+              </section>
+              {(selectedFund.number_of_cycles ?? 0) > 0 ? (
+                Array.from({ length: Math.min(selectedFund.number_of_cycles ?? 0, 500) }, (_, index) => {
+                  const cycleNumber = index + 1;
+                  const payout = selectedFund.cycle_payout_amounts?.[index];
+                  const commission = selectedFund.cycle_commissions?.[index];
+                  return (
+                    <article key={cycleNumber} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Cycle {cycleNumber}</p>
+                          <h3 className="mt-1 text-base font-semibold text-slate-900">
+                            {cycleNumber === selectedFund.current_cycle ? "Current cycle" : "Cycle details"}
+                          </h3>
+                        </div>
+                        {cycleNumber === selectedFund.current_cycle && (
+                          <span className="shrink-0 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700">Current</span>
+                        )}
+                      </div>
+                      <div className="mt-4 grid grid-cols-2 gap-2">
+                        <StoredValue label="Stored payout" value={displayStoredAmount(payout)} />
+                        <StoredValue label="Stored commission" value={displayStoredAmount(commission)} />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab("shares")}
+                        className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                      >
+                        View fund shares <ChevronRight size={16} />
+                      </button>
+                    </article>
+                  );
+                })
+              ) : (
+                <EmptyState icon={<CalendarDays size={22} />} title="No cycles configured" description="This fund does not currently have a positive cycle count saved." />
+              )}
+              {(selectedFund.number_of_cycles ?? 0) > 500 && (
+                <p className="rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-800">
+                  Showing the first 500 configured cycles for this screen. The saved cycle count is unchanged.
+                </p>
+              )}
+            </section>
+          )}
+
+          {activeTab === "shares" && (
+            <section className="space-y-3">
+              {isLoadingDetails ? (
+                <LoadingCard message="Loading shares…" />
+              ) : detailsError ? (
+                <ErrorCard message={detailsError} onRetry={() => setActiveTab("funds")} />
+              ) : shares.length === 0 ? (
+                <EmptyState icon={<UsersRound size={22} />} title="No shares in this fund yet" description="When shares are created, each share will appear here with its contact, saved billing entries, payment status, and payout details." />
+              ) : (
+                shares.map((share) => {
+                  const contact = contactById.get(share.contact_id);
+                  const billingEntries = Object.entries(share.billing_entries ?? {});
+                  return (
+                    <article key={share.share_id} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                      <div className="flex min-w-0 items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h3 className="break-words text-base font-semibold text-slate-900">{contact?.name || "Contact not found"}</h3>
+                          <p className="mt-1 break-words text-xs text-slate-500">{contact?.phone || "No contact phone saved"}</p>
+                          <p className="mt-1 break-all text-[11px] text-slate-400">Share ID · {share.share_id}</p>
+                        </div>
+                        <span className={[
+                          "shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold capitalize",
+                          share.status === "active" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600",
+                        ].join(" ")}>{share.status}</span>
+                      </div>
+                      <div className="mt-4 grid grid-cols-2 gap-2">
+                        <StoredValue label="Total billed" value={formatINR(share.share_total_billed_amount)} />
+                        <StoredValue label="Payments received" value={formatINR(share.share_net_payment_received)} />
+                        <StoredValue label="Pending" value={formatINR(share.total_pending)} />
+                        <StoredValue label="Advance" value={formatINR(share.total_advance)} />
+                        <StoredValue label="Withdrawn" value={formatINR(share.withdrawn_amount)} />
+                        <StoredValue label="Payout status" value={share.payout_status} />
+                        <StoredValue label="Payout cycle" value={share.payout_cycle_number ?? "—"} />
+                      </div>
+                      <div className="mt-4 rounded-xl bg-slate-50 p-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Saved billing entries</p>
+                        {billingEntries.length > 0 ? (
+                          <div className="mt-2 grid grid-cols-2 gap-2">
+                            {billingEntries.slice(0, 8).map(([cycle, value]) => (
+                              <div key={cycle} className="min-w-0 rounded-lg border border-slate-200 bg-white p-2">
+                                <p className="truncate text-xs text-slate-500">{cycle}</p>
+                                <p className="mt-1 break-words text-sm font-semibold text-slate-900">{displayStoredAmount(value)}</p>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-sm text-slate-500">No billing entries saved.</p>
+                        )}
+                        {billingEntries.length > 8 && <p className="mt-2 text-xs text-slate-500">Showing the first 8 stored entries.</p>}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { setSelectedShareId(share.share_id); setActiveTab("ledger"); }}
+                        className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-3 text-sm font-semibold text-white hover:bg-slate-800"
+                      >
+                        View share ledger <ChevronRight size={16} />
+                      </button>
+                    </article>
+                  );
+                })
+              )}
+            </section>
+          )}
+
+          {activeTab === "ledger" && (
+            <section className="space-y-3">
+              {selectedShareId && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedShareId(null)}
+                  className="min-h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-sky-800"
+                >
+                  Show full fund ledger
+                </button>
+              )}
+              {isLoadingDetails ? (
+                <LoadingCard message="Loading ledger entries…" />
+              ) : detailsError ? (
+                <ErrorCard message={detailsError} onRetry={() => setActiveTab("funds")} />
+              ) : selectedLedger.length === 0 ? (
+                <EmptyState
+                  icon={<CreditCard size={22} />}
+                  title={selectedShareId ? "No ledger entries for this share" : "No ledger entries yet"}
+                  description="Recorded payment rows and fund entries will appear here. This view shows stored entries and does not recalculate balances."
+                />
+              ) : (
+                selectedLedger.map((item) => (
+                  <article key={item.id} className="flex min-w-0 items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className={[
+                      "grid h-10 w-10 shrink-0 place-items-center rounded-xl",
+                      item.entryType === "credit" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700",
+                    ].join(" ")}>
+                      {item.entryType === "credit" ? <ArrowDownLeft size={19} /> : <ArrowUpRight size={19} />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex min-w-0 items-start justify-between gap-2">
+                        <h3 className="break-words text-sm font-semibold capitalize text-slate-900">
+                          {item.kind === "payment" ? "Payment" : "Fund entry"} · {item.entryType}
+                        </h3>
+                        <p className="shrink-0 text-sm font-bold text-slate-900">{formatINR(item.amount)}</p>
+                      </div>
+                      <p className="mt-1 break-words text-xs text-slate-500">
+                        {formatDate(item.date)}{item.paymentType ? " · " + item.paymentType : ""}
+                      </p>
+                      {item.remarks && <p className="mt-2 break-words text-sm leading-5 text-slate-600">{item.remarks}</p>}
+                      <p className="mt-2 break-all text-[11px] text-slate-400">Entry ID · {item.id}</p>
+                    </div>
+                  </article>
+                ))
+              )}
+            </section>
+          )}
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function StoredValue({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="min-w-0 rounded-xl bg-slate-50 p-3">
+      <p className="break-words text-[11px] font-medium leading-4 text-slate-500">{label}</p>
+      <p className="mt-1 break-words text-sm font-semibold capitalize text-slate-900">{value}</p>
+    </div>
+  );
+}
+
+function EmptyState({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
+  return (
+    <section className="rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-10 text-center">
+      <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-sky-50 text-sky-700">{icon}</div>
+      <h3 className="mt-4 text-base font-semibold text-slate-900">{title}</h3>
+      <p className="mx-auto mt-2 max-w-sm break-words text-sm leading-6 text-slate-500">{description}</p>
+    </section>
+  );
+}
+
+function LoadingCard({ message }: { message: string }) {
+  return <div aria-live="polite" className="rounded-2xl border border-slate-200 bg-white px-4 py-12 text-center text-sm text-slate-500">{message}</div>;
+}
+
+function ErrorCard({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <section role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
+      <p className="break-words leading-5">{message}</p>
+      <button type="button" onClick={onRetry} className="mt-3 min-h-11 font-semibold underline">Try again</button>
+    </section>
+  );
+}
+
+function formatINR(value: number): string {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function formatDate(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function displayStoredAmount(value: unknown): string {
+  if (typeof value === "number" && Number.isFinite(value)) return formatINR(value);
+  if (typeof value === "string" && value.trim()) return value;
+  if (value && typeof value === "object") return "Stored details";
+  return "Not entered";
+}
