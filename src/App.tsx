@@ -158,7 +158,7 @@ export default function App() {
   const authenticatedEmailRef = useRef<string | null>(null);
   const [workspace, setWorkspace] = useState<AuthorizedWorkspace | null>(null);
   const [activePage, setActivePage] = useState<WorkspacePage>("overview");
-  const [isLoadingWorkspace, setIsRestoringSession] = useState(true);
+  const [isLoadingWorkspace, setIsLoadingWorkspace] = useState(true);
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [databaseStatus, setDatabaseStatus] = useState<ConnectionStatus | null>(null);
@@ -173,7 +173,7 @@ export default function App() {
       authenticatedEmailRef.current = authenticatedUser?.email ?? null;
       setUser(authenticatedUser);
     }).finally(() => {
-      if (isMounted) setIsRestoringSession(false);
+      if (isMounted) setIsLoadingWorkspace(false);
     });
 
     const { data } = authService.onAuthStateChange((_event, currentUser) => {
@@ -205,7 +205,7 @@ export default function App() {
     }
 
     let isMounted = true;
-    setIsRestoringSession(true);
+    setIsLoadingWorkspace(true);
     setErrorMessage(null);
 
     void resolveCfcfWorkspace(user.email)
@@ -221,7 +221,7 @@ export default function App() {
         setErrorMessage(getErrorMessage(error, "Unable to authorize this workspace."));
       })
       .finally(() => {
-        if (isMounted) setIsRestoringSession(false);
+        if (isMounted) setIsLoadingWorkspace(false);
       });
 
     return () => {
@@ -242,7 +242,7 @@ export default function App() {
   }
 
   async function handleSignOut() {
-    setIsRestoringSession(true);
+    setIsLoadingWorkspace(true);
 
     try {
       await authService.signOut();
@@ -252,7 +252,7 @@ export default function App() {
     } catch (error) {
       setErrorMessage(getErrorMessage(error, "Sign-out failed."));
     } finally {
-      setIsRestoringSession(false);
+      setIsLoadingWorkspace(false);
     }
   }
 
@@ -260,7 +260,7 @@ export default function App() {
     if (!user?.email) return;
 
     setErrorMessage(null);
-    setIsRestoringSession(true);
+    setIsLoadingWorkspace(true);
 
     try {
       const authorizedWorkspace = await resolveCfcfWorkspace(user.email);
@@ -269,7 +269,7 @@ export default function App() {
     } catch (error) {
       setErrorMessage(getErrorMessage(error, "Unable to authorize this workspace."));
     } finally {
-      setIsRestoringSession(false);
+      setIsLoadingWorkspace(false);
     }
   }
 
