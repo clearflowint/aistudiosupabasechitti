@@ -1,13 +1,6 @@
 import { supabase } from "../../../core/database/supabaseClient";
+import type { AuthorizedWorkspace } from "../../../core/workspace/workspace.types";
 import { cfcfConfig } from "../config/cfcf.config";
-
-export interface AuthorizedWorkspace {
-  email: string;
-  tenantId: string;
-  personId: string;
-  managerName: string;
-  productName: string;
-}
 
 export async function resolveCfcfWorkspace(authenticatedEmail: string): Promise<AuthorizedWorkspace> {
   const email = authenticatedEmail.trim().toLowerCase();
