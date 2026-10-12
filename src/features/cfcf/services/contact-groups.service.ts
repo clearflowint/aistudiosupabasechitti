@@ -3,24 +3,7 @@
 
 import { supabase } from "../../../core/database/supabaseClient";
 import { cfcfConfig } from "../config/cfcf.config";
-
-export interface CfcfContactGroupRow {
-  group_id: string;
-  product_id: "CFCF";
-  tenant_id: string;
-  person_id: string;
-  group_name: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface CfcfContactGroupMemberRow {
-  group_id: string;
-  contact_id: string;
-  product_id: "CFCF";
-  tenant_id: string;
-  created_at: string;
-}
+import type { CfcfContactGroupMemberRow, CfcfContactGroupRow } from "../types/database.types";
 
 export type CfcfCampaignChannel = "whatsapp" | "sms" | "email";
 
