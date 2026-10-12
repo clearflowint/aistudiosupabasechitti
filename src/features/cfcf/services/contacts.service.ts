@@ -81,7 +81,7 @@ export async function updateCfcfContact(
 
   const phone = normalizeIndianPhone(input.phone);
   const email = input.email?.trim().toLowerCase() || null;
-  if (email && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     throw new Error("Enter a valid email address or leave it blank.");
   }
 
