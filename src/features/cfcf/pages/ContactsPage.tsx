@@ -294,8 +294,8 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
       )}
 
       {isLoading ? (
-        <section aria-live="polite" className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">
-          Loading contacts…
+        <section aria-live="polite" className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">
+          <RefreshCw size={17} className="animate-spin" /> Loading contacts from Supabase…
         </section>
       ) : !loadError && filteredContacts.length === 0 ? (
         <section className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
