@@ -30,43 +30,37 @@ export const fundsService = {
   },
 
   async getFunds(tenantId: string): Promise<ChittiMaster[]> {
-    if (!tenantId) return [];
+    const authorizedTenantId = tenantId.trim();
+    if (!authorizedTenantId) return [];
 
-    try {
-      const { data, error } = await supabase
-        .from("chittis")
-        .select("*")
-        .eq("tenant_id", tenantId)
-        .order("start_date", { ascending: false });
+    const { data, error } = await supabase
+      .from("cfcf_funds")
+      .select("fund_id, product_id, tenant_id, fund_name, start_date, number_of_cycles, number_of_shares, current_cycle, cycle_payout_amounts, cycle_commissions, fund_net_balance, fund_total_billed_amount, fund_total_pending_amount, fund_total_advance, fund_total_withdrawn, fund_total_commissions, other_amount, status")
+      .eq("product_id", "CFCF")
+      .eq("tenant_id", authorizedTenantId)
+      .order("created_at", { ascending: false });
 
-      if (error) {
-        console.warn("Supabase getFunds error:", error);
-        throw error;
-      }
-
-      return (data || []).map((row: any) => {
-        const totalMonths = Number(row.total_months) || 20;
-        const currentMonth = calculateChittiMonth(row.start_date, totalMonths);
-        return {
-          chitti_id: row.chitti_id || row.id,
-          tenant_id: row.tenant_id,
-          formula_id: row.formula_id || "standard_chit_v1",
-          name: row.name || "Chitti Scheme",
-          start_date: row.start_date,
-          total_members: Number(row.total_members) || 20,
-          total_months: totalMonths,
-          u_due: Number(row.u_due) || 5000,
-          d_due: Number(row.d_due) || 6000,
-          commission: Number(row.commission) || 2000,
-          current_month: currentMonth,
-          last_checked_date: row.last_checked_date,
-          payout_schedule: row.payout_schedule,
-        };
-      });
-    } catch (err) {
-      console.error("Error fetching funds from Supabase:", err);
-      throw err;
+    if (error) {
+      console.error("Unable to load CFCF funds:", error);
+      throw new Error(`Unable to load funds: ${error.message}`);
     }
+
+    // Transitional UI adapter: database column names remain canonical.
+    // Values not represented by the current CFCF schema are not fabricated.
+    return (data ?? []).map((row: any) => ({
+      chitti_id: row.fund_id,
+      tenant_id: row.tenant_id,
+      formula_id: "manual",
+      name: row.fund_name,
+      start_date: row.start_date || "",
+      total_members: Number(row.number_of_shares ?? 0),
+      total_months: Number(row.number_of_cycles ?? 0),
+      u_due: 0,
+      d_due: 0,
+      commission: 0,
+      current_month: Number(row.current_cycle ?? 0),
+      payout_schedule: JSON.stringify(row.cycle_payout_amounts ?? []),
+    }));
   },
 
   async getFundDetails(fundId: string, tenantId: string, requestedMonth?: number): Promise<ChittiDetails> {
