@@ -208,10 +208,19 @@ export async function dispatchCfcfCampaign(
   });
 
   if (error) {
-    const details = data && typeof data === "object" && "error" in data
+    let details = data && typeof data === "object" && "error" in data
       ? String((data as { error: unknown }).error)
-      : error.message;
-    throw new Error(details || "Campaign dispatch failed. Check Notifications before retrying.");
+      : "";
+    const context = (error as { context?: unknown }).context;
+    if (!details && context instanceof Response) {
+      try {
+        const responseBody = await context.clone().json() as { error?: unknown };
+        if (typeof responseBody.error === "string") details = responseBody.error;
+      } catch {
+        // Fall back to the Supabase function client's safe generic error.
+      }
+    }
+    throw new Error(details || error.message || "Campaign dispatch failed. Check Notifications before retrying.");
   }
 
   if (!data || data.accepted !== true || data.status !== "accepted" || typeof data.campaign_id !== "string") {
