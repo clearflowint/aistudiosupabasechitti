@@ -24,12 +24,13 @@ import {
 interface ContactGroupsPanelProps {
   workspace: AuthorizedWorkspace;
   contacts: CfcfContactRow[];
+  contactsLoaded: boolean;
 }
 
 const buttonClass = "inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50";
 const inputClass = "w-full min-w-0 rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100";
 
-export function ContactGroupsPanel({ workspace, contacts }: ContactGroupsPanelProps) {
+export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: ContactGroupsPanelProps) {
   const [groups, setGroups] = useState<CfcfContactGroupRow[]>([]);
   const [members, setMembers] = useState<CfcfContactGroupMemberRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -90,9 +91,10 @@ export function ContactGroupsPanel({ workspace, contacts }: ContactGroupsPanelPr
 
   // MIX: Keep membership UI aligned when a Contact is deleted from the directory.
   useEffect(() => {
+    if (!contactsLoaded) return;
     const existingContactIds = new Set(contacts.map((contact) => contact.contact_id));
     setMembers((current) => current.filter((member) => existingContactIds.has(member.contact_id)));
-  }, [contacts]);
+  }, [contacts, contactsLoaded]);
 
   const memberCounts = useMemo(() => {
     const counts = new Map<string, number>();
