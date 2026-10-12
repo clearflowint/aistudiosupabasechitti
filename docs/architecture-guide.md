@@ -68,3 +68,16 @@ Do not move fund selectors, cycle cards, share cards, CFCF tab state, or CFCF da
 3. Build its Workspace inside its own product folder; do not inherit the CFCF workspace layout.
 4. Reuse universal UI primitives where they fit; do not force a shared visual composition when the products have different workflows.
 5. Register it in `src/products/productRegistry.ts` and validate tenant isolation, session restore, refresh, mobile behavior, and mutations.
+
+
+## Contact Groups and bulk campaign boundary
+
+// CFCF PRODUCT: Contact Groups are stored relationally; each membership is a row, not a JSON array.
+
+- `public.contactgroups` stores the manager-defined group name and the owning product, tenant, and person.
+- `public.contact_group_members` joins a group to a Contact with tenant-scoped composite foreign keys. The primary key prevents duplicate membership.
+- Contact deletion cascades only to group membership rows; deleting a group never deletes Contacts.
+- Group and membership reads are tenant-scoped. RLS restricts mutations to the active tenant owner.
+- Campaign composition selects one or more groups, resolves distinct Contact IDs, and builds a payload containing `product_id`, `tenant_id`, `group_ids`, `contact_ids`, `recipients`, `channels`, and `message`.
+- Large membership reads are paginated. Email campaigns warn about Contacts without email addresses; recipient records retain phone/email values for the future automation workflow.
+- The current Launch Campaign action only prepares and previews the request. It does not send messages. A future MIX integration may dispatch to the configured n8n webhook and must report success only after n8n acknowledges acceptance.
