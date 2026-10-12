@@ -10,15 +10,17 @@ export async function checkTenantDatabaseConnection(tenantId: string): Promise<C
     return { connected: false, message: "No authorized workspace is selected." };
   }
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("tenants")
     .select("tenant_id")
     .eq("tenant_id", tenantId)
-    .limit(1);
+    .maybeSingle();
 
   if (error) {
     return { connected: false, message: error.message };
   }
+
+  if (!data) return { connected: false, message: "The authorized workspace could not be found." };
 
   return { connected: true, message: "Connected to the workspace database." };
 }
