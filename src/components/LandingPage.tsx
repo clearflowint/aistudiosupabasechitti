@@ -1,3 +1,4 @@
+// SKELETON: Shared sign-in presentation. Authentication behavior lives in auth.service.ts.
 import { ArrowRight, Layers3, ShieldCheck } from "lucide-react";
 
 interface LandingPageProps {

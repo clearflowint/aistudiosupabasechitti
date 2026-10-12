@@ -1,3 +1,4 @@
+// SKELETON: Shared Vite, Tailwind, alias, and PWA configuration.
 import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";

@@ -1,3 +1,4 @@
+// SKELETON: Generic workspace connectivity check, not a business-data service.
 import { supabase } from "./supabaseClient";
 
 export interface ConnectionStatus {

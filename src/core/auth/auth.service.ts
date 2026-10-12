@@ -1,3 +1,4 @@
+// SKELETON: Shared authentication operations; product permissions belong in product adapters.
 import { supabase } from "../database/supabaseClient";
 import type { User } from "@supabase/supabase-js";
 
