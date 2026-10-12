@@ -48,6 +48,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [contacts, setContacts] = useState<CfcfContactRow[]>([]);
   const [ledgerItems, setLedgerItems] = useState<CfcfLedgerItem[]>([]);
   const [selectedShareId, setSelectedShareId] = useState<string | null>(null);
+  const [expandedBillingShareId, setExpandedBillingShareId] = useState<string | null>(null);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
   const [detailsError, setDetailsError] = useState<string | null>(null);
   const [fundReloadKey, setFundReloadKey] = useState(0);
@@ -71,6 +72,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setContacts([]);
       setLedgerItems([]);
       setSelectedShareId(null);
+      setExpandedBillingShareId(null);
       setSelectedFundId("");
       setActiveTab("funds");
     }
@@ -166,7 +168,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               <WalletCards size={16} className="shrink-0 text-sky-700" />
               Your funds
             </div>
-            <h2 className="mt-1 break-words text-xl font-semibold tracking-tight text-slate-900">Workspace</h2>
+            <h2 className="mt-1 break-words text-xl font-semibold tracking-tight text-slate-900">Funds, cycles and shares</h2>
             <p className="mt-1 text-sm leading-5 text-slate-500">
               Choose a fund, then open its cycles, shares, or ledger.
             </p>
@@ -364,7 +366,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               ) : (
                 shares.map((share) => {
                   const contact = contactById.get(share.contact_id);
-                  const billingEntries = Object.entries(share.billing_entries ?? {});
+                  const billingEntries = Object.entries(share.billing_entries ?? {});\n                  const isBillingExpanded = expandedBillingShareId === share.share_id;
                   return (
                     <article key={share.share_id} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
                       <div className="flex min-w-0 items-start justify-between gap-3">
@@ -391,7 +393,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Saved billing entries</p>
                         {billingEntries.length > 0 ? (
                           <div className="mt-2 grid grid-cols-2 gap-2">
-                            {billingEntries.slice(0, 8).map(([cycle, value]) => (
+                            {billingEntries.slice(0, isBillingExpanded ? billingEntries.length : 8).map(([cycle, value]) => (
                               <div key={cycle} className="min-w-0 rounded-lg border border-slate-200 bg-white p-2">
                                 <p className="truncate text-xs text-slate-500">{cycle}</p>
                                 <p className="mt-1 break-words text-sm font-semibold text-slate-900">{displayStoredAmount(value)}</p>
@@ -401,7 +403,15 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                         ) : (
                           <p className="mt-2 text-sm text-slate-500">No billing entries saved.</p>
                         )}
-                        {billingEntries.length > 8 && <p className="mt-2 text-xs text-slate-500">Showing the first 8 stored entries.</p>}
+                        {billingEntries.length > 8 && (
+                          <button
+                            type="button"
+                            onClick={() => setExpandedBillingShareId(isBillingExpanded ? null : share.share_id)}
+                            className="mt-2 min-h-11 text-sm font-semibold text-sky-800 underline"
+                          >
+                            {isBillingExpanded ? "Show fewer entries" : "Show all " + billingEntries.length + " entries"}
+                          </button>
+                        )}
                       </div>
                       <button
                         type="button"
