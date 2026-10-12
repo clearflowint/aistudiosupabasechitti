@@ -238,7 +238,7 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
             </p>
           )}
         </section>
-
+      ) : null}
 
       <Modal
         isOpen={isModalOpen}
