@@ -1,10 +1,10 @@
 import { supabase } from "../database/supabaseClient";
+import type { User } from "@supabase/supabase-js";
 
 export const authService = {
-  async getCurrentUser() {
+  async getCurrentUser(): Promise<User | null> {
     const { data, error } = await supabase.auth.getUser();
-    if (error) return null;
-    return data.user;
+    return error ? null : data.user;
   },
 
   async signInWithGoogle(): Promise<void> {
@@ -20,9 +20,13 @@ export const authService = {
     if (error) throw error;
   },
 
-  onAuthStateChange(callback: (user: { id: string; email?: string } | null) => void) {
-    return supabase.auth.onAuthStateChange((_event, session) => {
-      callback(session?.user ?? null);
+  onAuthStateChange(
+    callback: (event: string, user: User | null) => void,
+  ) {
+    return supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "USER_UPDATED") {
+        callback(event, session?.user ?? null);
+      }
     });
   },
 };
