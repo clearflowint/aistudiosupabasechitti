@@ -210,10 +210,21 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
       : current.filter((value) => value !== channel));
   }
 
-  const campaignRecipientCount = useMemo(() => {
+  const campaignRecipientIds = useMemo(() => {
     const selected = new Set(campaignGroupIds);
-    return new Set(members.filter((member) => selected.has(member.group_id)).map((member) => member.contact_id)).size;
+    return [...new Set(members.filter((member) => selected.has(member.group_id)).map((member) => member.contact_id))];
   }, [campaignGroupIds, members]);
+
+  const campaignRecipientCount = campaignRecipientIds.length;
+  const campaignMissingEmailCount = useMemo(() => {
+    if (!channels.includes("email")) return 0;
+    const emailByContactId = new Map(contacts.map((contact) => [contact.contact_id, contact.email]));
+    return campaignRecipientIds.filter((contactId) => !emailByContactId.get(contactId)?.trim()).length;
+  }, [campaignRecipientIds, channels, contacts]);
+
+  const campaignEligibleRecipientCount = channels.includes("whatsapp") || channels.includes("sms")
+    ? campaignRecipientCount
+    : campaignRecipientCount - campaignMissingEmailCount;
 
   async function handlePrepareCampaign(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -376,6 +387,12 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
               ))}
             </div>
             <p className="mt-2 text-sm text-slate-500">Unique recipients: <strong className="text-slate-900">{campaignRecipientCount}</strong> (overlapping Contacts are counted once).</p>
+            {campaignMissingEmailCount > 0 && (
+              <p role="status" className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
+                {campaignMissingEmailCount} selected {campaignMissingEmailCount === 1 ? "Contact has" : "Contacts have"} no email address. The future n8n workflow should skip these recipients for Email delivery.
+              </p>
+            )}
+            <p className="mt-1 text-xs text-slate-500">Recipients eligible for the selected channels: {campaignEligibleRecipientCount}</p>
           </fieldset>
           <div>
             <label htmlFor="campaign-message" className="mb-1.5 block text-sm font-semibold text-slate-800">Message</label>
@@ -400,7 +417,7 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
           )}
           <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
             <button type="button" onClick={() => setIsCampaignOpen(false)} disabled={isPreparingCampaign} className={buttonClass + " border border-slate-200 text-slate-700"}>Close</button>
-            <button type="submit" disabled={isPreparingCampaign || campaignGroupIds.length === 0 || channels.length === 0 || !message.trim() || campaignRecipientCount === 0} className={buttonClass + " bg-emerald-600 text-white hover:bg-emerald-700"}>
+            <button type="submit" disabled={isPreparingCampaign || campaignGroupIds.length === 0 || channels.length === 0 || !message.trim() || campaignEligibleRecipientCount === 0} className={buttonClass + " bg-emerald-600 text-white hover:bg-emerald-700"}>
               <Megaphone size={16} /> {isPreparingCampaign ? "Preparing…" : "Send campaign"}
             </button>
           </div>
