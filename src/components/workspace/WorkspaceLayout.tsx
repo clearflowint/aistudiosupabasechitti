@@ -1,8 +1,8 @@
 // SKELETON: Shared mobile-first application frame. No sidebar; only the registered top-level destinations.
 // MIX: Product navigation supplies the three destinations while shared auth/database controls remain here.
 
-import type { ReactNode } from "react";
-import { Database, Layers3, LogOut } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { Bell, Database, Layers3, LogOut, X } from "lucide-react";
 import type { ProductDefinition, WorkspaceNavigationItem } from "../../core/products/product.types";
 import type { AuthorizedWorkspace } from "../../core/workspace/workspace.types";
 import type { ConnectionStatus } from "../../core/database/connection.service";
@@ -31,11 +31,12 @@ export function WorkspaceLayout({
   isSigningOut,
 }: WorkspaceLayoutProps) {
   const ActiveIcon = activePage.icon;
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-slate-100 text-slate-900">
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex min-h-16 max-w-3xl items-center gap-3 px-4 py-3 sm:px-5">
+      <header className="relative z-30 border-b border-slate-200 bg-white">
+        <div className="mx-auto flex min-h-16 max-w-3xl items-center gap-2 px-3 py-3 sm:gap-3 sm:px-5">
           <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-950 text-sky-300">
             <Layers3 size={20} />
           </div>
@@ -43,6 +44,9 @@ export function WorkspaceLayout({
             <div className="truncate text-sm font-bold tracking-tight text-slate-950">ClearFlow</div>
             <div className="truncate text-xs text-slate-500">{activePage.label} · {product.name}</div>
           </div>
+          <button type="button" onClick={() => setIsNotificationsOpen((open) => !open)} aria-label={isNotificationsOpen ? "Close notifications" : "Open notifications"} aria-expanded={isNotificationsOpen} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800">
+            <Bell size={19} />
+          </button>
           <DatabaseStatus status={databaseStatus} onRetry={onRetryConnection} />
           <button
             type="button"
@@ -55,6 +59,18 @@ export function WorkspaceLayout({
             <span className="hidden sm:inline">{isSigningOut ? "Signing out…" : "Sign out"}</span>
           </button>
         </div>
+        {isNotificationsOpen && (
+          <section aria-label="Notifications" className="mx-auto max-w-3xl border-t border-slate-100 bg-sky-50/70 px-4 py-3 sm:px-5">
+            <div className="flex items-start gap-3">
+              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-sky-700"><Bell size={17} /></div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-slate-900">Notifications</p>
+                <p className="mt-0.5 text-xs leading-5 text-slate-600">There are no new notifications yet. Workspace reminders and updates can appear here as those features are wired.</p>
+              </div>
+              <button type="button" onClick={() => setIsNotificationsOpen(false)} aria-label="Close notifications" className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-slate-500 hover:bg-white"><X size={17} /></button>
+            </div>
+          </section>
+        )}
         {databaseStatus && !databaseStatus.connected && (
           <div role="status" className="border-t border-amber-200 bg-amber-50 px-4 py-3">
             <div className="mx-auto flex max-w-3xl items-start gap-2 text-xs leading-5 text-amber-900">
@@ -66,25 +82,11 @@ export function WorkspaceLayout({
         )}
       </header>
 
-      <main className="mx-auto min-h-[calc(100dvh-8rem)] w-full max-w-3xl min-w-0 px-3 pb-28 pt-4 sm:px-5 sm:pt-6">
-        <div className="mb-4 flex min-w-0 items-center gap-2">
-          <ActiveIcon size={17} className="shrink-0 text-sky-700" />
-          <div className="min-w-0">
-            <p className="break-words text-xs font-semibold uppercase tracking-[0.12em] text-sky-800">{product.name}</p>
-            <h1 className="break-words text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">
-              {activePage.isHome ? "Home" : activePage.label}
-            </h1>
-          </div>
-        </div>
-        {children}
-      </main>
-
       <nav
         aria-label="Main navigation"
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 shadow-[0_-8px_24px_rgba(15,23,42,0.06)] backdrop-blur"
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        className="border-b border-slate-200 bg-white"
       >
-        <div className="mx-auto grid min-h-16 max-w-3xl grid-cols-3 gap-1 px-2 py-1.5 sm:px-5">
+        <div className="mx-auto grid min-h-14 max-w-3xl grid-cols-3 gap-1 px-3 py-1.5 sm:px-5">
           {product.navigation.map((item) => {
             const isSelected = activePage.id === item.id;
             const Icon = item.icon;
@@ -95,7 +97,7 @@ export function WorkspaceLayout({
                 onClick={() => onNavigate(item.id)}
                 aria-current={isSelected ? "page" : undefined}
                 className={[
-                  "flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[11px] font-semibold transition sm:text-xs",
+                  "flex min-h-11 min-w-0 flex-row items-center justify-center gap-2 rounded-xl px-2 text-xs font-semibold transition",
                   isSelected
                     ? "bg-sky-50 text-sky-800"
                     : "text-slate-500 hover:bg-slate-50 hover:text-slate-900",
@@ -108,6 +110,21 @@ export function WorkspaceLayout({
           })}
         </div>
       </nav>
+
+      <main className="mx-auto min-h-[calc(100dvh-8rem)] w-full max-w-3xl min-w-0 px-3 pb-8 pt-4 sm:px-5 sm:pt-6">
+        <div className="mb-4 flex min-w-0 items-center gap-2">
+          <ActiveIcon size={17} className="shrink-0 text-sky-700" />
+          <div className="min-w-0">
+            <p className="break-words text-xs font-semibold uppercase tracking-[0.12em] text-sky-800">{product.name}</p>
+            <h1 className="break-words text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">
+              {activePage.isHome ? "Home" : activePage.label}
+            </h1>
+          </div>
+        </div>
+        {children}
+      </main>
+
+
     </div>
   );
 }
