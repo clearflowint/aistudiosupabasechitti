@@ -28,7 +28,7 @@ import {
 } from "./features/cfcf/services/access.service";
 
 type WorkspacePage = "overview" | "contacts" | "funds" | "payments" | "reports" | "settings";
-type AuthenticatedUser = { id: string; email: string };
+type AuthenticatedUser = { email: string };
 
 const navigation = [
   { id: "overview", label: "Overview", icon: LayoutDashboard, description: "Your workspace at a glance" },
@@ -411,7 +411,7 @@ export default function App() {
           )}
 
           <div>
-            <p className="text-sm text-slate-500">CFCF workspace</p>
+            <p className="text-sm text-slate-500">{workspace.productName}</p>
             <h1 className="mt-1 text-2xl font-semibold tracking-tight">
               {activePage === "overview" ? `Welcome, ${workspace.managerName}` : selectedSection.label}
             </h1>
@@ -449,7 +449,7 @@ function DatabaseStatus({ status }: { status: ConnectionStatus | null }) {
 }
 
 function toAuthenticatedUser(user: { id: string; email?: string } | null): AuthenticatedUser | null {
-  return user?.email ? { id: user.id, email: user.email } : null;
+  return user?.email ? { email: user.email } : null;
 }
 
 function getErrorMessage(error: unknown, fallback: string): string {
