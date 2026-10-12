@@ -5,7 +5,8 @@ export interface AuthorizedWorkspace {
   email: string;
   tenantId: string;
   personId: string;
-  managerName: string;\n  productName: string;
+  managerName: string;
+  productName: string;
 }
 
 export async function resolveCfcfWorkspace(authenticatedEmail: string): Promise<AuthorizedWorkspace> {
