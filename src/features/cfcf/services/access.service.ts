@@ -28,7 +28,7 @@ export async function resolveCfcfWorkspace(authenticatedEmail: string): Promise<
     .from("tenants")
     .select("tenant_id, product_id, status, name, business_name, email")
     .eq("tenant_id", access.tenant_id)
-    .eq("product_id", "CFCF")
+    .eq("product_id", cfcfConfig.productId)
     .eq("status", "active")
     .maybeSingle();
 
@@ -44,7 +44,7 @@ export async function resolveCfcfWorkspace(authenticatedEmail: string): Promise<
       .select("person_id, name, status, email")
       .eq("person_id", personId)
       .eq("tenant_id", tenant.tenant_id)
-      .eq("product_id", "CFCF")
+      .eq("product_id", cfcfConfig.productId)
       .eq("status", "active")
       .maybeSingle();
 
@@ -58,7 +58,7 @@ export async function resolveCfcfWorkspace(authenticatedEmail: string): Promise<
       .from("persons")
       .select("person_id, name, status, email")
       .eq("tenant_id", tenant.tenant_id)
-      .eq("product_id", "CFCF")
+      .eq("product_id", cfcfConfig.productId)
       .eq("status", "active")
       .ilike("email", email)
       .maybeSingle();
