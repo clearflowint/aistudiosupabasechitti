@@ -129,3 +129,23 @@ export interface CfcfProductDataRow {
   notifications: unknown[];
   updated_at: string;
 }
+
+ 
+// CFCF PRODUCT: Relational Contact Group tables for the existing Supabase schema.
+export interface CfcfContactGroupRow {
+  group_id: string;
+  product_id: CfcfProductId;
+  tenant_id: string;
+  person_id: string;
+  group_name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CfcfContactGroupMemberRow {
+  group_id: string;
+  contact_id: string;
+  product_id: CfcfProductId;
+  tenant_id: string;
+  created_at: string;
+}
