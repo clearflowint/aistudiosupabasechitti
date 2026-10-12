@@ -316,11 +316,12 @@ Deno.serve(async (req: Request) => {
 
     if (!accepted) {
       const failure = webhookResponse.ok
-        ? "n8n did not return the required acceptance receipt."
+        ? "n8n did not return the required acceptance receipt. Check Notifications before retrying."
         : "n8n returned HTTP " + webhookResponse.status + ".";
       await saveNotification(admin, tenantId, {
         ...notification,
-        status: "failed",
+        title: webhookResponse.ok ? "Campaign acknowledgement delayed" : notification.title,
+        status: webhookResponse.ok ? "ack_timeout" : "failed",
         error: failure,
         updated_at: new Date().toISOString(),
       }).catch(() => undefined);
@@ -354,7 +355,8 @@ Deno.serve(async (req: Request) => {
       : "Unable to reach n8n. Check the campaign status before retrying.";
     await saveNotification(admin, tenantId, {
       ...notification,
-      status: "failed",
+      title: "Campaign acknowledgement delayed",
+      status: "ack_timeout",
       error: failure,
       updated_at: new Date().toISOString(),
     }).catch(() => undefined);
