@@ -402,15 +402,7 @@ export default function App() {
               <div className="hidden text-xs text-slate-500 sm:block">{selectedSection.description}</div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <DatabaseStatus status={databaseStatus} />
-            <button
-              onClick={() => void handleSignOut()}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50"
-            >
-              Sign out
-            </button>
-          </div>
+          <DatabaseStatus status={databaseStatus} />
         </header>
 
         <main className="mx-auto max-w-7xl space-y-6 p-4 sm:p-7">
