@@ -2,11 +2,11 @@
 // MIX: Reuses the shared Modal and the workspace identity supplied by the neutral app shell.
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Mail, MessageCircle, Phone, Plus, RefreshCw, Search, UsersRound } from "lucide-react";
+import { Mail, MessageCircle, Phone, Plus, RefreshCw, Search, UsersRound, Pencil } from "lucide-react";
 import type { AuthorizedWorkspace } from "../../../core/workspace/workspace.types";
 import { Modal } from "../../../components/ui/Modal";
 import type { CfcfContactRow } from "../types/database.types";
-import { createCfcfContact, listCfcfContacts } from "../services/contacts.service";
+import { createCfcfContact, listCfcfContacts, updateCfcfContact } from "../services/contacts.service";
 
 interface ContactsPageProps {
   workspace: AuthorizedWorkspace;
@@ -21,6 +21,7 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingContact, setEditingContact] = useState<CfcfContactRow | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -65,22 +66,53 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
   function closeModal() {
     if (isSaving) return;
     setIsModalOpen(false);
+    setEditingContact(null);
     setForm(emptyForm);
     setFormError(null);
   }
 
-  async function handleCreateContact(event: FormEvent<HTMLFormElement>) {
+  function openCreateModal() {
+    setNotice(null);
+    setFormError(null);
+    setEditingContact(null);
+    setForm(emptyForm);
+    setIsModalOpen(true);
+  }
+
+  function openEditModal(contact: CfcfContactRow) {
+    setNotice(null);
+    setFormError(null);
+    setEditingContact(contact);
+    setForm({
+      name: contact.name,
+      phone: contact.phone,
+      email: contact.email ?? "",
+      remarks: contact.remarks ?? "",
+    });
+    setIsModalOpen(true);
+  }
+
+  async function handleSaveContact(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFormError(null);
     setIsSaving(true);
 
     try {
-      const created = await createCfcfContact(workspace.tenantId, form);
-      setContacts((current) =>
-        [...current, created].sort((a, b) => a.name.localeCompare(b.name)),
-      );
-      setNotice("Contact added successfully.");
+      if (editingContact) {
+        const updated = await updateCfcfContact(workspace.tenantId, editingContact.contact_id, form);
+        setContacts((current) => current
+          .map((contact) => contact.contact_id === updated.contact_id ? updated : contact)
+          .sort((a, b) => a.name.localeCompare(b.name)));
+        setNotice("Contact updated successfully.");
+      } else {
+        const created = await createCfcfContact(workspace.tenantId, form);
+        setContacts((current) =>
+          [...current, created].sort((a, b) => a.name.localeCompare(b.name)),
+        );
+        setNotice("Contact added successfully.");
+      }
       setIsModalOpen(false);
+      setEditingContact(null);
       setForm(emptyForm);
       setSearch("");
     } catch (error) {
@@ -106,7 +138,7 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
           </div>
           <button
             type="button"
-            onClick={() => { setNotice(null); setFormError(null); setIsModalOpen(true); }}
+            onClick={openCreateModal}
             className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700"
           >
             <Plus size={17} /> Add contact
@@ -175,7 +207,7 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
           {!search.trim() && (
             <button
               type="button"
-              onClick={() => setIsModalOpen(true)}
+              onClick={openCreateModal}
               className="mt-5 inline-flex items-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700"
             >
               <Plus size={16} /> Add first contact
@@ -214,7 +246,14 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
                 )}
               </div>
 
-              <div className="mt-3 grid grid-cols-2 gap-2">
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => openEditModal(contact)}
+                  className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                >
+                  <Pencil size={14} /> Edit
+                </button>
                 <a
                   href={"tel:" + contact.phone}
                   className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-2 text-xs font-semibold text-blue-800 transition hover:bg-blue-100"
@@ -242,11 +281,11 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
 
       <Modal
         isOpen={isModalOpen}
-        title="Add a contact"
-        description="Contact details are saved to the current authorized CFCF workspace."
+        title={editingContact ? "Edit contact" : "Add a contact"}
+        description="Contact details are saved to the current authorized workspace."
         onClose={closeModal}
       >
-        <form onSubmit={(event) => void handleCreateContact(event)} className="space-y-4">
+        <form onSubmit={(event) => void handleSaveContact(event)} className="space-y-4">
           <div>
             <label htmlFor="contact-name" className="mb-1.5 block text-sm font-medium text-slate-700">Full name <span className="text-rose-500">*</span></label>
             <input
@@ -316,7 +355,7 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
               Cancel
             </button>
             <button type="submit" disabled={isSaving} className="inline-flex items-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60">
-              <Plus size={16} /> {isSaving ? "Saving…" : "Save contact"}
+              {editingContact ? <Pencil size={16} /> : <Plus size={16} />} {isSaving ? "Saving…" : editingContact ? "Save changes" : "Save contact"}
             </button>
           </div>
         </form>
