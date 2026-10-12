@@ -15,7 +15,7 @@ This is a measured source-file subset, not a claim about every file in the repos
 - Replaced `src/App.tsx`: **1,142 → 167 lines** (975 fewer).
 - Replaced `src/components/LandingPage.tsx`: **158 → 52 lines** (106 fewer).
 - Moved the CFCF database row types under `src/features/cfcf/types/database.types.ts`; this was a relocation, not a deletion.
-- The latest line-by-line pass measured **1,015 lines across 17 inspected files** (application source, PWA/build configuration, the audit document, and `.gitignore`). The 15 application/configuration files excluding this audit document and `.gitignore` total **965 lines**. This is still not a full-repository line count; an exhaustive root inventory is pending.
+- The latest line-by-line pass measured **1,007 lines across 17 inspected files** (application source, PWA/build configuration, the audit document, and `.gitignore`). The 15 application/configuration files excluding this audit document and `.gitignore` total **957 lines**. This is still not a full-repository line count; an exhaustive root inventory is pending.
 
 ## Architecture now in place
 
@@ -33,8 +33,9 @@ The fixed-increment Chitti math engine, formula registry, old Chitti month utili
 
 ## Not yet certified
 
-- A production build must pass after the cleanup commits. The current environment could not clone the repository to run the build locally; GitHub reports no commit status checks for the latest cleanup commit.
+- Strict TypeScript checks are enabled (`strict`, `noUnusedLocals`, and `noUnusedParameters`). A production build and typecheck must pass after the cleanup commits. The current environment could not clone the repository to run the build locally; GitHub reports no commit status checks for the latest cleanup commit.
 - OAuth, session restoration, unauthorized access, and sign-out must be retested in the deployed PWA.
 - Feature pages are skeleton placeholders; CFCF CRM/funds/shares/payments are not yet implemented.
-- The complete repository-wide line count and dependency/asset inventory still need a final pass. Unused package dependencies were removed; the PWA plugin and SVG install icon were added back explicitly.
+- The complete repository-wide line count and dependency/asset inventory still need a final pass. Unused dependencies were removed; the PWA plugin (Vite 8-compatible release) and SVG install icon were added explicitly.
+- Front-end state names were clarified, duplicate sign-out UI was removed, auth token-refresh events no longer clear the active workspace, and the retry action now repeats authorization rather than merely resetting the same user state.
 - No Supabase schema changes were made.
