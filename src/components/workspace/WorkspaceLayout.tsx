@@ -69,16 +69,22 @@ export function WorkspaceLayout({
           </button>
         </div>
         {isNotificationsOpen && (
-          <section aria-label="Notifications" className="mx-auto max-w-3xl border-t border-slate-100 bg-sky-50/70 px-4 py-3 sm:px-5">
-            <div className="flex items-start gap-3">
-              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-sky-700"><Bell size={17} /></div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-slate-900">Notifications</p>
-                <p className="mt-0.5 text-xs leading-5 text-slate-600">There are no new notifications yet. Workspace reminders and updates can appear here as those features are wired.</p>
-              </div>
-              <button type="button" onClick={() => setIsNotificationsOpen(false)} aria-label="Close notifications" className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-slate-500 hover:bg-white"><X size={17} /></button>
+          <div className="relative">
+            {product.renderNotifications ? product.renderNotifications(workspace) : (
+              <section aria-label="Notifications" className="mx-auto max-w-3xl border-t border-slate-100 bg-sky-50/70 px-4 py-3 sm:px-5">
+                <div className="flex items-start gap-3">
+                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-sky-700"><Bell size={17} /></div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-slate-900">Notifications</p>
+                    <p className="mt-0.5 text-xs leading-5 text-slate-600">No notifications are available for this product yet.</p>
+                  </div>
+                </div>
+              </section>
+            )}
+            <div className="mx-auto max-w-3xl border-b border-slate-100 bg-white px-3 pb-3 text-right sm:px-5">
+              <button type="button" onClick={() => setIsNotificationsOpen(false)} className="min-h-9 rounded-lg px-3 text-xs font-semibold text-slate-600 hover:bg-slate-100">Close notifications</button>
             </div>
-          </section>
+          </div>
         )}
         {databaseStatus && !databaseStatus.connected && (
           <div role="status" className="border-t border-amber-200 bg-amber-50 px-4 py-3">
