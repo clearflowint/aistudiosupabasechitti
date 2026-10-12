@@ -24,7 +24,7 @@ This was a measured source-file subset, not a complete repository line count.
 - src/features/cfcf/product.tsx owns CFCF navigation, workspace resolution, and its page renderer.
 - src/core/workspace/workspace.types.ts exposes a product-neutral workspace identity.
 - Rebuilt the Home page and navigation frame as reusable components.
-- Added a shared Modal presentation component plus an un-routed reference-only file for add-record, transaction, and confirmation designs.
+- Added a shared Modal presentation component plus a separate /ui-reference preview for add-record, transaction, and confirmation designs.
 - Added docs/architecture-guide.md documenting architecture, ownership boundaries, and the // SKELETON, // CFCF PRODUCT, and // MIX markers.
 - No Supabase schema changes were made.
 

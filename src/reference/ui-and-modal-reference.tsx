@@ -1,4 +1,4 @@
-// SKELETON REFERENCE ONLY: This demo is intentionally not imported by App or the product registry.
+// SKELETON REFERENCE ONLY: main.tsx mounts this demo at /ui-reference, outside the live workspace.
 // Use it to discuss styling and modal structure. Buttons below never save data.
 import { useState, type ReactNode } from "react";
 import { BookOpen, CreditCard, Plus, UserRound, XCircle } from "lucide-react";

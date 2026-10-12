@@ -10,7 +10,7 @@ The goal is to add new products and features without rewriting the shared app sh
 4. src/core/ contains shared infrastructure and types. It must not import anything from a product folder.
 5. src/features/<product>/ contains that product's authorization checks, database-facing types, services, navigation, and page composition.
 6. src/components/ contains shared visual components. It must not contain product table names or business rules.
-7. src/reference/ui-and-modal-reference.tsx is design-only. It is intentionally not routed or imported into the live app; its buttons never persist data.
+7. src/reference/ui-and-modal-reference.tsx is design-only and is shown at /ui-reference, outside the live workspace navigation; its buttons never persist data.
 
 ## Code markers
 
