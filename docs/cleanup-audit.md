@@ -15,7 +15,7 @@ This is a measured source-file subset, not a claim about every file in the repos
 - Replaced `src/App.tsx`: **1,142 → 167 lines** (975 fewer).
 - Replaced `src/components/LandingPage.tsx`: **158 → 52 lines** (106 fewer).
 - Moved the CFCF database row types under `src/features/cfcf/types/database.types.ts`; this was a relocation, not a deletion.
-- The currently measured active application/core/config subset is **577 lines across 13 files**. It includes the new app shell, sign-in screen, core auth/database modules, CFCF access resolver, database types, and selected entry/config files. It is not a full-repository line count.
+- The currently measured active application/core/config subset is **582 lines across 14 files**. It includes the new app shell, sign-in screen, core auth/database modules, CFCF access resolver, database types, and selected entry/config files. It is not a full-repository line count.
 
 ## Architecture now in place
 
