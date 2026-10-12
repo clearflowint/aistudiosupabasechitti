@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { Shield, Users, Lock, ArrowRight, Phone, Globe } from "lucide-react";
 import { authService } from "../services/authService";
+import { supabase } from "../lib/supabase";
 
 interface LandingPageProps {
-  onLoginSuccess: (email: string) => void;
+  onLoginSuccess: (email: string, tenantId: string) => void;
   onLoginUnauthorized: (message: string) => void;
   onContinueAsGuest: () => void;
 }
@@ -21,8 +22,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     try {
       const res = await authService.verifyManager(emailToVerify);
       setLoading(false);
-      if (res.authorized && res.email) {
-        onLoginSuccess(res.email);
+      if (res.authorized && res.email && res.tenantId) {
+        onLoginSuccess(res.email, res.tenantId);
       } else {
         onLoginUnauthorized(res.message || "Unauthorized account");
       }
@@ -33,62 +34,25 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     }
   };
 
-  // Load Google GIS script on mount
+  // Resume the Supabase OAuth session after Google redirects back to the app.
   useEffect(() => {
-    const scriptId = "google-gsi-script";
-    if (!document.getElementById(scriptId)) {
-      const script = document.createElement("script");
-      script.id = scriptId;
-      script.src = "https://accounts.google.com/gsi/client";
-      script.async = true;
-      script.defer = true;
-      document.body.appendChild(script);
-    }
+    let active = true;
+    const resumeSession = async () => {
+      const user = await authService.getCurrentUser();
+      if (active && user?.email) await verifyAndLogin(user.email);
+    };
+    void resumeSession();
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (active && session?.user?.email) void verifyAndLogin(session.user.email);
+    });
+    return () => { active = false; authListener.subscription.unsubscribe(); };
   }, []);
 
-  const handleDirectGoogleOAuth = () => {
+  const handleGoogleOAuth = async () => {
     setLoading(true);
-    const google = (window as any).google;
-    if (!google || !google.accounts || !google.accounts.oauth2) {
-      setLoading(false);
-      alert("Google Sign-In is initializing. Please try again in a moment.");
-      return;
-    }
-
-    try {
-      const client = google.accounts.oauth2.initTokenClient({
-        client_id: "248057622784-g0n22s5ffavu8ot226ejt0nuvdmsukmo.apps.googleusercontent.com",
-        scope: "email profile",
-        callback: async (response: any) => {
-          if (response && response.access_token) {
-            try {
-              const userInfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-                headers: { Authorization: `Bearer ${response.access_token}` },
-              });
-              const userInfo = await userInfoRes.json();
-              if (userInfo && userInfo.email) {
-                verifyAndLogin(userInfo.email);
-              } else {
-                setLoading(false);
-                alert("Could not retrieve email from Google account.");
-              }
-            } catch (err) {
-              setLoading(false);
-              console.error("Userinfo fetch error:", err);
-            }
-          } else {
-            setLoading(false);
-          }
-        },
-      });
-      client.requestAccessToken();
-    } catch (err) {
-      setLoading(false);
-      console.error("Google OAuth error:", err);
-      alert("Google OAuth encountered an error. Please check your connection and try again.");
-    }
+    const result = await authService.signInWithGoogle();
+    if (result.error) { setLoading(false); onLoginUnauthorized(result.error); }
   };
-
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-sky-500 selection:text-white">
       {/* Top Navbar */}
@@ -138,7 +102,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         {/* Manager Login Prominent Buttons */}
         <div className="mt-8 w-full max-w-md space-y-3">
           <button
-            onClick={handleDirectGoogleOAuth}
+            onClick={handleGoogleOAuth}
             disabled={loading}
             className="w-full bg-white hover:bg-slate-100 active:bg-slate-200 text-slate-900 font-bold py-3.5 px-6 rounded-2xl text-xs flex items-center justify-center gap-3 shadow-lg transition hover:scale-[1.02] cursor-pointer border border-slate-200"
           >
