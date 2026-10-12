@@ -1,7 +1,7 @@
 // CFCF PRODUCT: Contacts screen wired to the existing Supabase contacts table.
 // MIX: Reuses the shared Modal and the workspace identity supplied by the neutral app shell.
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { ContactRound, Mail, MessageCircle, Phone, Plus, RefreshCw, Search, UsersRound, Pencil, Trash2 } from "lucide-react";
 import type { AuthorizedWorkspace } from "../../../core/workspace/workspace.types";
 import { Modal } from "../../../components/ui/Modal";
@@ -16,6 +16,7 @@ const emptyForm = { name: "", phone: "", email: "", remarks: "" };
 
 export function ContactsPage({ workspace }: ContactsPageProps) {
   const [contacts, setContacts] = useState<CfcfContactRow[]>([]);
+  const contactsRequestId = useRef(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -36,19 +37,24 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
     && "ContactsManager" in window;
 
   async function loadContacts(showRefreshState = false) {
+    const requestId = ++contactsRequestId.current;
     if (showRefreshState) setIsRefreshing(true);
     else setIsLoading(true);
     setLoadError(null);
 
     try {
       const rows = await listCfcfContacts(workspace.tenantId);
-      setContacts(rows);
+      if (requestId === contactsRequestId.current) setContacts(rows);
     } catch (error) {
-      setContacts([]);
-      setLoadError(error instanceof Error ? error.message : "Unable to load contacts.");
+      if (requestId === contactsRequestId.current) {
+        setContacts([]);
+        setLoadError(error instanceof Error ? error.message : "Unable to load contacts.");
+      }
     } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
+      if (requestId === contactsRequestId.current) {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
     }
   }
 
@@ -339,7 +345,7 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
                 )}
               </div>
 
-              <div className="mt-3 grid grid-cols-4 gap-2">
+              <div className="mt-3 grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => openEditModal(contact)}
