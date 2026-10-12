@@ -41,6 +41,7 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [acknowledgement, setAcknowledgement] = useState<{ title: string; message: string } | null>(null);
   const [groupName, setGroupName] = useState("");
   const [editingGroup, setEditingGroup] = useState<CfcfContactGroupRow | null>(null);
   const [isSavingGroup, setIsSavingGroup] = useState(false);
@@ -138,11 +139,13 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
         const updated = await renameCfcfContactGroup(workspace.tenantId, editingGroup.group_id, groupName);
         setGroups((current) => current.map((group) => group.group_id === updated.group_id ? updated : group)
           .sort((a, b) => a.group_name.localeCompare(b.group_name)));
-        setNotice("Contact Group renamed.");
+        setNotice(null);
+        setAcknowledgement({ title: "Group renamed", message: "Supabase returned the updated Contact Group record. Your change is saved." });
       } else {
         const created = await createCfcfContactGroup(workspace.tenantId, workspace.personId, groupName);
         setGroups((current) => [...current, created].sort((a, b) => a.group_name.localeCompare(b.group_name)));
-        setNotice("Contact Group created. Add contacts to start using it.");
+        setNotice(null);
+        setAcknowledgement({ title: "Group created", message: "Supabase returned the new Contact Group record. The group is saved." });
       }
       setIsGroupModalOpen(false);
     } catch (saveFailure) {
@@ -169,9 +172,11 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
             tenant_id: workspace.tenantId,
             created_at: new Date().toISOString(),
           }]);
+        setAcknowledgement({ title: "Contact added to group", message: "Supabase confirmed the membership change." });
       } else {
         await removeCfcfContactFromGroup(workspace.tenantId, groupId, contactId);
         setMembers((current) => current.filter((member) => !(member.group_id === groupId && member.contact_id === contactId)));
+        setAcknowledgement({ title: "Contact removed from group", message: "Supabase confirmed the membership change." });
       }
     } catch (memberFailure) {
       setError(memberFailure instanceof Error ? memberFailure.message : "Unable to update group membership.");
@@ -189,8 +194,9 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
       setGroups((current) => current.filter((group) => group.group_id !== deletingGroup.group_id));
       setMembers((current) => current.filter((member) => member.group_id !== deletingGroup.group_id));
       setCampaignGroupIds((current) => current.filter((id) => id !== deletingGroup.group_id));
-      setNotice("Contact Group deleted. Contacts themselves were not deleted.");
+      setNotice(null);
       setDeletingGroup(null);
+      setAcknowledgement({ title: "Group deleted", message: "Supabase confirmed the delete request. The Contact records themselves were not deleted." });
     } catch (deleteFailure) {
       setDeleteError(deleteFailure instanceof Error ? deleteFailure.message : "Unable to delete Contact Group.");
     } finally {
@@ -320,7 +326,7 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
           {groupFormError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{groupFormError}</p>}
           <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
             <button type="button" onClick={() => setIsGroupModalOpen(false)} disabled={isSavingGroup} className={buttonClass + " border border-slate-200 text-slate-700"}>Cancel</button>
-            <button type="submit" disabled={isSavingGroup || !groupName.trim()} className={buttonClass + " bg-violet-600 text-white hover:bg-violet-700"}>{isSavingGroup ? "Saving…" : editingGroup ? "Save name" : "Create group"}</button>
+            <button type="submit" disabled={isSavingGroup || !groupName.trim()} className={buttonClass + " bg-violet-600 text-white hover:bg-violet-700"}>{isSavingGroup ? <><RefreshCw size={15} className="animate-spin" /> Waiting for Supabase…</> : editingGroup ? "Save name" : "Create group"}</button>
           </div>
         </form>
       </Modal>
@@ -356,7 +362,24 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
           {deleteError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{deleteError}</p>}
           <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
             <button type="button" onClick={() => setDeletingGroup(null)} disabled={isDeletingGroup} className={buttonClass + " border border-slate-200 text-slate-700"}>Cancel</button>
-            <button type="button" onClick={() => void handleDeleteGroup()} disabled={isDeletingGroup} className={buttonClass + " bg-rose-600 text-white hover:bg-rose-700"}><Trash2 size={15} /> {isDeletingGroup ? "Deleting…" : "Delete group"}</button>
+            <button type="button" onClick={() => void handleDeleteGroup()} disabled={isDeletingGroup} className={buttonClass + " bg-rose-600 text-white hover:bg-rose-700"}>{isDeletingGroup ? <RefreshCw size={15} className="animate-spin" /> : <Trash2 size={15} />} {isDeletingGroup ? "Waiting for Supabase…" : "Delete group"}</button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={Boolean(acknowledgement)}
+        title={acknowledgement?.title ?? "Database confirmation"}
+        description="Confirmed by Supabase"
+        onClose={() => setAcknowledgement(null)}
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
+            <CheckCircle2 size={22} className="mt-0.5 shrink-0" />
+            <p className="text-sm leading-6">{acknowledgement?.message}</p>
+          </div>
+          <div className="flex justify-end border-t border-slate-100 pt-4">
+            <button type="button" autoFocus onClick={() => setAcknowledgement(null)} className={buttonClass + " bg-sky-600 text-white hover:bg-sky-700"}>OK</button>
           </div>
         </div>
       </Modal>
