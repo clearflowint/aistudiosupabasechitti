@@ -1,7 +1,8 @@
 // SKELETON: Product-neutral mobile home. Keep it focused on the two primary destinations.
 // MIX: The product provides destination metadata; navigation remains owned by the shared shell.
 
-import { ArrowRight, ContactRound, ShieldCheck, WalletCards } from "lucide-react";
+import { ArrowRight, ShieldCheck, WalletCards } from "lucide-react";
+import { ContactsPage } from "../../features/cfcf/pages/ContactsPage";
 import type { ProductDefinition } from "../../core/products/product.types";
 import type { AuthorizedWorkspace } from "../../core/workspace/workspace.types";
 
@@ -12,7 +13,6 @@ interface WorkspaceHomePageProps {
 }
 
 export function WorkspaceHomePage({ product, workspace, onNavigate }: WorkspaceHomePageProps) {
-  const crm = product.navigation.find(({ id }) => id === "crm");
   const workspacePage = product.navigation.find(({ id }) => id === "workspace");
 
   return (
@@ -33,23 +33,6 @@ export function WorkspaceHomePage({ product, workspace, onNavigate }: WorkspaceH
       </section>
 
       <section aria-label="Quick access" className="space-y-3">
-        {crm && (
-          <button
-            type="button"
-            onClick={() => onNavigate(crm.id)}
-            className="flex min-h-24 w-full min-w-0 items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-sky-200 hover:shadow-md sm:p-4"
-          >
-            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-sky-50 text-sky-700">
-              <ContactRound size={23} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <h3 className="text-base font-bold text-slate-950">CRM</h3>
-              <p className="mt-1 break-words text-sm leading-5 text-slate-500">Manage contacts and keep their details ready for your funds.</p>
-            </div>
-            <ArrowRight size={19} className="shrink-0 text-sky-700" />
-          </button>
-        )}
-
         {workspacePage && (
           <button
             type="button"
@@ -67,6 +50,8 @@ export function WorkspaceHomePage({ product, workspace, onNavigate }: WorkspaceH
           </button>
         )}
       </section>
+
+      <ContactsPage workspace={workspace} />
 
       <p className="px-1 text-center text-xs leading-5 text-slate-500">
         ClearFlow · Designed for quick, one-hand mobile use.
