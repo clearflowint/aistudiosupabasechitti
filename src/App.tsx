@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Activity, BookOpen, BriefcaseBusiness, ChevronRight, CircleHelp, ContactRound, CreditCard, Database, LayoutDashboard, LogOut, Menu, Settings2, ShieldCheck, Users, X } from "lucide-react";
+import { Activity, BookOpen, BriefcaseBusiness, ChevronRight, ContactRound, CreditCard, Database, LayoutDashboard, Layers3, LogOut, Menu, Settings2, ShieldCheck, Users, X } from "lucide-react";
 import { LandingPage } from "./components/LandingPage";
 import { authService } from "./core/auth/auth.service";
 import { checkTenantDatabaseConnection, type ConnectionStatus } from "./core/database/connection.service";
@@ -133,7 +133,7 @@ export default function App() {
       {mobileNavOpen && <button aria-label="Close navigation overlay" onClick={() => setMobileNavOpen(false)} className="fixed inset-0 z-40 bg-slate-950/50 lg:hidden" />}
       <aside className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-slate-800 bg-slate-950 text-slate-200 transition-transform lg:translate-x-0 ${mobileNavOpen ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="flex h-20 items-center gap-3 border-b border-white/10 px-6">
-          <div className="grid h-10 w-10 place-items-center rounded-xl bg-sky-500/15 text-sky-300"><Layers3Icon /></div>
+          <div className="grid h-10 w-10 place-items-center rounded-xl bg-sky-500/15 text-sky-300"><Layers3 size={21} /></div>
           <div><div className="font-semibold tracking-tight text-white">ClearFlow</div><div className="text-xs text-slate-400">Workspace platform</div></div>
           <button aria-label="Close menu" onClick={() => setMobileNavOpen(false)} className="ml-auto rounded-lg p-2 hover:bg-white/10 lg:hidden"><X size={18} /></button>
         </div>
@@ -163,8 +163,4 @@ export default function App() {
       </div>
     </div>
   );
-}
-
-function Layers3Icon() {
-  return <Database size={21} />;
 }
