@@ -154,7 +154,8 @@ function LoadingScreen({ message }: { message: string }) {
 }
 
 export default function App() {
-  const [user, setUser] = useState<AuthenticatedUser | null>(null);\n  const currentEmail = useRef<string | null>(null);
+  const [user, setUser] = useState<AuthenticatedUser | null>(null);
+  const currentEmail = useRef<string | null>(null);
   const [workspace, setWorkspace] = useState<AuthorizedWorkspace | null>(null);
   const [activePage, setActivePage] = useState<WorkspacePage>("overview");
   const [isRestoringSession, setIsRestoringSession] = useState(true);
@@ -167,17 +168,27 @@ export default function App() {
     let isMounted = true;
 
     void authService.getCurrentUser().then((currentUser) => {
-      if (isMounted) setUser(toAuthenticatedUser(currentUser));
+      if (!isMounted) return;
+      const authenticatedUser = toAuthenticatedUser(currentUser);
+      currentEmail.current = authenticatedUser?.email ?? null;
+      setUser(authenticatedUser);
     }).finally(() => {
       if (isMounted) setIsRestoringSession(false);
     });
 
-    const { data } = authService.onAuthStateChange((currentUser) => {
+    const { data } = authService.onAuthStateChange((_event, currentUser) => {
       if (!isMounted) return;
-      setUser(toAuthenticatedUser(currentUser));
-      setWorkspace(null);
-      setDatabaseStatus(null);
-      setErrorMessage(null);
+      const authenticatedUser = toAuthenticatedUser(currentUser);
+      const nextEmail = authenticatedUser?.email ?? null;
+
+      if (currentEmail.current !== nextEmail) {
+        currentEmail.current = nextEmail;
+        setWorkspace(null);
+        setDatabaseStatus(null);
+        setErrorMessage(null);
+      }
+
+      setUser(authenticatedUser);
     });
 
     return () => {
