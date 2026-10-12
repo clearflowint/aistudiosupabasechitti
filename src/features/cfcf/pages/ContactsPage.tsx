@@ -32,6 +32,7 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [acknowledgement, setAcknowledgement] = useState<{ title: string; message: string } | null>(null);
   const supportsContactPicker = typeof navigator !== "undefined"
     && "contacts" in navigator
     && typeof window !== "undefined"
@@ -114,8 +115,9 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
     try {
       await deleteCfcfContact(workspace.tenantId, deletingContact.contact_id);
       setContacts((current) => current.filter((contact) => contact.contact_id !== deletingContact.contact_id));
-      setNotice("Contact deleted.");
+      setNotice(null);
       setDeletingContact(null);
+      setAcknowledgement({ title: "Contact deleted", message: "Supabase confirmed the delete request. The contact has been removed from this workspace." });
     } catch (error) {
       setDeleteError(error instanceof Error ? error.message : "Unable to delete contact.");
     } finally {
@@ -192,13 +194,15 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
         setContacts((current) => current
           .map((contact) => contact.contact_id === updated.contact_id ? updated : contact)
           .sort((a, b) => a.name.localeCompare(b.name)));
-        setNotice("Contact updated successfully.");
+        setNotice(null);
+        setAcknowledgement({ title: "Contact updated", message: "Supabase returned the updated contact record. Your changes are saved." });
       } else {
         const created = await createCfcfContact(workspace.tenantId, form);
         setContacts((current) =>
           [...current, created].sort((a, b) => a.name.localeCompare(b.name)),
         );
-        setNotice("Contact added successfully.");
+        setNotice(null);
+        setAcknowledgement({ title: "Contact added", message: "Supabase returned the new contact record. The contact is saved in this workspace." });
       }
       setIsModalOpen(false);
       setEditingContact(null);
@@ -348,34 +352,42 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
                 )}
               </div>
 
-              <div className="mt-3 grid grid-cols-2 gap-2">
+              <div className="mt-3 grid grid-cols-4 gap-1.5">
                 <button
                   type="button"
                   onClick={() => openEditModal(contact)}
-                  className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                  aria-label={"Edit " + contact.name}
+                  title="Edit contact"
+                  className="inline-flex min-h-10 min-w-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
                 >
-                  <Pencil size={14} /> Edit
+                  <Pencil size={16} />
                 </button>
                 <button
                   type="button"
                   onClick={() => { setDeleteError(null); setDeletingContact(contact); }}
-                  className="inline-flex min-h-10 items-center justify-center gap-1 rounded-xl border border-rose-200 bg-rose-50 px-1.5 text-xs font-semibold text-rose-800 transition hover:bg-rose-100"
+                  aria-label={"Delete " + contact.name}
+                  title="Delete contact"
+                  className="inline-flex min-h-10 min-w-0 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-1 text-xs font-semibold text-rose-800 transition hover:bg-rose-100"
                 >
-                  <Trash2 size={14} /> Delete
+                  <Trash2 size={16} />
                 </button>
                 <a
                   href={"tel:" + contact.phone}
-                  className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-2 text-xs font-semibold text-blue-800 transition hover:bg-blue-100"
+                  aria-label={"Call " + contact.name}
+                  title="Call contact"
+                  className="inline-flex min-h-10 min-w-0 items-center justify-center rounded-xl border border-blue-200 bg-blue-50 px-1 text-xs font-semibold text-blue-800 transition hover:bg-blue-100"
                 >
-                  <Phone size={15} /> Call
+                  <Phone size={16} />
                 </a>
                 <a
                   href={"https://wa.me/" + contact.phone.replace(/\D/g, "")}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                  aria-label={"WhatsApp " + contact.name}
+                  title="Message on WhatsApp"
+                  className="inline-flex min-h-10 min-w-0 items-center justify-center rounded-xl bg-emerald-600 px-1 text-sm font-semibold text-white transition hover:bg-emerald-700"
                 >
-                  <MessageCircle size={15} /> WhatsApp
+                  <MessageCircle size={16} />
                 </a>
               </div>
             </article>
@@ -464,10 +476,27 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
               Cancel
             </button>
             <button type="submit" disabled={isSaving} className="inline-flex items-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60">
-              {editingContact ? <Pencil size={16} /> : <Plus size={16} />} {isSaving ? "Saving…" : editingContact ? "Save changes" : "Save contact"}
+              {editingContact ? <Pencil size={16} /> : <Plus size={16} />} {isSaving ? <><RefreshCw size={16} className="animate-spin" /> Waiting for Supabase…</> : editingContact ? "Save changes" : "Save contact"}
             </button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        isOpen={Boolean(acknowledgement)}
+        title={acknowledgement?.title ?? "Database confirmation"}
+        description="Confirmed by Supabase"
+        onClose={() => setAcknowledgement(null)}
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
+            <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-emerald-100"><UsersRound size={16} /></span>
+            <p className="text-sm leading-6">{acknowledgement?.message}</p>
+          </div>
+          <div className="flex justify-end border-t border-slate-100 pt-4">
+            <button type="button" autoFocus onClick={() => setAcknowledgement(null)} className="min-h-11 rounded-xl bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-sky-700">OK</button>
+          </div>
+        </div>
       </Modal>
 
       <Modal
@@ -501,7 +530,7 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
               disabled={isDeleting}
               className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <Trash2 size={16} /> {isDeleting ? "Deleting…" : "Delete contact"}
+              {isDeleting ? <RefreshCw size={16} className="animate-spin" /> : <Trash2 size={16} />} {isDeleting ? "Waiting for Supabase…" : "Delete contact"}
             </button>
           </div>
         </div>
