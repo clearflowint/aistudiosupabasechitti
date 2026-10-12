@@ -2,7 +2,7 @@
 // MIX: Reuses the shared Modal and the workspace identity supplied by the neutral app shell.
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Mail, MessageCircle, Phone, Plus, RefreshCw, Search, UsersRound, Pencil } from "lucide-react";
+import { ContactRound, Mail, MessageCircle, Phone, Plus, RefreshCw, Search, UsersRound, Pencil } from "lucide-react";
 import type { AuthorizedWorkspace } from "../../../core/workspace/workspace.types";
 import { Modal } from "../../../components/ui/Modal";
 import type { CfcfContactRow } from "../types/database.types";
@@ -25,7 +25,12 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
   const [form, setForm] = useState(emptyForm);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const supportsContactPicker = typeof navigator !== "undefined"
+    && "contacts" in navigator
+    && typeof window !== "undefined"
+    && "ContactsManager" in window;
 
   async function loadContacts(showRefreshState = false) {
     if (showRefreshState) setIsRefreshing(true);
@@ -92,6 +97,64 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
     setIsModalOpen(true);
   }
 
+  async function handleImportContacts() {
+    const picker = (navigator as Navigator & {
+      contacts?: {
+        select: (
+          fields: Array<"name" | "tel" | "email">,
+          options?: { multiple?: boolean },
+        ) => Promise<Array<{ name?: string[]; tel?: string[]; email?: string[] }>>;
+      };
+    }).contacts;
+
+    if (!picker || !supportsContactPicker || isImporting) return;
+    setNotice(null);
+    setIsImporting(true);
+    let added = 0;
+    let skipped = 0;
+    let failed = 0;
+
+    try {
+      const selected = await picker.select(["name", "tel", "email"], { multiple: true });
+      for (const item of selected) {
+        const name = item.name?.find((value) => value.trim())?.trim();
+        const phone = item.tel?.find((value) => value.trim())?.trim();
+        const email = item.email?.find((value) => value.trim())?.trim() ?? "";
+
+        if (!name || !phone) {
+          skipped += 1;
+          continue;
+        }
+
+        try {
+          await createCfcfContact(workspace.tenantId, { name, phone, email });
+          added += 1;
+        } catch (error) {
+          if (error instanceof Error && /already exists|valid 10-digit/i.test(error.message)) {
+            skipped += 1;
+          } else {
+            failed += 1;
+          }
+        }
+      }
+
+      if (added > 0) await loadContacts(true);
+      setNotice(
+        added + " contact" + (added === 1 ? "" : "s") + " imported."
+        + (skipped ? " " + skipped + " skipped (duplicate or missing/invalid details)." : "")
+        + (failed ? " " + failed + " could not be imported." : ""),
+      );
+    } catch (error) {
+      // Closing the native picker is a normal user cancellation, not a failed import.
+      const message = error instanceof Error ? error.message : "";
+      if (!/cancel|abort/i.test(message)) {
+        setNotice("The phone contact picker could not be opened. You can still add contacts manually.");
+      }
+    } finally {
+      setIsImporting(false);
+    }
+  }
+
   async function handleSaveContact(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFormError(null);
@@ -136,13 +199,24 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
               Keep contact details in one place to reuse them in your CFCF workspace.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={openCreateModal}
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700"
-          >
-            <Plus size={17} /> Add contact
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void handleImportContacts()}
+              disabled={!supportsContactPicker || isImporting}
+              title={supportsContactPicker ? "Import contacts using your phone's contact picker" : "Available on supported Android browsers"}
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2.5 text-sm font-semibold text-sky-800 transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <ContactRound size={17} /> {isImporting ? "Importing…" : "Import from phone"}
+            </button>
+            <button
+              type="button"
+              onClick={openCreateModal}
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700"
+            >
+              <Plus size={17} /> Add contact
+            </button>
+          </div>
         </div>
 
         <div className="mt-4 flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
