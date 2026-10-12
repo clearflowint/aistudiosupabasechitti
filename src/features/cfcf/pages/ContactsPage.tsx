@@ -92,7 +92,7 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
 
   return (
     <div className="min-w-0 space-y-4">
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div>
             <div className="flex items-center gap-2 text-sm text-slate-500">
@@ -113,7 +113,7 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
           </button>
         </div>
 
-        <div className="mt-5 flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-4 flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
           <label className="relative block w-full sm:max-w-md">
             <Search size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
@@ -183,11 +183,11 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
           )}
         </section>
       ) : !loadError ? (
-        <section className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
+        <section className="grid min-w-0 grid-cols-1 gap-2.5 sm:grid-cols-2">
           {filteredContacts.map((contact) => (
-            <article key={contact.contact_id} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+            <article key={contact.contact_id} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
               <div className="flex min-w-0 items-start gap-3">
-                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-700">
+                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-700">
                   <UsersRound size={20} />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -198,7 +198,7 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
                 </div>
               </div>
 
-              <div className="mt-4 space-y-2 border-t border-slate-100 pt-3">
+              <div className="mt-3 space-y-1.5 border-t border-slate-100 pt-2.5">
                 <p className="flex min-w-0 items-start gap-2 break-all text-sm text-slate-700">
                   <Phone size={15} className="mt-0.5 shrink-0 text-slate-400" />
                   <span>{contact.phone}</span>
@@ -214,10 +214,10 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
                 )}
               </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-2">
+              <div className="mt-3 grid grid-cols-2 gap-2">
                 <a
                   href={"tel:" + contact.phone}
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 px-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                  className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-2 text-xs font-semibold text-blue-800 transition hover:bg-blue-100"
                 >
                   <Phone size={15} /> Call
                 </a>
