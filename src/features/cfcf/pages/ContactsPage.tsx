@@ -7,6 +7,7 @@ import type { AuthorizedWorkspace } from "../../../core/workspace/workspace.type
 import { Modal } from "../../../components/ui/Modal";
 import type { CfcfContactRow } from "../types/database.types";
 import { createCfcfContact, deleteCfcfContact, listCfcfContacts, updateCfcfContact } from "../services/contacts.service";
+import { ContactGroupsPanel } from "./ContactGroupsPanel";
 
 interface ContactsPageProps {
   workspace: AuthorizedWorkspace;
@@ -269,6 +270,8 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
           </div>
         </div>
       </section>
+
+      <ContactGroupsPanel workspace={workspace} contacts={contacts} />
 
       {notice && (
         <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
