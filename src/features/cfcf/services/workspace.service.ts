@@ -28,6 +28,51 @@ export async function listCfcfFunds(tenantId: string): Promise<CfcfFundRow[]> {
   return (data ?? []) as CfcfFundRow[];
 }
 
+export interface CreateCfcfFundInput {
+  fundName: string;
+  startDate?: string;
+  numberOfCycles?: number | null;
+  numberOfShares?: number | null;
+}
+
+export async function createCfcfFund(
+  tenantId: string,
+  personId: string,
+  input: CreateCfcfFundInput,
+): Promise<CfcfFundRow> {
+  const fundName = input.fundName.trim();
+  if (!fundName) throw new Error("Enter a fund name.");
+
+  for (const [label, value] of [
+    ["Cycle count", input.numberOfCycles],
+    ["Share count", input.numberOfShares],
+  ] as const) {
+    if (value !== null && value !== undefined
+      && (!Number.isSafeInteger(value) || value < 1 || value > 2147483647)) {
+      throw new Error(label + " must be a positive whole number.");
+    }
+  }
+
+  const { data, error } = await supabase
+    .from("cfcf_funds")
+    .insert({
+      // CFCF PRODUCT: Required IDs come from the authorized workspace or a generated record ID.
+      fund_id: crypto.randomUUID().replace(/-/g, "").toUpperCase(),
+      product_id: cfcfConfig.productId,
+      tenant_id: tenantId,
+      person_id: personId,
+      fund_name: fundName,
+      start_date: input.startDate || null,
+      number_of_cycles: input.numberOfCycles ?? null,
+      number_of_shares: input.numberOfShares ?? null,
+    })
+    .select(FUND_FIELDS)
+    .single();
+
+  if (error) throw new Error("Unable to create fund: " + error.message);
+  return data as CfcfFundRow;
+}
+
 export async function listCfcfShares(
   tenantId: string,
   fundId: string,
