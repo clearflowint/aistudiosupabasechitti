@@ -16,6 +16,7 @@ import {
 import { LandingPage } from "./components/LandingPage";
 import { DatabaseStatus, LoadingScreen, OverviewPage, WorkspacePlaceholder } from "./components/workspace/WorkspacePages";
 import type { WorkspacePage } from "./components/workspace/workspace.types";
+import type { AuthorizedWorkspace } from "./core/workspace/workspace.types";
 import { authService } from "./core/auth/auth.service";
 import {
   checkTenantDatabaseConnection,
@@ -23,7 +24,6 @@ import {
 } from "./core/database/connection.service";
 import {
   resolveCfcfWorkspace,
-  type AuthorizedWorkspace,
 } from "./features/cfcf/services/access.service";
 
 type AuthenticatedUser = { email: string };
