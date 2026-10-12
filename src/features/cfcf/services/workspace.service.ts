@@ -1,4 +1,4 @@
-// CFCF PRODUCT: Read-only workspace queries against existing CFCF tables.
+// CFCF PRODUCT: Workspace reads and fund setup writes against the existing CFCF tables.
 // MIX: Tenant identity is always passed from the shared, authorized workspace.
 
 import { supabase } from "../../../core/database/supabaseClient";
@@ -127,9 +127,12 @@ export async function listCfcfLedgerItems(
     throw new Error("Unable to load fund entries: " + fundEntriesResult.error.message);
   }
 
-  const payments = (paymentsResult.data ?? []) as Pick<
-    CfcfPaymentRow, "payment_id" | "fund_id" | "share_id" | "entry_type" | "amount" | "entry_date" | "payment_type" | "remarks"
-  > & { created_at: string }>[];
+  const payments = (paymentsResult.data ?? []) as Array<
+    Pick<
+      CfcfPaymentRow,
+      "payment_id" | "fund_id" | "share_id" | "entry_type" | "amount" | "entry_date" | "payment_type" | "remarks" | "created_at"
+    >
+  >;
 
   const fundEntries = (fundEntriesResult.data ?? []) as Pick<
     CfcfFundOtherEntryRow, "entry_id" | "fund_id" | "entry_type" | "amount" | "remarks" | "created_at"
