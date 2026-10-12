@@ -1,0 +1,8 @@
+{
+  "name": "Remix aistudiochittifinal",
+  "description": "Chitti WebApp for seamless task automation and real-time project collaboration",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
