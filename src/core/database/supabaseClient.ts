@@ -1,5 +1,6 @@
 // SKELETON: Shared Supabase client used by infrastructure and feature services.
 import { createClient } from "@supabase/supabase-js";
+import { trackedFetch } from "../async/requestActivity";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
@@ -12,6 +13,7 @@ export const supabase = createClient(
   supabaseUrl || "https://invalid.invalid",
   supabaseAnonKey || "missing-public-key",
   {
+    global: { fetch: trackedFetch },
     auth: {
       persistSession: true,
       autoRefreshToken: true,
