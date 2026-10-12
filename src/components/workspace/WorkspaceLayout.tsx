@@ -3,7 +3,7 @@
 
 import { useState, useSyncExternalStore, type ReactNode } from "react";
 import { getActiveRequestCount, subscribeToRequestActivity } from "../../core/async/requestActivity";
-import { Bell, Database, Layers3, LogOut, X } from "lucide-react";
+import { Bell, Database, Layers3, LogOut } from "lucide-react";
 import type { ProductDefinition, WorkspaceNavigationItem } from "../../core/products/product.types";
 import type { AuthorizedWorkspace } from "../../core/workspace/workspace.types";
 import type { ConnectionStatus } from "../../core/database/connection.service";
