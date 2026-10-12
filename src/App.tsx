@@ -19,16 +19,16 @@ import { checkSupabaseConnection } from "./lib/supabase";
 
 export default function App() {
   const [view, setView] = useState<"landing" | "manager_dashboard" | "guest_portal" | "unauthorized" | "chittis_workspace">(() => {
-    return (localStorage.getItem("clearflow_view") as any) || "landing";
+    return "landing";
   });
   const [managerEmail, setManagerEmail] = useState<string | null>(() => {
-    return localStorage.getItem("clearflow_manager_email") || localStorage.getItem("clearflow_tenant_id") || null;
+    return null;
   });
   const [unauthorizedMessage, setUnauthorizedMessage] = useState<string>("");
 
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [currentTenantId, setCurrentTenantId] = useState<string>(() => {
-    return localStorage.getItem("clearflow_tenant_id") || localStorage.getItem("clearflow_manager_email") || "";
+    return "";
   });
 
   const [mathTemplates, setMathTemplates] = useState<MathTemplate[]>([]);
@@ -61,7 +61,6 @@ export default function App() {
   useEffect(() => {
     if (managerEmail) {
       localStorage.setItem("clearflow_manager_email", managerEmail);
-      localStorage.setItem("clearflow_tenant_id", managerEmail);
       if (!currentTenantId) setCurrentTenantId(managerEmail);
     } else {
       localStorage.removeItem("clearflow_manager_email");
@@ -71,7 +70,6 @@ export default function App() {
   useEffect(() => {
     if (currentTenantId) {
       localStorage.setItem("clearflow_tenant_id", currentTenantId);
-      if (!managerEmail) setManagerEmail(currentTenantId);
     }
   }, [currentTenantId]);
 
@@ -717,9 +715,9 @@ export default function App() {
   if (view === "landing") {
     return (
       <LandingPage
-        onLoginSuccess={(email) => {
+        onLoginSuccess={(email, tenantId) => {
           setManagerEmail(email);
-          setCurrentTenantId(email);
+          setCurrentTenantId(tenantId);
           setView("manager_dashboard");
         }}
         onLoginUnauthorized={(msg) => {
