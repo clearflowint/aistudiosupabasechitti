@@ -36,6 +36,29 @@ interface WorkspacePageProps {
 
 const emptyFundForm = { fundName: "", startDate: "", numberOfCycles: "", numberOfShares: "" };
 
+interface SavedWorkspaceView {
+  tab: WorkspaceTab;
+  fundId: string;
+}
+
+function readSavedWorkspaceView(tenantId: string): SavedWorkspaceView {
+  const fallback: SavedWorkspaceView = { tab: "funds", fundId: "" };
+  try {
+    const raw = window.localStorage.getItem("clearflow:cfcf-workspace-view:v1:" + tenantId);
+    if (!raw) return fallback;
+    const saved = JSON.parse(raw) as { tab?: unknown; fundId?: unknown };
+    const validTabs: WorkspaceTab[] = ["funds", "cycles", "shares", "ledger"];
+    return {
+      tab: typeof saved.tab === "string" && validTabs.includes(saved.tab as WorkspaceTab)
+        ? saved.tab as WorkspaceTab
+        : "funds",
+      fundId: typeof saved.fundId === "string" ? saved.fundId : "",
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 const workspaceTabs: { id: WorkspaceTab; label: string; icon: typeof Layers3 }[] = [
   { id: "funds", label: "Funds", icon: Layers3 },
   { id: "cycles", label: "Cycles", icon: CalendarDays },
@@ -45,8 +68,8 @@ const workspaceTabs: { id: WorkspaceTab; label: string; icon: typeof Layers3 }[]
 
 export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [funds, setFunds] = useState<CfcfFundRow[]>([]);
-  const [selectedFundId, setSelectedFundId] = useState("");
-  const [activeTab, setActiveTab] = useState<WorkspaceTab>("funds");
+  const [selectedFundId, setSelectedFundId] = useState(() => readSavedWorkspaceView(workspace.tenantId).fundId);
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>(() => readSavedWorkspaceView(workspace.tenantId).tab);
   const [isLoadingFunds, setIsLoadingFunds] = useState(true);
   const [fundsError, setFundsError] = useState<string | null>(null);
   const [shares, setShares] = useState<CfcfShareRow[]>([]);
@@ -64,6 +87,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [fundFormError, setFundFormError] = useState<string | null>(null);
   const [fundNotice, setFundNotice] = useState<string | null>(null);
   const lastTenantId = useRef(workspace.tenantId);
+  const hydratedViewTenantId = useRef<string | null>(null);
 
   const selectedFund = useMemo(
     () => funds.find((fund) => fund.fund_id === selectedFundId) ?? null,
@@ -83,8 +107,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setLedgerItems([]);
       setSelectedShareId(null);
       setExpandedBillingShareId(null);
-      setSelectedFundId("");
-      setActiveTab("funds");
+      // The tenant-scoped saved view is restored below; never carry the previous tenant's selection across.
     }
 
     setIsLoadingFunds(true);
@@ -109,6 +132,25 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
 
     return () => { isCurrent = false; };
   }, [workspace.tenantId, fundReloadKey]);
+
+  // MIX: Restore and persist the selected tab/fund per authorized tenant, so refresh returns to the same view.
+  useEffect(() => {
+    if (hydratedViewTenantId.current !== workspace.tenantId) {
+      const savedView = readSavedWorkspaceView(workspace.tenantId);
+      hydratedViewTenantId.current = workspace.tenantId;
+      setActiveTab(savedView.tab);
+      setSelectedFundId(savedView.fundId);
+      return;
+    }
+    try {
+      window.localStorage.setItem(
+        "clearflow:cfcf-workspace-view:v1:" + workspace.tenantId,
+        JSON.stringify({ tab: activeTab, fundId: selectedFundId }),
+      );
+    } catch {
+      // Keep the workspace usable when browser storage is unavailable.
+    }
+  }, [workspace.tenantId, activeTab, selectedFundId]);
 
   // MIX: Every fund/tab transition clears fund-scoped client state before fetching.
   // CFCF PRODUCT: Shares and contact labels are reloaded for the selected fund; ledger is fetched when requested.
