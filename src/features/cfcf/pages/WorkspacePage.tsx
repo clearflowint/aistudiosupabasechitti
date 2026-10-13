@@ -25,6 +25,8 @@ import { listCfcfContacts } from "../services/contacts.service";
 import {
   createCfcfFund,
   createCfcfShare,
+  deleteCfcfShareIfEmpty,
+  deleteCfcfFundIfEmpty,
   recordCfcfSharePayment,
   recordCfcfFundOtherEntry,
   recordCfcfCycleBilling,
@@ -141,6 +143,9 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [fundForm, setFundForm] = useState(emptyFundForm);
   const [fundFormError, setFundFormError] = useState<string | null>(null);
   const [fundNotice, setFundNotice] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ kind: "share" | "fund"; id: string; label: string } | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const lastTenantId = useRef(workspace.tenantId);
   const hydratedViewTenantId = useRef<string | null>(null);
 
@@ -423,6 +428,23 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   }
 
 
+  async function handleConfirmDelete() {
+    if (!deleteTarget || isDeleting) return;
+    setIsDeleting(true); setDeleteError(null);
+    try {
+      if (deleteTarget.kind === "share") {
+        await deleteCfcfShareIfEmpty(workspace.tenantId, selectedFundId, deleteTarget.id);
+        setFundNotice("Empty Share deleted. Financial-history Shares cannot be deleted.");
+        setDeleteTarget(null); setDetailReloadKey((n) => n + 1); setFundReloadKey((n) => n + 1);
+      } else {
+        await deleteCfcfFundIfEmpty(workspace.tenantId, deleteTarget.id);
+        setFundNotice("Empty Fund deleted."); setDeleteTarget(null); setSelectedFundId("");
+        setFundReloadKey((n) => n + 1); setDetailReloadKey((n) => n + 1);
+      }
+    } catch (error) { setDeleteError(error instanceof Error ? error.message : "Unable to delete this record."); }
+    finally { setIsDeleting(false); }
+  }
+
   function openShareModal() {
     setNewShareContactId("");
     setShareFormError(null);
@@ -627,9 +649,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               Your funds
             </div>
             <h2 className="mt-1 break-words text-xl font-semibold tracking-tight text-slate-900">Funds, cycles and shares</h2>
-            <p className="mt-1 text-sm leading-5 text-slate-500">
-              Choose a fund, then open its cycles, shares, or ledger.
-            </p>
+            <p className="mt-1 text-sm leading-5 text-slate-500">Choose a fund, then open its cycles, shares, or ledger.</p>
+            <p className="mt-2 inline-flex items-center gap-2 rounded-lg bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-600"><CalendarDays size={14} className="text-sky-700" />{new Date().toLocaleDateString("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <button
@@ -763,7 +784,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                   </button>
 
                   <div className="mt-4 grid grid-cols-2 gap-2">
-                    <StoredValue label="Cycles configured" value={fund.number_of_cycles ?? "—"} />
+                    <StoredValue label="Planned Cycle count" value={fund.number_of_cycles ?? "—"} />
                     <StoredValue label="Shares configured" value={fund.number_of_shares ?? "—"} />
                     <StoredValue label="Current cycle" value={fund.current_cycle} />
                     <StoredValue label="Start date" value={fund.start_date ? formatDate(fund.start_date) : "—"} />
