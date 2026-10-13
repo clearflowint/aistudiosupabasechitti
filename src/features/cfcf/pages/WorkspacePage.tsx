@@ -850,7 +850,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                   </div>
                   <details className="mt-4 rounded-xl border border-rose-200 bg-rose-50/60 p-3">
                     <summary className="min-h-8 cursor-pointer text-sm font-semibold text-rose-800">Danger zone · Delete empty Fund</summary>
-                    <p className="mt-2 text-xs leading-5 text-rose-800">Deletion is allowed only when this Fund has no Shares, Payments, Fund adjustments, or non-zero saved Cycle values. Financial history is never cascade-deleted.</p>
+                    <p className="mt-2 text-xs leading-5 text-rose-800">Deletion is allowed only when this Fund has no Shares, Payments, Fund adjustments, or any saved Cycle payout or commission values. Financial history is never cascade-deleted.</p>
                     <button type="button" onClick={() => { setDeleteTarget({ kind: "fund", id: fund.fund_id, label: fund.fund_name }); setDeleteError(null); }} className="mt-3 min-h-10 w-full rounded-lg border border-rose-300 bg-white px-3 text-sm font-semibold text-rose-800">Delete this empty Fund</button>
                   </details>
                 </article>
