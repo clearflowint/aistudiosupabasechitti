@@ -165,3 +165,34 @@ export async function listCfcfLedgerItems(
 
   return items.sort((a, b) => b.date.localeCompare(a.date));
 }
+
+
+// CFCF PRODUCT: Manual per-Share cycle billing is persisted through one database transaction.
+// MIX: Tenant identity comes from the authorized workspace; database function rechecks owner access and Fund/Share relationships.
+export async function recordCfcfCycleBilling(
+  tenantId: string,
+  fundId: string,
+  shareId: string,
+  cycleNumber: number,
+  amount: number,
+): Promise<void> {
+  if (!Number.isSafeInteger(cycleNumber) || cycleNumber < 1) {
+    throw new Error("Choose a valid cycle number.");
+  }
+  if (!Number.isSafeInteger(amount) || amount < 0 || amount > 2147483647) {
+    throw new Error("Billing amount must be a whole rupee amount of zero or more.");
+  }
+
+  const { error } = await supabase.rpc("cfcf_record_cycle_billing", {
+    p_tenant_id: tenantId,
+    p_fund_id: fundId,
+    p_share_id: shareId,
+    p_cycle_number: cycleNumber,
+    p_amount: amount,
+  });
+
+  if (error) {
+    if (error.code === "42501") throw new Error("Supabase denied this billing change. Confirm you have active owner access.");
+    throw new Error("Unable to save cycle billing: " + error.message);
+  }
+}
