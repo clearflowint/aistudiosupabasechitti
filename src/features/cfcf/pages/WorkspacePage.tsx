@@ -25,6 +25,7 @@ import {
   listCfcfFunds,
   listCfcfLedgerItems,
   listCfcfShares,
+  setCfcfSharePayout,
   type CfcfLedgerItem,
 } from "../services/workspace.service";
 import type { CfcfContactRow, CfcfFundRow, CfcfShareRow } from "../types/database.types";
@@ -92,6 +93,11 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [billingAmount, setBillingAmount] = useState("");
   const [billingError, setBillingError] = useState<string | null>(null);
   const [isSavingBilling, setIsSavingBilling] = useState(false);
+  const [payoutShare, setPayoutShare] = useState<CfcfShareRow | null>(null);
+  const [payoutCycleNumber, setPayoutCycleNumber] = useState("1");
+  const [withdrawnAmount, setWithdrawnAmount] = useState("");
+  const [payoutError, setPayoutError] = useState<string | null>(null);
+  const [isSavingPayout, setIsSavingPayout] = useState(false);
   const [isSavingFund, setIsSavingFund] = useState(false);
   const [fundForm, setFundForm] = useState(emptyFundForm);
   const [fundFormError, setFundFormError] = useState<string | null>(null);
@@ -219,6 +225,42 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       fund.cycle_commissions?.length ?? 0,
       ...billingCycles,
     );
+  }
+
+  function openPayoutModal(share: CfcfShareRow) {
+    const cycle = Math.max(1, highestCycleNumber(selectedFund));
+    const cyclePayout = selectedFund?.cycle_payout_amounts?.[cycle - 1];
+    setPayoutShare(share);
+    setPayoutCycleNumber(String(share.payout_cycle_number ?? cycle));
+    setWithdrawnAmount(String(share.withdrawn_amount || (typeof cyclePayout === "number" ? cyclePayout : "")));
+    setPayoutError(null);
+  }
+
+  async function handleSavePayout(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!payoutShare || !selectedFund || isSavingPayout) return;
+    const cycle = Number(payoutCycleNumber);
+    const amount = Number(withdrawnAmount);
+    if (!Number.isSafeInteger(cycle) || cycle < 1) {
+      setPayoutError("Choose a valid Cycle number.");
+      return;
+    }
+    if (withdrawnAmount.trim() === "" || !Number.isSafeInteger(amount) || amount < 0 || amount > 2147483647) {
+      setPayoutError("Enter a whole-rupee withdrawn amount.");
+      return;
+    }
+    setIsSavingPayout(true);
+    setPayoutError(null);
+    try {
+      await setCfcfSharePayout(workspace.tenantId, selectedFund.fund_id, payoutShare.share_id, "drawn", cycle, amount);
+      setPayoutShare(null);
+      setFundNotice("Share marked drawn. No payment transaction was created.");
+      setDetailReloadKey((current) => current + 1);
+    } catch (error) {
+      setPayoutError(error instanceof Error ? error.message : "Unable to update payout status.");
+    } finally {
+      setIsSavingPayout(false);
+    }
   }
 
   function openCycleBilling(share: CfcfShareRow) {
@@ -684,6 +726,13 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                         </button>
                         <button
                           type="button"
+                          onClick={() => openPayoutModal(share)}
+                          className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
+                        >
+                          <WalletCards size={14} /> {share.payout_status === "drawn" ? "Edit payout" : "Mark drawn"}
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => setExpandedBillingShareId(isBillingExpanded ? null : share.share_id)}
                           className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-2.5 text-xs font-semibold text-violet-800 hover:bg-violet-100"
                         >
@@ -773,6 +822,42 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           )}
         </>
       ) : null}
+
+      <Modal
+        isOpen={Boolean(payoutShare)}
+        title="Update Share payout"
+        description="Select the Cycle and review its stored payout amount. This changes payout status only; record actual money separately under Payments."
+        onClose={() => { if (!isSavingPayout) { setPayoutShare(null); setPayoutError(null); } }}
+      >
+        <form onSubmit={(event) => void handleSavePayout(event)} className="space-y-4">
+          <div>
+            <label htmlFor="payout-cycle-number" className="mb-1.5 block text-sm font-medium text-slate-700">Payout Cycle</label>
+            <select id="payout-cycle-number" value={payoutCycleNumber} onChange={(event) => {
+              setPayoutCycleNumber(event.target.value);
+              const savedPayout = selectedFund?.cycle_payout_amounts?.[Number(event.target.value) - 1];
+              setWithdrawnAmount(typeof savedPayout === "number" ? String(savedPayout) : "");
+            }} required className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm">
+              {Array.from({ length: Math.min(Math.max(highestCycleNumber(selectedFund), Number(payoutCycleNumber) || 1), 500) }, (_, index) => index + 1).map((cycle) => (
+                <option key={cycle} value={String(cycle)}>Cycle {cycle}</option>
+              ))}
+            </select>
+          </div>
+          <div className="rounded-xl bg-slate-50 p-3">
+            <p className="text-xs font-medium text-slate-500">Payout amount stored on Cycle {payoutCycleNumber}</p>
+            <p className="mt-1 text-lg font-semibold text-slate-900">{displayStoredAmount(selectedFund?.cycle_payout_amounts?.[Number(payoutCycleNumber) - 1])}</p>
+          </div>
+          <div>
+            <label htmlFor="payout-withdrawn-amount" className="mb-1.5 block text-sm font-medium text-slate-700">Withdrawn amount (₹)</label>
+            <input id="payout-withdrawn-amount" type="number" min="0" max="2147483647" step="1" required value={withdrawnAmount} onChange={(event) => setWithdrawnAmount(event.target.value)} className="min-h-11 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
+            <p className="mt-1.5 text-xs text-slate-500">Prefilled from the Cycle payout amount, but editable to record the actual stored withdrawn amount.</p>
+          </div>
+          {payoutError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-800">{payoutError}</div>}
+          <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+            <button type="button" onClick={() => setPayoutShare(null)} disabled={isSavingPayout} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button>
+            <button type="submit" disabled={isSavingPayout} className="min-h-11 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingPayout ? "Saving…" : "Save drawn status"}</button>
+          </div>
+        </form>
+      </Modal>
 
       <Modal
         isOpen={Boolean(billingShare)}
