@@ -11,6 +11,9 @@ import {
   CreditCard,
   Layers3,
   Plus,
+  FileText,
+  MessageCircle,
+
   RefreshCw,
   Search,
   UsersRound,
@@ -21,6 +24,8 @@ import { Modal } from "../../../components/ui/Modal";
 import { listCfcfContacts } from "../services/contacts.service";
 import {
   createCfcfFund,
+  createCfcfShare,
+  recordCfcfSharePayment,
   recordCfcfCycleBilling,
   listCfcfFunds,
   listCfcfLedgerItems,
@@ -90,6 +95,19 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [fundReloadKey, setFundReloadKey] = useState(0);
   const [detailReloadKey, setDetailReloadKey] = useState(0);
   const [isFundModalOpen, setIsFundModalOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [newShareContactId, setNewShareContactId] = useState("");
+  const [shareFormError, setShareFormError] = useState<string | null>(null);
+  const [isSavingShare, setIsSavingShare] = useState(false);
+  const [paymentShare, setPaymentShare] = useState<CfcfShareRow | null>(null);
+  const [paymentEntryType, setPaymentEntryType] = useState<"credit" | "debit">("credit");
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
+  const [paymentMode, setPaymentMode] = useState<"UPI" | "Cash" | "Other">("UPI");
+  const [paymentRemarks, setPaymentRemarks] = useState("");
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [isSavingPayment, setIsSavingPayment] = useState(false);
+  const [statementShare, setStatementShare] = useState<CfcfShareRow | null>(null);
   const [cycleEditNumber, setCycleEditNumber] = useState<number | null>(null);
   const [cyclePayoutInput, setCyclePayoutInput] = useState("");
   const [cycleCommissionInput, setCycleCommissionInput] = useState("");
@@ -360,6 +378,77 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     } finally {
       setIsSavingPlannedCount(false);
     }
+  }
+
+
+  function openShareModal() {
+    setNewShareContactId("");
+    setShareFormError(null);
+    setIsShareModalOpen(true);
+  }
+
+  async function handleCreateShare(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedFund || isSavingShare) return;
+    if (!newShareContactId) { setShareFormError("Choose a Contact."); return; }
+    setIsSavingShare(true);
+    setShareFormError(null);
+    try {
+      await createCfcfShare(workspace.tenantId, selectedFund.fund_id, workspace.personId, newShareContactId);
+      setIsShareModalOpen(false);
+      setFundNotice("Share added to " + selectedFund.fund_name + ".");
+      setDetailReloadKey((n) => n + 1);
+      setFundReloadKey((n) => n + 1);
+    } catch (error) {
+      setShareFormError(error instanceof Error ? error.message : "Unable to add Share.");
+    } finally { setIsSavingShare(false); }
+  }
+
+  function openPaymentModal(share: CfcfShareRow) {
+    setPaymentShare(share);
+    setPaymentEntryType("credit");
+    setPaymentAmount("");
+    setPaymentDate(new Date().toISOString().slice(0, 10));
+    setPaymentMode("UPI");
+    setPaymentRemarks("");
+    setPaymentError(null);
+  }
+
+  async function handleRecordPayment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!paymentShare || !selectedFund || isSavingPayment) return;
+    const amount = Number(paymentAmount);
+    if (!paymentAmount.trim() || !Number.isSafeInteger(amount) || amount <= 0 || amount > 2147483647) {
+      setPaymentError("Enter a positive whole-rupee amount."); return;
+    }
+    setIsSavingPayment(true); setPaymentError(null);
+    try {
+      await recordCfcfSharePayment(workspace.tenantId, selectedFund.fund_id, paymentShare.share_id, workspace.personId, paymentEntryType, amount, paymentDate, paymentMode, paymentRemarks);
+      setPaymentShare(null);
+      setFundNotice(paymentEntryType === "credit" ? "Payment recorded." : "Debit correction recorded.");
+      setDetailReloadKey((n) => n + 1); setFundReloadKey((n) => n + 1);
+    } catch (error) { setPaymentError(error instanceof Error ? error.message : "Unable to record transaction."); }
+    finally { setIsSavingPayment(false); }
+  }
+
+  function openShareWhatsApp(share: CfcfShareRow, mode: "reminder" | "report") {
+    const contact = contactById.get(share.contact_id);
+    if (!contact?.phone) { setFundNotice("This Contact has no saved phone number."); return; }
+    const phone = contact.phone.replace(/\\D/g, "");
+    const completed = Object.keys(share.billing_entries ?? {}).filter((key) => /^\\d+$/.test(key)).length;
+    const planned = selectedFund?.number_of_cycles;
+    const cycleProgress = planned ? completed + "/" + planned : String(completed) + " recorded";
+    const message = mode === "reminder"
+      ? `Hello ${contact.name}, this is a reminder for your ClearFlow Share in ${selectedFund?.fund_name ?? "the Fund"}. Pending due: ${formatINR(share.total_pending)}. Total billed: ${formatINR(share.share_total_billed_amount)}. Please let us know when payment is convenient. Thank you.`
+      : `ClearFlow Share Statement\\nFund: ${selectedFund?.fund_name ?? "—"}\\nMember: ${contact.name}\\nShare ID: ${share.share_id}\\nCycles completed/recorded: ${cycleProgress}\\nCurrent billed (highest recorded Cycle): ${formatINR(currentBilledForShare(share))}\\nTotal billed: ${formatINR(share.share_total_billed_amount)}\\nTotal paid (net): ${formatINR(share.share_net_payment_received)}\\nPending due: ${formatINR(share.total_pending)}\\nAdvance: ${formatINR(share.total_advance)}\\nPayout status: ${share.payout_status === "drawn" ? "Drawn" : "Undrawn"}`;
+    window.open("https://wa.me/" + phone + "?text=" + encodeURIComponent(message), "_blank", "noopener,noreferrer");
+  }
+
+  function currentBilledForShare(share: CfcfShareRow): number {
+    const cycleKeys = Object.keys(share.billing_entries ?? {}).filter((key) => /^\\d+$/.test(key)).map(Number);
+    const highest = cycleKeys.length ? Math.max(...cycleKeys) : 0;
+    const value = highest ? share.billing_entries[String(highest)] : 0;
+    return typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) || 0 : 0;
   }
 
   function openFundModal() {
@@ -676,153 +765,48 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
 
           {activeTab === "shares" && (
             <section className="space-y-3">
-              <section aria-label="Search and filter shares" className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
-                <div className="flex min-w-0 items-center gap-2">
+              <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+                <div className="flex items-center gap-2">
                   <label className="relative min-w-0 flex-1">
                     <Search size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
-                      type="search"
-                      value={shareSearch}
-                      onChange={(event) => setShareSearch(event.target.value)}
-                      placeholder="Search contact, phone or Share ID"
-                      aria-label="Search contact, phone or Share ID"
-                      className="min-h-11 w-full min-w-0 rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-3 text-sm outline-none placeholder:text-slate-400 focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-                    />
+                    <input type="search" value={shareSearch} onChange={(event) => setShareSearch(event.target.value)} placeholder="Search Contact, phone or Share ID" aria-label="Search Contact, phone or Share ID" className="min-h-11 w-full rounded-xl border border-slate-200 py-2 pl-10 pr-3 text-sm" />
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => setDetailReloadKey((current) => current + 1)}
-                    disabled={isLoadingDetails}
-                    aria-label="Refresh selected Fund details"
-                    title="Refresh Share records"
-                    className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-sky-700 hover:bg-sky-50 disabled:opacity-50"
-                  >
-                    <RefreshCw size={17} className={isLoadingDetails ? "animate-spin" : ""} />
-                  </button>
+                  <button type="button" onClick={() => setDetailReloadKey((n) => n + 1)} aria-label="Refresh Shares" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-200 text-sky-700"><RefreshCw size={17} /></button>
                 </div>
-                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Share status filters">
-                  {shareFilterOptions.map((option) => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      aria-pressed={shareFilter === option.id}
-                      onClick={() => setShareFilter(option.id)}
-                      className={[
-                        "flex min-h-10 min-w-0 items-center justify-center gap-1 rounded-xl border px-2 py-2 text-xs font-semibold transition sm:text-sm",
-                        shareFilter === option.id
-                          ? "border-slate-900 bg-slate-900 text-white shadow-sm"
-                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
-                      ].join(" ")}
-                    >
-                      <span>{option.label}</span>
-                      <span className={shareFilter === option.id ? "text-slate-300" : "text-slate-400"}>({option.count})</span>
-                    </button>
-                  ))}
+                <button type="button" onClick={openShareModal} className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white"><Plus size={16} /> Add Share to this Fund</button>
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {shareFilterOptions.map((option) => <button key={option.id} type="button" aria-pressed={shareFilter === option.id} onClick={() => setShareFilter(option.id)} className={["min-h-10 rounded-xl border px-2 text-xs font-semibold",shareFilter===option.id?"border-slate-900 bg-slate-900 text-white":"border-slate-200 bg-white text-slate-600"].join(" ")}>{option.label} ({option.count})</button>)}
                 </div>
               </section>
-              {isLoadingDetails ? (
-                <LoadingCard message="Loading shares…" />
-              ) : detailsError ? (
-                <ErrorCard message={detailsError} onRetry={() => setDetailReloadKey((current) => current + 1)} />
-              ) : shares.length === 0 ? (
-                <EmptyState icon={<UsersRound size={22} />} title="No shares in this fund yet" description="When shares are created, each share will appear here with its contact, saved billing entries, payment status, and payout details." />
-              ) : filteredShares.length === 0 ? (
-                <EmptyState
-                  icon={<Search size={22} />}
-                  title="No matching shares"
-                  description="No Share matches this search and status filter. Clear the search or choose All to see every Share in this Fund."
-                  action={(
-                    <button
-                      type="button"
-                      onClick={() => { setShareSearch(""); setShareFilter("all"); }}
-                      className="min-h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-sky-800 hover:bg-sky-50"
-                    >
-                      Clear search and filters
-                    </button>
-                  )}
-                />
-              ) : (
-                filteredShares.map((share) => {
-                  const contact = contactById.get(share.contact_id);
-                  const billingEntries = Object.entries(share.billing_entries ?? {});
-                  const isBillingExpanded = expandedBillingShareId === share.share_id;
-                  return (
-                    <article key={share.share_id} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
-                      <div className="flex min-w-0 items-start gap-2">
-                        <div className="min-w-0 flex-1">
-                          <h3 className="break-words text-sm font-bold leading-5 text-slate-900">{contact?.name || "Contact not found"}</h3>
-                          <p className="mt-0.5 break-all text-xs text-slate-500">{contact?.phone || "No phone saved"}</p>
-                          <p className="mt-0.5 break-all text-[10px] text-slate-400">{share.share_id}</p>
-                        </div>
-                        <span className={[
-                          "shrink-0 rounded-full px-2 py-1 text-[10px] font-bold capitalize",
-                          share.status === "active" ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600",
-                        ].join(" ")}>{share.status}</span>
-                      </div>
-
-                      <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-2.5">
-                        <StoredValue label="Total billed" value={formatINR(share.share_total_billed_amount)} />
-                        <StoredValue label="Paid" value={formatINR(share.share_net_payment_received)} />
-                        <StoredValue label="Pending" value={formatINR(share.total_pending)} />
-                        <StoredValue label="Advance" value={formatINR(share.total_advance)} />
-                        <StoredValue label="Withdrawn" value={formatINR(share.withdrawn_amount)} />
-                        <StoredValue label="Payout" value={share.payout_status || "—"} />
-                      </div>
-
-                      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                        <button
-                          type="button"
-                          onClick={() => openCycleBilling(share)}
-                          disabled={highestCycleNumber(selectedFund) < 1 && !(selectedFund.number_of_cycles && selectedFund.number_of_cycles > 0)}
-                          className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-sky-600 px-2.5 text-xs font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <CalendarDays size={14} /> Enter cycle billing
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => openPayoutModal(share)}
-                          className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
-                        >
-                          <WalletCards size={14} /> {share.payout_status === "drawn" ? "Edit payout" : "Mark drawn"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setExpandedBillingShareId(isBillingExpanded ? null : share.share_id)}
-                          className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-2.5 text-xs font-semibold text-violet-800 hover:bg-violet-100"
-                        >
-                          <CalendarDays size={14} />
-                          {isBillingExpanded ? "Hide billing" : "Billing (" + billingEntries.length + ")"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => { setSelectedShareId(share.share_id); setActiveTab("ledger"); }}
-                          className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-sky-600 px-2.5 text-xs font-semibold text-white hover:bg-sky-700"
-                        >
-                          <CreditCard size={14} /> Ledger <ChevronRight size={14} />
-                        </button>
-                      </div>
-
-                      {isBillingExpanded && (
-                        <div className="mt-3 rounded-xl border border-violet-100 bg-violet-50/60 p-2.5">
-                          <p className="text-[10px] font-bold uppercase tracking-wide text-violet-800">Saved billing entries</p>
-                          {billingEntries.length > 0 ? (
-                            <div className="mt-2 grid grid-cols-2 gap-2">
-                              {billingEntries.map(([cycle, value]) => (
-                                <div key={cycle} className="min-w-0 rounded-lg border border-slate-200 bg-white p-2">
-                                  <p className="truncate text-[10px] text-slate-500">{cycle}</p>
-                                  <p className="mt-0.5 break-words text-xs font-semibold text-slate-900">{displayStoredAmount(value)}</p>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="mt-2 text-xs text-slate-500">No billing entries saved.</p>
-                          )}
-                        </div>
-                      )}
-                    </article>
-                  );
-                })
-              )}
+              {isLoadingDetails ? <LoadingCard message="Loading Shares…" /> : detailsError ? <ErrorCard message={detailsError} onRetry={() => setDetailReloadKey((n) => n + 1)} /> : filteredShares.length === 0 ? (
+                <EmptyState icon={<UsersRound size={22} />} title={shares.length ? "No matching Shares" : "No Shares in this Fund yet"} description={shares.length ? "Clear the search or change the status filter." : "Add a Share by selecting an existing Contact in this Fund."} action={!shares.length ? <button type="button" onClick={openShareModal} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white"><Plus size={16} className="mr-1 inline" /> Add Share</button> : undefined} />
+              ) : filteredShares.map((share) => {
+                const contact = contactById.get(share.contact_id);
+                const highestCycle = Math.max(0,...Object.keys(share.billing_entries ?? {}).filter((k) => /^\\d+$/.test(k)).map(Number));
+                const progress = selectedFund.number_of_cycles ? `${highestCycle}/${selectedFund.number_of_cycles} cycles` : `${highestCycle} cycles recorded`;
+                return <article key={share.share_id} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="flex min-w-0 items-start justify-between gap-2">
+                    <div className="min-w-0"><p className="inline-block rounded-lg bg-slate-100 px-3 py-1 font-mono text-sm font-bold text-slate-700">{share.share_id}</p><h3 className="mt-2 break-words text-base font-semibold text-slate-900">{contact?.name ?? "Contact unavailable"}</h3><p className="mt-1 break-all text-sm text-slate-500">{contact?.phone ?? "No phone saved"}</p></div>
+                    <div className="shrink-0 text-right"><p className={["text-sm font-bold",share.total_pending>0?"text-rose-700":"text-emerald-700"].join(" ")}>{share.total_pending>0?"−":""}{formatINR(share.total_pending)}</p><p className="text-xs text-slate-500">{share.total_pending>0?"Pending":"No pending due"}</p><span className={["mt-2 inline-block rounded-full px-2 py-1 text-xs font-semibold",share.payout_status==="drawn"?"bg-emerald-50 text-emerald-800":"bg-amber-50 text-amber-800"].join(" ")}>{share.payout_status==="drawn"?"Drawn":"Undrawn"}</span></div>
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-2.5">
+                    <StoredValue label="Current billed · Cycle ${highestCycle || "—"}" value={formatINR(currentBilledForShare(share))}/>
+                    <StoredValue label="Total billed" value={formatINR(share.share_total_billed_amount)}/>
+                    <StoredValue label="Total paid (net)" value={formatINR(share.share_net_payment_received)}/>
+                    <StoredValue label="Pending due" value={formatINR(share.total_pending)}/>
+                    <StoredValue label="Advance" value={formatINR(share.total_advance)}/>
+                    <StoredValue label="Cycle progress" value={progress}/>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <button type="button" onClick={() => setStatementShare(share)} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2 text-sm font-semibold text-slate-800"><FileText size={16}/> Statement</button>
+                    <button type="button" onClick={() => openShareWhatsApp(share,"report")} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-2 text-sm font-semibold text-emerald-800"><MessageCircle size={16}/> Report</button>
+                    <button type="button" onClick={() => openShareWhatsApp(share,"reminder")} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-2 text-sm font-semibold text-white"><MessageCircle size={16}/> Reminder</button>
+                    <button type="button" onClick={() => openPaymentModal(share)} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-sky-600 px-2 text-sm font-semibold text-white"><CreditCard size={16}/> Record Payment</button>
+                    <button type="button" onClick={() => openCycleBilling(share)} disabled={highestCycleNumber(selectedFund)<1 && !(selectedFund.number_of_cycles && selectedFund.number_of_cycles>0)} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-2 text-xs font-semibold text-violet-800 disabled:opacity-50"><CalendarDays size={14}/> Cycle billing</button>
+                    <button type="button" onClick={() => openPayoutModal(share)} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-2 text-xs font-semibold text-amber-800"><WalletCards size={14}/> {share.payout_status==="drawn"?"Edit payout":"Undrawn"}</button>
+                  </div>
+                </article>;
+              })}
             </section>
           )}
 
