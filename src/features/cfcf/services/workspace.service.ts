@@ -196,3 +196,34 @@ export async function recordCfcfCycleBilling(
     throw new Error("Unable to save cycle billing: " + error.message);
   }
 }
+
+
+// CFCF PRODUCT: Payout status is Share data, not a payment transaction.
+// MIX: Database rechecks owner access and Share/Fund tenant ownership.
+export async function setCfcfSharePayout(
+  tenantId: string,
+  fundId: string,
+  shareId: string,
+  payoutStatus: "drawn" | "undrawn",
+  payoutCycleNumber: number | null,
+  withdrawnAmount: number,
+): Promise<void> {
+  if (payoutStatus === "drawn" && (!Number.isSafeInteger(payoutCycleNumber) || (payoutCycleNumber ?? 0) < 1)) {
+    throw new Error("Choose a valid payout Cycle.");
+  }
+  if (!Number.isSafeInteger(withdrawnAmount) || withdrawnAmount < 0 || withdrawnAmount > 2147483647) {
+    throw new Error("Withdrawn amount must be a whole rupee amount of zero or more.");
+  }
+  const { error } = await supabase.rpc("cfcf_set_share_payout", {
+    p_tenant_id: tenantId,
+    p_fund_id: fundId,
+    p_share_id: shareId,
+    p_payout_status: payoutStatus,
+    p_payout_cycle_number: payoutCycleNumber,
+    p_withdrawn_amount: withdrawnAmount,
+  });
+  if (error) {
+    if (error.code === "42501") throw new Error("Supabase denied this payout change. Confirm you have active owner access.");
+    throw new Error("Unable to update Share payout: " + error.message);
+  }
+}
