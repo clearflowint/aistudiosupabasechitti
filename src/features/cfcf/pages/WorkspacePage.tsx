@@ -989,11 +989,17 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                     <p className="mt-1 text-sm">Read-only check. No records were changed. Payments, Share billing, payouts, commissions and Fund adjustments were compared with stored summaries.</p>
                   </div>
                   {financialReconciliation.mismatches.length > 0 && (
-                    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-                      <table className="w-full min-w-[520px] text-left text-sm">
-                        <thead className="bg-slate-100 text-xs uppercase text-slate-600"><tr><th className="px-3 py-2">Record</th><th className="px-3 py-2">Field</th><th className="px-3 py-2 text-right">Stored</th><th className="px-3 py-2 text-right">Expected</th></tr></thead>
-                        <tbody>{financialReconciliation.mismatches.map((item) => <tr key={item.recordType + ":" + item.recordId + ":" + item.field} className="border-t border-slate-100"><td className="px-3 py-2">{item.recordType === "fund" ? "Fund" : "Share"} · {item.recordId}</td><td className="px-3 py-2">{item.field}</td><td className="px-3 py-2 text-right tabular-nums">{item.stored.toLocaleString("en-IN")}</td><td className="px-3 py-2 text-right tabular-nums">{item.expected.toLocaleString("en-IN")}</td></tr>)}</tbody>
-                      </table>
+                    <div className="space-y-2">
+                      {financialReconciliation.mismatches.map((item) => (
+                        <article key={item.recordType + ":" + item.recordId + ":" + item.field} className="min-w-0 rounded-lg border border-slate-200 bg-white p-3">
+                          <p className="break-words text-xs font-semibold uppercase tracking-wide text-slate-500">{item.recordType === "fund" ? "Fund" : "Share"} · {item.recordId}</p>
+                          <p className="mt-1 break-words text-sm font-semibold text-slate-800">{item.field}</p>
+                          <div className="mt-2 grid grid-cols-2 gap-2">
+                            <div className="min-w-0 rounded-md bg-slate-50 p-2"><p className="text-xs text-slate-500">Stored</p><p className="break-words text-sm font-semibold tabular-nums">{item.stored.toLocaleString("en-IN")}</p></div>
+                            <div className="min-w-0 rounded-md bg-slate-50 p-2"><p className="text-xs text-slate-500">Expected</p><p className="break-words text-sm font-semibold tabular-nums">{item.expected.toLocaleString("en-IN")}</p></div>
+                          </div>
+                        </article>
+                      ))}
                     </div>
                   )}
                 </div>
