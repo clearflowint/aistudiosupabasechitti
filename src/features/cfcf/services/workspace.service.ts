@@ -215,7 +215,7 @@ export async function setCfcfSharePayout(
   if (payoutStatus === "drawn" && (
     !Number.isSafeInteger(payoutCycleNumber) ||
     (payoutCycleNumber ?? 0) < 1 ||
-    (payoutCycleNumber ?? 0) > 2147483647
+    (payoutCycleNumber ?? 0) > MAX_CFCF_CYCLES
   )) {
     throw new Error("Payout Cycle must be between 1 and 100.");
   }
