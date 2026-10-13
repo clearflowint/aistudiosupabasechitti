@@ -637,7 +637,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                 <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
                   <label className="min-w-0">
                     <span className="mb-1 block text-xs font-semibold text-slate-600">Planned Cycle count</span>
-                    <input type="number" min="0" step="1" value={plannedCycleInput || String(selectedFund.number_of_cycles ?? "")} onChange={(event) => setPlannedCycleInput(event.target.value)} placeholder="Optional" className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm" />
+                    <input type="number" min="0" step="1" value={plannedCycleInput !== "" ? plannedCycleInput : String(selectedFund.number_of_cycles ?? "")} onChange={(event) => setPlannedCycleInput(event.target.value)} placeholder="Optional" className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm" />
                   </label>
                   <button type="button" disabled={isSavingPlannedCount} onClick={() => void handleSavePlannedCount()} className="self-end min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 disabled:opacity-50">{isSavingPlannedCount ? "Saving…" : "Save count"}</button>
                 </div>
@@ -773,7 +773,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                         <button
                           type="button"
                           onClick={() => openCycleBilling(share)}
-                          disabled={!selectedFund.number_of_cycles || selectedFund.number_of_cycles < 1}
+                          disabled={highestCycleNumber(selectedFund) < 1 && !(selectedFund.number_of_cycles && selectedFund.number_of_cycles > 0)}
                           className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-sky-600 px-2.5 text-xs font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           <CalendarDays size={14} /> Enter cycle billing
@@ -957,7 +957,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               required
               className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
             >
-              {Array.from({ length: Math.min(selectedFund?.number_of_cycles ?? 0, 500) }, (_, index) => index + 1).map((cycle) => (
+              {Array.from({ length: Math.min(Math.max(selectedFund?.number_of_cycles ?? 0, highestCycleNumber(selectedFund)), 500) }, (_, index) => index + 1).map((cycle) => (
                 <option key={cycle} value={String(cycle)}>Cycle {cycle}{cycle === selectedFund?.current_cycle ? " · Current" : ""}</option>
               ))}
             </select>
