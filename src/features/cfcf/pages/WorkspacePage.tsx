@@ -21,6 +21,7 @@ import { Modal } from "../../../components/ui/Modal";
 import { listCfcfContacts } from "../services/contacts.service";
 import {
   createCfcfFund,
+  recordCfcfCycleBilling,
   listCfcfFunds,
   listCfcfLedgerItems,
   listCfcfShares,
@@ -86,6 +87,11 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [fundReloadKey, setFundReloadKey] = useState(0);
   const [detailReloadKey, setDetailReloadKey] = useState(0);
   const [isFundModalOpen, setIsFundModalOpen] = useState(false);
+  const [billingShare, setBillingShare] = useState<CfcfShareRow | null>(null);
+  const [billingCycleNumber, setBillingCycleNumber] = useState("1");
+  const [billingAmount, setBillingAmount] = useState("");
+  const [billingError, setBillingError] = useState<string | null>(null);
+  const [isSavingBilling, setIsSavingBilling] = useState(false);
   const [isSavingFund, setIsSavingFund] = useState(false);
   const [fundForm, setFundForm] = useState(emptyFundForm);
   const [fundFormError, setFundFormError] = useState<string | null>(null);
@@ -200,6 +206,41 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     void loadDetails();
     return () => { isCurrent = false; };
   }, [workspace.tenantId, selectedFundId, activeTab, detailReloadKey]);
+
+  function openCycleBilling(share: CfcfShareRow) {
+    setBillingShare(share);
+    setBillingCycleNumber(String(Math.max(1, selectedFund?.current_cycle ?? 1)));
+    setBillingAmount(String(share.billing_entries?.[String(Math.max(1, selectedFund?.current_cycle ?? 1))] ?? ""));
+    setBillingError(null);
+  }
+
+  async function handleSaveCycleBilling(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!billingShare || !selectedFund || isSavingBilling) return;
+    const cycleNumber = Number(billingCycleNumber);
+    const amount = Number(billingAmount);
+    if (!Number.isSafeInteger(cycleNumber) || cycleNumber < 1 || cycleNumber > (selectedFund.number_of_cycles ?? 0)) {
+      setBillingError("Choose a cycle within this Fund's configured cycle count.");
+      return;
+    }
+    if (billingAmount.trim() === "" || !Number.isSafeInteger(amount) || amount < 0 || amount > 2147483647) {
+      setBillingError("Enter a whole-rupee billing amount of zero or more.");
+      return;
+    }
+    setIsSavingBilling(true);
+    setBillingError(null);
+    try {
+      await recordCfcfCycleBilling(workspace.tenantId, selectedFund.fund_id, billingShare.share_id, cycleNumber, amount);
+      setBillingShare(null);
+      setFundNotice("Cycle billing saved. Share and Fund summaries were updated by Supabase.");
+      setDetailReloadKey((current) => current + 1);
+      setFundReloadKey((current) => current + 1);
+    } catch (error) {
+      setBillingError(error instanceof Error ? error.message : "Unable to save cycle billing.");
+    } finally {
+      setIsSavingBilling(false);
+    }
+  }
 
   function openFundModal() {
     setFundForm(emptyFundForm);
@@ -617,11 +658,19 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                         <StoredValue label="Payout" value={share.payout_status || "—"} />
                       </div>
 
-                      <div className="mt-3 flex flex-wrap gap-2">
+                      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                        <button
+                          type="button"
+                          onClick={() => openCycleBilling(share)}
+                          disabled={!selectedFund.number_of_cycles || selectedFund.number_of_cycles < 1}
+                          className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-sky-600 px-2.5 text-xs font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <CalendarDays size={14} /> Enter cycle billing
+                        </button>
                         <button
                           type="button"
                           onClick={() => setExpandedBillingShareId(isBillingExpanded ? null : share.share_id)}
-                          className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-2.5 text-xs font-semibold text-violet-800 hover:bg-violet-100"
+                          className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-2.5 text-xs font-semibold text-violet-800 hover:bg-violet-100"
                         >
                           <CalendarDays size={14} />
                           {isBillingExpanded ? "Hide billing" : "Billing (" + billingEntries.length + ")"}
@@ -629,7 +678,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                         <button
                           type="button"
                           onClick={() => { setSelectedShareId(share.share_id); setActiveTab("ledger"); }}
-                          className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-sky-600 px-2.5 text-xs font-semibold text-white hover:bg-sky-700"
+                          className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-sky-600 px-2.5 text-xs font-semibold text-white hover:bg-sky-700"
                         >
                           <CreditCard size={14} /> Ledger <ChevronRight size={14} />
                         </button>
@@ -709,6 +758,58 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           )}
         </>
       ) : null}
+
+      <Modal
+        isOpen={Boolean(billingShare)}
+        title="Enter cycle billing"
+        description={billingShare ? "Save the manual billing amount for " + (contactById.get(billingShare.contact_id)?.name || "this Share") + ". Supabase will store the cycle entry and update the saved Share/Fund summaries atomically." : "Enter cycle billing."}
+        onClose={() => { if (!isSavingBilling) { setBillingShare(null); setBillingError(null); } }}
+      >
+        <form onSubmit={(event) => void handleSaveCycleBilling(event)} className="space-y-4">
+          <div>
+            <label htmlFor="cycle-billing-cycle" className="mb-1.5 block text-sm font-medium text-slate-700">Cycle</label>
+            <select
+              id="cycle-billing-cycle"
+              value={billingCycleNumber}
+              onChange={(event) => {
+                setBillingCycleNumber(event.target.value);
+                const saved = billingShare?.billing_entries?.[event.target.value];
+                setBillingAmount(typeof saved === "number" || typeof saved === "string" ? String(saved) : "");
+              }}
+              required
+              className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+            >
+              {Array.from({ length: Math.min(selectedFund?.number_of_cycles ?? 0, 500) }, (_, index) => index + 1).map((cycle) => (
+                <option key={cycle} value={String(cycle)}>Cycle {cycle}{cycle === selectedFund?.current_cycle ? " · Current" : ""}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="cycle-billing-amount" className="mb-1.5 block text-sm font-medium text-slate-700">Billing amount (₹)</label>
+            <input
+              id="cycle-billing-amount"
+              type="number"
+              inputMode="numeric"
+              min="0"
+              max="2147483647"
+              step="1"
+              required
+              value={billingAmount}
+              onChange={(event) => setBillingAmount(event.target.value)}
+              placeholder="Enter amount manually"
+              className="min-h-11 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+            />
+            <p className="mt-1.5 text-xs leading-5 text-slate-500">This is a manual entry for the selected Share and Cycle. Saving an existing cycle amount replaces that cycle's previous billing entry.</p>
+          </div>
+          {billingError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm leading-5 text-rose-800">{billingError}</div>}
+          <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
+            <button type="button" onClick={() => setBillingShare(null)} disabled={isSavingBilling} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">Cancel</button>
+            <button type="submit" disabled={isSavingBilling || !selectedFund?.number_of_cycles} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60">
+              <CalendarDays size={16} /> {isSavingBilling ? "Saving…" : "Save billing"}
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       <Modal
         isOpen={isFundModalOpen}
