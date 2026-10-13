@@ -64,7 +64,8 @@ export async function createCfcfFund(
       fund_name: fundName,
       start_date: input.startDate || null,
       number_of_cycles: input.numberOfCycles ?? null,
-      number_of_shares: input.numberOfShares ?? null,
+      // The database trigger maintains this count from actual Share rows.
+      number_of_shares: 0,
     })
     .select(FUND_FIELDS)
     .single();
