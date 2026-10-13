@@ -26,6 +26,8 @@ import {
   listCfcfLedgerItems,
   listCfcfShares,
   setCfcfSharePayout,
+  saveCfcfCycleValues,
+  updateCfcfPlannedCycleCount,
   type CfcfLedgerItem,
 } from "../services/workspace.service";
 import type { CfcfContactRow, CfcfFundRow, CfcfShareRow } from "../types/database.types";
@@ -37,7 +39,7 @@ interface WorkspacePageProps {
   workspace: AuthorizedWorkspace;
 }
 
-const emptyFundForm = { fundName: "", startDate: "", numberOfCycles: "", numberOfShares: "" };
+const emptyFundForm = { fundName: "", startDate: "", numberOfCycles: "" };
 
 interface SavedWorkspaceView {
   tab: WorkspaceTab;
@@ -88,6 +90,13 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [fundReloadKey, setFundReloadKey] = useState(0);
   const [detailReloadKey, setDetailReloadKey] = useState(0);
   const [isFundModalOpen, setIsFundModalOpen] = useState(false);
+  const [cycleEditNumber, setCycleEditNumber] = useState<number | null>(null);
+  const [cyclePayoutInput, setCyclePayoutInput] = useState("");
+  const [cycleCommissionInput, setCycleCommissionInput] = useState("");
+  const [cycleEditError, setCycleEditError] = useState<string | null>(null);
+  const [isSavingCycle, setIsSavingCycle] = useState(false);
+  const [plannedCycleInput, setPlannedCycleInput] = useState("");
+  const [isSavingPlannedCount, setIsSavingPlannedCount] = useState(false);
   const [billingShare, setBillingShare] = useState<CfcfShareRow | null>(null);
   const [billingCycleNumber, setBillingCycleNumber] = useState("1");
   const [billingAmount, setBillingAmount] = useState("");
@@ -299,6 +308,60 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     }
   }
 
+  function openCycleEditor(cycleNumber: number) {
+    setCycleEditNumber(cycleNumber);
+    const payout = selectedFund?.cycle_payout_amounts?.[cycleNumber - 1];
+    const commission = selectedFund?.cycle_commissions?.[cycleNumber - 1];
+    setCyclePayoutInput(typeof payout === "number" ? String(payout) : "");
+    setCycleCommissionInput(typeof commission === "number" ? String(commission) : "");
+    setCycleEditError(null);
+  }
+
+  async function handleSaveCycleValues(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedFund || cycleEditNumber === null || isSavingCycle) return;
+    const payout = cyclePayoutInput.trim() === "" ? null : Number(cyclePayoutInput);
+    const commission = cycleCommissionInput.trim() === "" ? null : Number(cycleCommissionInput);
+    for (const [label, value] of [["Payout", payout], ["Commission", commission]] as const) {
+      if (value !== null && (!Number.isSafeInteger(value) || value < 0 || value > 2147483647)) {
+        setCycleEditError(label + " must be a whole rupee amount or left blank.");
+        return;
+      }
+    }
+    setIsSavingCycle(true);
+    setCycleEditError(null);
+    try {
+      await saveCfcfCycleValues(workspace.tenantId, selectedFund.fund_id, cycleEditNumber, payout, commission);
+      setCycleEditNumber(null);
+      setFundNotice("Cycle values saved.");
+      setFundReloadKey((n) => n + 1);
+      setDetailReloadKey((n) => n + 1);
+    } catch (error) {
+      setCycleEditError(error instanceof Error ? error.message : "Unable to save Cycle values.");
+    } finally {
+      setIsSavingCycle(false);
+    }
+  }
+
+  async function handleSavePlannedCount() {
+    if (!selectedFund || isSavingPlannedCount) return;
+    const value = plannedCycleInput.trim() === "" ? null : Number(plannedCycleInput);
+    if (value !== null && (!Number.isSafeInteger(value) || value < 0 || value > 2147483647)) {
+      setFundNotice("Planned Cycle count must be zero or a positive whole number.");
+      return;
+    }
+    setIsSavingPlannedCount(true);
+    try {
+      await updateCfcfPlannedCycleCount(workspace.tenantId, selectedFund.fund_id, value);
+      setFundNotice("Planned Cycle count updated. It does not limit additional Cycles.");
+      setFundReloadKey((n) => n + 1);
+    } catch (error) {
+      setFundNotice(error instanceof Error ? error.message : "Unable to update planned Cycle count.");
+    } finally {
+      setIsSavingPlannedCount(false);
+    }
+  }
+
   function openFundModal() {
     setFundForm(emptyFundForm);
     setFundFormError(null);
@@ -318,18 +381,13 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     setFundFormError(null);
 
     const numberOfCycles = fundForm.numberOfCycles.trim() ? Number(fundForm.numberOfCycles) : null;
-    const numberOfShares = fundForm.numberOfShares.trim() ? Number(fundForm.numberOfShares) : null;
+    const numberOfShares = null;
 
     if (numberOfCycles !== null && (!Number.isSafeInteger(numberOfCycles) || numberOfCycles < 1)) {
       setFundFormError("Cycle count must be a positive whole number.");
       return;
     }
-    if (numberOfShares !== null && (!Number.isSafeInteger(numberOfShares) || numberOfShares < 1)) {
-      setFundFormError("Share count must be a positive whole number.");
-      return;
-    }
-
-    setIsSavingFund(true);
+     setIsSavingFund(true);
     try {
       const created = await createCfcfFund(workspace.tenantId, workspace.personId, {
         fundName: fundForm.fundName,
