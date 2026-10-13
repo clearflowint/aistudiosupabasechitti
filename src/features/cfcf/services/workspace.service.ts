@@ -289,6 +289,16 @@ export async function saveCfcfCycleValues(
   }
 }
 
+// CFCF PRODUCT: Edit descriptive Fund setup fields only; never touch stored financial fields.
+export async function updateCfcfFundDetails(tenantId: string, fundId: string, input: { fundName: string; startDate: string | null; numberOfCycles: number | null }): Promise<void> {
+  const fundName = input.fundName.trim();
+  if (!fundName) throw new Error("Fund name is required.");
+  if (input.numberOfCycles !== null && (!Number.isSafeInteger(input.numberOfCycles) || input.numberOfCycles < 0 || input.numberOfCycles > MAX_CFCF_CYCLES)) throw new Error("Planned Cycle count must be between 0 and 100.");
+  const { data, error } = await supabase.from("cfcf_funds").update({ fund_name: fundName, start_date: input.startDate || null, number_of_cycles: input.numberOfCycles, updated_at: new Date().toISOString() }).eq("product_id", cfcfConfig.productId).eq("tenant_id", tenantId).eq("fund_id", fundId).select("fund_id").maybeSingle();
+  if (error) throw new Error("Unable to update Fund details: " + error.message);
+  if (!data) throw new Error("Fund not found or you do not have owner access.");
+}
+
 // CFCF PRODUCT: Planned cycle count remains editable descriptive setup data, not a limit.
 export async function updateCfcfPlannedCycleCount(tenantId: string, fundId: string, count: number | null): Promise<void> {
   if (count !== null && (!Number.isSafeInteger(count) || count < 0 || count > MAX_CFCF_CYCLES)) {
