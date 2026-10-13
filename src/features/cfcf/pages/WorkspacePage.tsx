@@ -148,7 +148,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [fundForm, setFundForm] = useState(emptyFundForm);
   const [fundFormError, setFundFormError] = useState<string | null>(null);
   const [fundNotice, setFundNotice] = useState<string | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<{ kind: "share" | "fund"; id: string; label: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ kind: "share" | "fund"; id: string; label: string; fundId?: string } | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const lastTenantId = useRef(workspace.tenantId);
@@ -459,7 +459,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     setIsDeleting(true); setDeleteError(null);
     try {
       if (deleteTarget.kind === "share") {
-        await deleteCfcfShareIfEmpty(workspace.tenantId, selectedFundId, deleteTarget.id);
+        await deleteCfcfShareIfEmpty(workspace.tenantId, deleteTarget.fundId ?? selectedFundId, deleteTarget.id);
         setFundNotice("Empty Share deleted. Financial-history Shares cannot be deleted.");
         setDeleteTarget(null); setDetailReloadKey((n) => n + 1); setFundReloadKey((n) => n + 1);
       } else {
@@ -934,7 +934,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                     <button type="button" onClick={() => openCycleBilling(share)} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-2 text-xs font-semibold text-violet-800 disabled:opacity-50"><CalendarDays size={14}/> Cycle billing</button>
                     <button type="button" onClick={() => openPayoutModal(share)} disabled={billedCycleNumbers().length === 0} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-2 text-xs font-semibold text-amber-800 disabled:cursor-not-allowed disabled:opacity-50"><WalletCards size={14}/> {share.payout_status==="drawn"?"Edit payout":"Undrawn"}</button>
                     <button type="button" onClick={() => { setSelectedShareId(share.share_id); setActiveTab("ledger"); }} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 px-2 text-xs font-semibold text-sky-800">Share ledger</button>
-                    <button type="button" onClick={() => { setDeleteTarget({ kind: "share", id: share.share_id, label: contact?.name ?? share.share_id }); setDeleteError(null); }} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-2 text-xs font-semibold text-rose-800">Delete empty Share</button>
+                    <button type="button" onClick={() => { setDeleteTarget({ kind: "share", id: share.share_id, label: contact?.name ?? share.share_id, fundId: selectedFund.fund_id }); setDeleteError(null); }} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-2 text-xs font-semibold text-rose-800">Delete empty Share</button>
                   </div>
                 </article>;
               })}
