@@ -489,6 +489,29 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     }
   }
 
+  async function handleSaveFundEdit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedFund || isSavingFundEdit) return;
+    const rawCount = fundEditForm.numberOfCycles.trim();
+    const count = rawCount === "" ? null : Number(rawCount);
+    if (count !== null && (!Number.isSafeInteger(count) || count < 0 || count > MAX_CFCF_CYCLES)) {
+      setFundEditError("Planned Cycle count must be between 0 and 100.");
+      return;
+    }
+    setIsSavingFundEdit(true);
+    setFundEditError(null);
+    try {
+      await updateCfcfFundDetails(workspace.tenantId, selectedFund.fund_id, { fundName: fundEditForm.fundName, startDate: fundEditForm.startDate || null, numberOfCycles: count });
+      setIsFundEditOpen(false);
+      setFundNotice("Fund details saved. Stored financial values were not changed.");
+      setFundReloadKey((n) => n + 1);
+    } catch (error) {
+      setFundEditError(error instanceof Error ? error.message : "Unable to save Fund details.");
+    } finally {
+      setIsSavingFundEdit(false);
+    }
+  }
+
   async function handleConfirmDelete() {
     if (!deleteTarget || isDeleting || deleteStep !== 3 || !deleteAcknowledged || deleteTypedId.trim() !== deleteTarget.id) return;
     setIsDeleting(true); setDeleteError(null);
