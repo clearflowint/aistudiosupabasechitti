@@ -126,6 +126,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [financialReconciliation, setFinancialReconciliation] = useState<CfcfFinancialReconciliation | null>(null);
   const [reconciliationError, setReconciliationError] = useState<string | null>(null);
   const [isReconciling, setIsReconciling] = useState(false);
+  const reconciliationRequestId = useRef(0);
   const [statementShare, setStatementShare] = useState<CfcfShareRow | null>(null);
   const [cycleEditNumber, setCycleEditNumber] = useState<number | null>(null);
   const [cyclePayoutInput, setCyclePayoutInput] = useState("");
@@ -162,6 +163,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   // CFCF PRODUCT: Clear Fund-specific filters, unsaved inputs, and open financial modals on Fund/tenant changes.
   // This prevents a modal opened for one Fund from being accidentally submitted against another selected Fund.
   useEffect(() => {
+    reconciliationRequestId.current += 1;
+    setIsReconciling(false);
     setPlannedCycleInput("");
     setShareSearch("");
     setShareFilter("all");
@@ -555,16 +558,27 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
 
   async function handleReconcileFinancialSummary() {
     if (!selectedFund || isReconciling) return;
+    const requestId = ++reconciliationRequestId.current;
+    const requestedFundId = selectedFund.fund_id;
+    const requestedTenantId = workspace.tenantId;
     setIsReconciling(true);
     setReconciliationError(null);
     setFinancialReconciliation(null);
     try {
-      const result = await inspectCfcfFundFinancialSummary(workspace.tenantId, selectedFund.fund_id);
-      setFinancialReconciliation(result);
+      const result = await inspectCfcfFundFinancialSummary(requestedTenantId, requestedFundId);
+      if (requestId === reconciliationRequestId.current
+        && selectedFundId === requestedFundId
+        && workspace.tenantId === requestedTenantId) {
+        setFinancialReconciliation(result);
+      }
     } catch (error) {
-      setReconciliationError(error instanceof Error ? error.message : "Unable to reconcile stored financial summaries.");
+      if (requestId === reconciliationRequestId.current
+        && selectedFundId === requestedFundId
+        && workspace.tenantId === requestedTenantId) {
+        setReconciliationError(error instanceof Error ? error.message : "Unable to reconcile stored financial summaries.");
+      }
     } finally {
-      setIsReconciling(false);
+      if (requestId === reconciliationRequestId.current) setIsReconciling(false);
     }
   }
 
