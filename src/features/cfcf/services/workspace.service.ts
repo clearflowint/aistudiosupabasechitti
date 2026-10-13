@@ -247,32 +247,19 @@ export async function saveCfcfCycleValues(
       throw new Error(label + " must be a whole rupee amount or left blank.");
     }
   }
-  const { data: fund, error: readError } = await supabase
-    .from("cfcf_funds")
-    .select("cycle_payout_amounts, cycle_commissions, current_cycle")
-    .eq("product_id", cfcfConfig.productId)
-    .eq("tenant_id", tenantId)
-    .eq("fund_id", fundId)
-    .single();
-  if (readError || !fund) throw new Error("Unable to load Cycle values: " + (readError?.message ?? "Fund not found."));
-  const payouts = Array.isArray(fund.cycle_payout_amounts) ? [...fund.cycle_payout_amounts] as unknown[] : [];
-  const commissions = Array.isArray(fund.cycle_commissions) ? [...fund.cycle_commissions] as unknown[] : [];
-  while (payouts.length < cycleNumber) payouts.push(null);
-  while (commissions.length < cycleNumber) commissions.push(null);
-  payouts[cycleNumber - 1] = payoutAmount;
-  commissions[cycleNumber - 1] = commissionAmount;
-  const { error } = await supabase
-    .from("cfcf_funds")
-    .update({
-      cycle_payout_amounts: payouts,
-      cycle_commissions: commissions,
-      current_cycle: Math.max(fund.current_cycle ?? 0, cycleNumber),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("product_id", cfcfConfig.productId)
-    .eq("tenant_id", tenantId)
-    .eq("fund_id", fundId);
-  if (error) throw new Error("Unable to save Cycle values: " + error.message);
+
+  // MIX: One explicit RPC owns the atomic update of Cycle values and all Fund summary columns.
+  const { error } = await supabase.rpc("cfcf_save_cycle_values", {
+    p_tenant_id: tenantId,
+    p_fund_id: fundId,
+    p_cycle_number: cycleNumber,
+    p_payout_amount: payoutAmount,
+    p_commission_amount: commissionAmount,
+  });
+  if (error) {
+    if (error.code === "42501") throw new Error("Supabase denied this Cycle change. Confirm you have active owner access.");
+    throw new Error("Unable to save Cycle values: " + error.message);
+  }
 }
 
 // CFCF PRODUCT: Planned cycle count remains editable descriptive setup data, not a limit.
