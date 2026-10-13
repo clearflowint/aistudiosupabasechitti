@@ -375,3 +375,30 @@ export async function inspectCfcfFundFinancialSummary(
 
   return { fundId, expected, mismatches };
 }
+
+// CFCF PRODUCT: Fund-level credits/debits are separate from Share Payment records.
+export async function recordCfcfFundOtherEntry(
+  tenantId: string,
+  fundId: string,
+  personId: string,
+  entryType: "credit" | "debit",
+  amount: number,
+  remarks: string,
+): Promise<void> {
+  if (!Number.isSafeInteger(amount) || amount <= 0 || amount > 2147483647) {
+    throw new Error("Enter a positive whole-rupee amount.");
+  }
+  const { error } = await supabase.rpc("cfcf_record_fund_other_entry", {
+    p_tenant_id: tenantId,
+    p_fund_id: fundId,
+    p_person_id: personId,
+    p_entry_type: entryType,
+    p_amount: amount,
+    p_remarks: remarks.trim() || null,
+  });
+  if (error) {
+    if (error.code === "42501") throw new Error("You do not have owner access to record this Fund entry.");
+    throw new Error("Unable to record Fund adjustment: " + error.message);
+  }
+}
+
