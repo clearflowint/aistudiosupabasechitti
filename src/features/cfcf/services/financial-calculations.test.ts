@@ -85,6 +85,13 @@ test("drawn payouts contribute withdrawn totals; undrawn Shares do not", () => {
   assert.equal(result.shares.find((item) => item.shareId === "undrawn")?.withdrawnAmount, 0);
 });
 
+test("rejects unsupported stored payout statuses rather than treating them as undrawn", () => {
+  assert.throws(
+    () => calculate([share({ payout_status: "pending" as CfcfShareRow["payout_status"] })]),
+    /Unsupported payout status/,
+  );
+});
+
 test("Fund net balance may be negative; Fund adjustments stay separate", () => {
   const result = calculate(
     [share({ billing_entries: { "1": 100 }, payout_status: "drawn", withdrawn_amount: 500 })],
