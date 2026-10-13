@@ -109,3 +109,46 @@ test("rejects malformed billing entries and unsafe amounts", () => {
   assert.throws(() => calculate([share({ billing_entries: { "bad": 100 } })]), /Invalid Cycle key/);
   assert.throws(() => calculate([share({ billing_entries: { "1": -1 } })]), /non-negative whole-rupee/);
 });
+
+
+test("ignores Share, Payment, and Fund adjustment rows outside the selected tenant/Fund", () => {
+  const result = calculate(
+    [
+      share({ share_id: "in-scope", billing_entries: { "1": 500 } }),
+      share({ share_id: "other-tenant", tenant_id: "tenant-2", billing_entries: { "1": 9000 } }),
+      share({ share_id: "other-fund", fund_id: "fund-2", billing_entries: { "1": 8000 } }),
+    ],
+    [
+      payment({ amount: 200 }),
+      payment({ payment_id: "other-tenant-payment", tenant_id: "tenant-2", share_id: "other-tenant", amount: 7000 }),
+      payment({ payment_id: "other-fund-payment", fund_id: "fund-2", share_id: "other-fund", amount: 6000 }),
+    ],
+    [
+      adjustment({ amount: 100 }),
+      adjustment({ entry_id: "other-tenant-adjustment", tenant_id: "tenant-2", amount: 7000 }),
+      adjustment({ entry_id: "other-fund-adjustment", fund_id: "fund-2", amount: 6000 }),
+    ],
+  );
+
+  assert.equal(result.numberOfShares, 1);
+  assert.equal(result.fundTotalBilledAmount, 500);
+  assert.equal(result.shares[0].shareNetPaymentReceived, 200);
+  assert.equal(result.shares[0].totalPending, 300);
+  assert.equal(result.otherAmount, 100);
+});
+
+test("rejects invalid commission entries rather than silently accepting malformed data", () => {
+  assert.throws(
+    () => calculate([share()], [], [],),
+    /Expected 3 arguments|/,
+  );
+});
+
+test("rejects totals that exceed JavaScript's safe integer range", () => {
+  assert.throws(
+    () => calculate(
+      [share({ billing_entries: { "1": Number.MAX_SAFE_INTEGER, "2": 1 } })],
+    ),
+    /safe integer range/,
+  );
+});
