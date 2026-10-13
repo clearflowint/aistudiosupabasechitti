@@ -64,5 +64,6 @@ export async function resolveCfcfWorkspace(authenticatedEmail: string): Promise<
     displayName = person.name || displayName;
   }
 
+  if (!personId) throw new Error("No active person profile is linked to this manager account.");
   return { email, tenantId: tenant.tenant_id, personId, displayName };
 }
