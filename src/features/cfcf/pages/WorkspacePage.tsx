@@ -240,6 +240,27 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     return () => { isCurrent = false; };
   }, [workspace.tenantId, selectedFundId, activeTab, detailReloadKey]);
 
+  // CFCF PRODUCT: Statement history loads on demand without forcing the workspace into the Ledger tab.
+  useEffect(() => {
+    if (!statementShare || !selectedFundId) return;
+    let current = true;
+    void listCfcfLedgerItems(workspace.tenantId, selectedFundId)
+      .then((items) => { if (current) setLedgerItems(items); })
+      .catch((error: unknown) => { if (current) setFundNotice(error instanceof Error ? error.message : "Unable to load statement transactions."); });
+    return () => { current = false; };
+  }, [statementShare?.share_id, selectedFundId, workspace.tenantId]);
+
+  function printShareStatement() {
+    const content = document.querySelector("[data-cfcf-share-statement]")?.innerHTML;
+    if (!content) { setFundNotice("Statement content is not ready to print."); return; }
+    const printWindow = window.open("", "_blank", "noopener,noreferrer,width=900,height=700");
+    if (!printWindow) { setFundNotice("Allow pop-ups to print or save the Share statement."); return; }
+    printWindow.document.write("<!doctype html><html><head><title>ClearFlow Share Statement</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><style>body{font-family:Arial,sans-serif;color:#0f172a;padding:24px;max-width:900px;margin:auto}button{display:none!important}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}article,section{break-inside:avoid}p,h3,h4{margin-top:8px;margin-bottom:8px}.border{border:1px solid #cbd5e1}.rounded-xl{border-radius:12px}.p-3,.p-4{padding:12px}.bg-slate-50{background:#f8fafc}.text-xs{font-size:12px}.text-sm{font-size:14px}.font-bold,.font-semibold{font-weight:700}</style></head><body>" + content + "</body></html>");
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  }
+
   function highestCycleNumber(fund: CfcfFundRow | null, fundShares: CfcfShareRow[] = shares): number {
     if (!fund) return 0;
     const billingCycles = fundShares.flatMap((share) =>
@@ -1003,7 +1024,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           const history = ledgerItems.filter((item) => item.kind === "payment" && item.shareId === statementShare.share_id).sort((a,b) => b.date.localeCompare(a.date));
           const cycles = Object.entries(statementShare.billing_entries ?? {}).filter(([k]) => /^\d+$/.test(k)).sort(([a],[b]) => Number(a)-Number(b));
           return <div className="space-y-4 text-slate-900">
-            <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4"><div><p className="text-xs font-bold uppercase tracking-wide text-slate-500">ClearFlow · Share Statement</p><h3 className="mt-1 text-lg font-bold">{selectedFund?.fund_name}</h3><p className="mt-1 text-sm">{contact?.name} · {contact?.phone}</p><p className="mt-1 break-all text-xs text-slate-500">Share ID: {statementShare.share_id}</p></div><button type="button" onClick={() => window.print()} className="min-h-10 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white">Print / Save</button></div>
+            <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4"><div><p className="text-xs font-bold uppercase tracking-wide text-slate-500">ClearFlow · Share Statement</p><h3 className="mt-1 text-lg font-bold">{selectedFund?.fund_name}</h3><p className="mt-1 text-sm">{contact?.name} · {contact?.phone}</p><p className="mt-1 break-all text-xs text-slate-500">Share ID: {statementShare.share_id}</p></div><button type="button" onClick={printShareStatement} className="min-h-10 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white">Print / Save</button></div>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4"><StoredValue label="Current billed" value={formatINR(currentBilledForShare(statementShare))}/><StoredValue label="Total billed" value={formatINR(statementShare.share_total_billed_amount)}/><StoredValue label="Total paid (net)" value={formatINR(statementShare.share_net_payment_received)}/><StoredValue label="Pending due" value={formatINR(statementShare.total_pending)}/><StoredValue label="Advance" value={formatINR(statementShare.total_advance)}/><StoredValue label="Cycle progress" value={selectedFund?.number_of_cycles ? cycles.length+"/"+selectedFund.number_of_cycles : cycles.length+" recorded"}/><StoredValue label="Payout status" value={statementShare.payout_status}/><StoredValue label="Withdrawn amount" value={formatINR(statementShare.withdrawn_amount)}/></div>
             <section><h4 className="font-semibold">Cycle billing history</h4>{cycles.length ? <div className="mt-2 divide-y divide-slate-200 rounded-xl border border-slate-200">{cycles.map(([cycle,amount])=><div key={cycle} className="flex justify-between gap-3 p-3 text-sm"><span>Cycle {cycle}</span><strong>{displayStoredAmount(amount)}</strong></div>)}</div> : <p className="mt-2 text-sm text-slate-500">No cycle billing recorded.</p>}</section>
             <section><h4 className="font-semibold">Previous transactions</h4>{history.length ? <div className="mt-2 divide-y divide-slate-200 rounded-xl border border-slate-200">{history.map((item)=><div key={item.id} className="flex justify-between gap-3 p-3 text-sm"><div><p className="font-semibold capitalize">{item.entryType} · {formatDate(item.date)}</p><p className="text-xs text-slate-500">{item.paymentType ?? "—"}{item.remarks ? " · "+item.remarks : ""}</p></div><strong>{formatINR(item.amount)}</strong></div>)}</div> : <p className="mt-2 text-sm text-slate-500">No previous transactions loaded. Open Ledger once to load transaction history.</p>}</section>
