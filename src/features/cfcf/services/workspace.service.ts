@@ -210,8 +210,12 @@ export async function setCfcfSharePayout(
   payoutCycleNumber: number | null,
   withdrawnAmount: number,
 ): Promise<void> {
-  if (payoutStatus === "drawn" && (!Number.isSafeInteger(payoutCycleNumber) || (payoutCycleNumber ?? 0) < 1)) {
-    throw new Error("Choose a valid payout Cycle.");
+  if (payoutStatus === "drawn" && (
+    !Number.isSafeInteger(payoutCycleNumber) ||
+    (payoutCycleNumber ?? 0) < 1 ||
+    (payoutCycleNumber ?? 0) > 500
+  )) {
+    throw new Error("Payout Cycle must be between 1 and 500.");
   }
   if (!Number.isSafeInteger(withdrawnAmount) || withdrawnAmount < 0 || withdrawnAmount > 2147483647) {
     throw new Error("Withdrawn amount must be a whole rupee amount of zero or more.");
