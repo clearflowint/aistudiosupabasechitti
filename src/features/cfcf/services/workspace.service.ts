@@ -171,6 +171,22 @@ export async function listCfcfLedgerItems(
 }
 
 
+
+/** CFCF PRODUCT: Deletion is intentionally limited to records with no financial history. */
+export async function deleteCfcfShareIfEmpty(tenantId: string, fundId: string, shareId: string): Promise<void> {
+  const { error } = await supabase.rpc("cfcf_delete_share_if_empty", {
+    p_tenant_id: tenantId, p_fund_id: fundId, p_share_id: shareId,
+  });
+  if (error) throw new Error("Unable to delete Share: " + error.message);
+}
+
+export async function deleteCfcfFundIfEmpty(tenantId: string, fundId: string): Promise<void> {
+  const { error } = await supabase.rpc("cfcf_delete_fund_if_empty", {
+    p_tenant_id: tenantId, p_fund_id: fundId,
+  });
+  if (error) throw new Error("Unable to delete Fund: " + error.message);
+}
+
 // CFCF PRODUCT: Manual per-Share cycle billing is persisted through one database transaction.
 // MIX: Tenant identity comes from the authorized workspace; database function rechecks owner access and Fund/Share relationships.
 export async function recordCfcfCycleBilling(
