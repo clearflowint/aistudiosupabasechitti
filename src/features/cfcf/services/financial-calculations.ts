@@ -122,6 +122,9 @@ export function calculateCfcfFundFinancialSummary(
     }
     const pending = Math.max(billed - netPayments, 0);
     const advance = Math.max(netPayments - billed, 0);
+    if (share.payout_status !== "drawn" && share.payout_status !== "undrawn") {
+      throw new Error("Unsupported payout status for Share " + share.share_id + ".");
+    }
     const withdrawn = share.payout_status === "drawn"
       ? wholeRupees(share.withdrawn_amount, "Withdrawn amount for Share " + share.share_id)
       : 0;
