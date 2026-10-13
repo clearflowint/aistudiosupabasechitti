@@ -40,16 +40,13 @@ function wholeRupees(value: unknown, label: string): number {
 }
 
 function checkedTotal(values: number[], label: string): number {
-  let total = 0;
-  for (const value of values) {
-    total += value;
-    // Check every intermediate sum: an unsafe total can later appear safe again
-    // after subtracting a debit, but precision may already have been lost.
-    if (!Number.isSafeInteger(total)) {
-      throw new Error(label + " exceeds JavaScript's safe integer range.");
-    }
+  // BigInt keeps signed ledger totals exact even if gross credits/debits exceed
+  // Number's safe range but their final net is still representable exactly.
+  const total = values.reduce((sum, value) => sum + BigInt(value), 0n);
+  if (total > BigInt(Number.MAX_SAFE_INTEGER) || total < BigInt(Number.MIN_SAFE_INTEGER)) {
+    throw new Error(label + " exceeds JavaScript's safe integer range.");
   }
-  return total;
+  return Number(total);
 }
 
 function sumBillingEntries(entries: CfcfShareRow["billing_entries"], shareId: string): number {
