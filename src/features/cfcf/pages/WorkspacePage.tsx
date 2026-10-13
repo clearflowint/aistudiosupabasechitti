@@ -322,7 +322,10 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   function openPayoutModal(share: CfcfShareRow) {
     // If this Share is already drawn, keep its recorded Cycle and actual withdrawn amount,
     // including an intentional zero. Otherwise default to the highest existing Cycle.
-    const cycle = share.payout_status === "drawn" && share.payout_cycle_number
+    const availableCycles = billedCycleNumbers();
+    const cycle = share.payout_status === "drawn"
+      && share.payout_cycle_number !== null
+      && availableCycles.includes(share.payout_cycle_number)
       ? share.payout_cycle_number
       : Math.max(1, highestCycleNumber(selectedFund));
     const cyclePayout = selectedFund?.cycle_payout_amounts?.[cycle - 1];
@@ -1113,11 +1116,17 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               setPayoutCycleNumber(event.target.value);
               const savedPayout = selectedFund?.cycle_payout_amounts?.[Number(event.target.value) - 1];
               setWithdrawnAmount(typeof savedPayout === "number" ? String(savedPayout) : "");
-            }} required className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm">
-              {billedCycleNumbers().map((cycle) => (
-                <option key={cycle} value={String(cycle)}>Cycle {cycle}</option>
-              ))}
+            }} required disabled={billedCycleNumbers().length === 0} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm disabled:bg-slate-100">
+              {billedCycleNumbers().length === 0
+                ? <option value="">No billed Cycles available</option>
+                : billedCycleNumbers().map((cycle) => <option key={cycle} value={String(cycle)}>Cycle {cycle}</option>)}
             </select>
+            {billedCycleNumbers().length === 0 && (
+              <p className="mt-1.5 text-sm text-amber-700">This Share cannot be marked drawn until billing has been saved for at least one Cycle in this Fund.</p>
+            )}
+            {payoutShare?.payout_status === "drawn" && payoutShare.payout_cycle_number !== null && !billedCycleNumbers().includes(payoutShare.payout_cycle_number) && (
+              <p className="mt-1.5 text-sm text-amber-700">Its previously saved payout Cycle is no longer billed. You can mark this Share Undrawn, or choose a currently billed Cycle to update its payout.</p>
+            )}
           </div>
           <div className="rounded-xl bg-slate-50 p-3">
             <p className="text-xs font-medium text-slate-500">Payout amount stored on Cycle {payoutCycleNumber}</p>
@@ -1135,7 +1144,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             ) : <span />}
             <div className="flex gap-2">
               <button type="button" onClick={() => setPayoutShare(null)} disabled={isSavingPayout} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button>
-              <button type="submit" disabled={isSavingPayout} className="min-h-11 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingPayout ? "Saving…" : "Save drawn status"}</button>
+              <button type="submit" disabled={isSavingPayout || billedCycleNumbers().length === 0} className="min-h-11 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingPayout ? "Saving…" : "Save drawn status"}</button>
             </div>
           </div>
         </form>
