@@ -11,6 +11,8 @@ import type {
   CfcfShareRow,
 } from "../types/database.types";
 
+const MAX_CFCF_CYCLES = 100;
+
 const FUND_FIELDS =
   "fund_id, product_id, tenant_id, person_id, fund_name, start_date, number_of_cycles, number_of_shares, current_cycle, cycle_payout_amounts, cycle_commissions, fund_net_balance, fund_total_billed_amount, fund_total_pending_amount, fund_total_advance, fund_total_withdrawn, fund_total_commissions, other_amount, status, created_at, updated_at";
 
@@ -178,8 +180,8 @@ export async function recordCfcfCycleBilling(
   cycleNumber: number,
   amount: number,
 ): Promise<void> {
-  if (!Number.isSafeInteger(cycleNumber) || cycleNumber < 1 || cycleNumber > 2147483647) {
-    throw new Error("Cycle number must be a positive whole number.");
+  if (!Number.isSafeInteger(cycleNumber) || cycleNumber < 1 || cycleNumber > MAX_CFCF_CYCLES) {
+    throw new Error("Cycle number must be between 1 and 100.");
   }
   if (!Number.isSafeInteger(amount) || amount < 0 || amount > 2147483647) {
     throw new Error("Billing amount must be a whole rupee amount of zero or more.");
@@ -215,7 +217,7 @@ export async function setCfcfSharePayout(
     (payoutCycleNumber ?? 0) < 1 ||
     (payoutCycleNumber ?? 0) > 2147483647
   )) {
-    throw new Error("Payout Cycle must be a positive whole number.");
+    throw new Error("Payout Cycle must be between 1 and 100.");
   }
   if (!Number.isSafeInteger(withdrawnAmount) || withdrawnAmount < 0 || withdrawnAmount > 2147483647) {
     throw new Error("Withdrawn amount must be a whole rupee amount of zero or more.");
@@ -243,8 +245,8 @@ export async function saveCfcfCycleValues(
   payoutAmount: number | null,
   commissionAmount: number | null,
 ): Promise<void> {
-  if (!Number.isSafeInteger(cycleNumber) || cycleNumber < 1 || cycleNumber > 2147483647) {
-    throw new Error("Cycle number must be a positive whole number.");
+  if (!Number.isSafeInteger(cycleNumber) || cycleNumber < 1 || cycleNumber > MAX_CFCF_CYCLES) {
+    throw new Error("Cycle number must be between 1 and 100.");
   }
   for (const [label, value] of [["Payout amount", payoutAmount], ["Commission", commissionAmount]] as const) {
     if (value !== null && (!Number.isSafeInteger(value) || value < 0 || value > 2147483647)) {
