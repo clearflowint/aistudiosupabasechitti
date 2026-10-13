@@ -577,40 +577,34 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                   Cycle cards display the values stored on the fund record; no payout or commission is calculated here.
                 </p>
               </section>
-              {(selectedFund.number_of_cycles ?? 0) > 0 ? (
-                Array.from({ length: Math.min(selectedFund.number_of_cycles ?? 0, 500) }, (_, index) => {
-                  const cycleNumber = index + 1;
-                  const payout = selectedFund.cycle_payout_amounts?.[index];
-                  const commission = selectedFund.cycle_commissions?.[index];
-                  return (
-                    <article key={cycleNumber} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Cycle {cycleNumber}</p>
-                          <h3 className="mt-1 text-base font-semibold text-slate-900">
-                            {cycleNumber === selectedFund.current_cycle ? "Current cycle" : "Cycle details"}
-                          </h3>
-                        </div>
-                        {cycleNumber === selectedFund.current_cycle && (
-                          <span className="shrink-0 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700">Current</span>
-                        )}
+              {highestCycleNumber(selectedFund) > 0 ? (() => {
+                const cycleNumber = highestCycleNumber(selectedFund);
+                const payout = selectedFund.cycle_payout_amounts?.[cycleNumber - 1];
+                const commission = selectedFund.cycle_commissions?.[cycleNumber - 1];
+                return (
+                  <article key={cycleNumber} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Cycle {cycleNumber}</p>
+                        <h3 className="mt-1 text-base font-semibold text-slate-900">Highest Cycle</h3>
                       </div>
-                      <div className="mt-4 grid grid-cols-2 gap-2">
-                        <StoredValue label="Stored payout" value={displayStoredAmount(payout)} />
-                        <StoredValue label="Stored commission" value={displayStoredAmount(commission)} />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab("shares")}
-                        className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                      >
-                        View fund shares <ChevronRight size={16} />
-                      </button>
-                    </article>
-                  );
-                })
-              ) : (
-                <EmptyState icon={<CalendarDays size={22} />} title="No cycles configured" description="This fund does not currently have a positive cycle count saved." />
+                      <span className="shrink-0 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700">Latest</span>
+                    </div>
+                    <div className="mt-4 grid grid-cols-2 gap-2">
+                      <StoredValue label="Stored payout" value={displayStoredAmount(payout)} />
+                      <StoredValue label="Stored commission" value={displayStoredAmount(commission)} />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("shares")}
+                      className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      View fund shares <ChevronRight size={16} />
+                    </button>
+                  </article>
+                );
+              })() : (
+                <EmptyState icon={<CalendarDays size={22} />} title="No cycles recorded yet" description="Cycle cards will appear as cycle data is recorded for this Fund." />
               )}
               {(selectedFund.number_of_cycles ?? 0) > 500 && (
                 <p className="rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-800">
