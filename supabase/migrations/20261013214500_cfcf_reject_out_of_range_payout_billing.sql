@@ -48,7 +48,9 @@ BEGIN
      AND jsonb_typeof(COALESCE(s.billing_entries,'{}'::jsonb))='object'
      AND s.billing_entries ? p_payout_cycle_number::text
      AND jsonb_typeof(s.billing_entries->(p_payout_cycle_number::text))='number'
-     AND (s.billing_entries->>(p_payout_cycle_number::text)) ~ '^[0-9]+
+     AND length(s.billing_entries->>(p_payout_cycle_number::text)) > 0
+     AND (s.billing_entries->>(p_payout_cycle_number::text)) !~ '[^0-9]'
+     AND (s.billing_entries->>(p_payout_cycle_number::text))::numeric <= 2147483647
   ) THEN
    RAISE EXCEPTION 'Payout Cycle must have saved billing in this Fund' USING ERRCODE='22023';
   END IF;
