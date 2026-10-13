@@ -253,7 +253,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   function printShareStatement() {
     const content = document.querySelector("[data-cfcf-share-statement]")?.innerHTML;
     if (!content) { setFundNotice("Statement content is not ready to print."); return; }
-    const printWindow = window.open("", "_blank", "noopener,noreferrer,width=900,height=700");
+    const printWindow = window.open("", "_blank", "width=900,height=700");
     if (!printWindow) { setFundNotice("Allow pop-ups to print or save the Share statement."); return; }
     printWindow.document.write("<!doctype html><html><head><title>ClearFlow Share Statement</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><style>body{font-family:Arial,sans-serif;color:#0f172a;padding:24px;max-width:900px;margin:auto}button{display:none!important}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}article,section{break-inside:avoid}p,h3,h4{margin-top:8px;margin-bottom:8px}.border{border:1px solid #cbd5e1}.rounded-xl{border-radius:12px}.p-3,.p-4{padding:12px}.bg-slate-50{background:#f8fafc}.text-xs{font-size:12px}.text-sm{font-size:14px}.font-bold,.font-semibold{font-weight:700}</style></head><body>" + content + "</body></html>");
     printWindow.document.close();
@@ -987,7 +987,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           {billingError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm leading-5 text-rose-800">{billingError}</div>}
           <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
             <button type="button" onClick={() => setBillingShare(null)} disabled={isSavingBilling} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">Cancel</button>
-            <button type="submit" disabled={isSavingBilling || !selectedFund?.number_of_cycles} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60">
+            <button type="submit" disabled={isSavingBilling} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60">
               <CalendarDays size={16} /> {isSavingBilling ? "Saving…" : "Save billing"}
             </button>
           </div>
