@@ -89,7 +89,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [contacts, setContacts] = useState<CfcfContactRow[]>([]);
   const [ledgerItems, setLedgerItems] = useState<CfcfLedgerItem[]>([]);
   const [selectedShareId, setSelectedShareId] = useState<string | null>(null);
-  const [expandedBillingShareId, setExpandedBillingShareId] = useState<string | null>(null);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
   const [detailsError, setDetailsError] = useState<string | null>(null);
   const [fundReloadKey, setFundReloadKey] = useState(0);
@@ -149,7 +148,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setContacts([]);
       setLedgerItems([]);
       setSelectedShareId(null);
-      setExpandedBillingShareId(null);
       // The tenant-scoped saved view is restored below; never carry the previous tenant's selection across.
     }
 
@@ -204,7 +202,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     setContacts([]);
     setLedgerItems([]);
     setSelectedShareId(null);
-    setExpandedBillingShareId(null);
     setDetailsError(null);
 
     if (!selectedFundId) {
