@@ -429,7 +429,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     const payout = cyclePayoutInput.trim() === "" ? null : Number(cyclePayoutInput);
     const commission = cycleCommissionInput.trim() === "" ? null : Number(cycleCommissionInput);
     for (const [label, value] of [["Payout", payout], ["Commission", commission]] as const) {
-      if (value !== null && (!Number.isSafeInteger(value) || value < 0 || value > MAX_CFCF_CYCLES)) {
+      if (value !== null && (!Number.isSafeInteger(value) || value < 0 || value > 2147483647)) {
         setCycleEditError(label + " must be a whole rupee amount or left blank.");
         return;
       }
