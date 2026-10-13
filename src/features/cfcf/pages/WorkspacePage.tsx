@@ -538,8 +538,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   function openShareWhatsApp(share: CfcfShareRow, mode: "reminder" | "report") {
     const contact = contactById.get(share.contact_id);
     if (!contact?.phone) { setFundNotice("This Contact has no saved phone number."); return; }
-    const phone = contact.phone.replace(/\\D/g, "");
-    const completed = Object.keys(share.billing_entries ?? {}).filter((key) => /^\\d+$/.test(key)).length;
+    const phone = contact.phone.replace(/\D/g, "");
+    const completed = Object.keys(share.billing_entries ?? {}).filter((key) => /^\d+$/.test(key)).length;
     const planned = selectedFund?.number_of_cycles;
     const cycleProgress = planned ? completed + "/" + planned : String(completed) + " recorded";
     const message = mode === "reminder"
@@ -549,7 +549,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   }
 
   function currentBilledForShare(share: CfcfShareRow): number {
-    const cycleKeys = Object.keys(share.billing_entries ?? {}).filter((key) => /^\\d+$/.test(key)).map(Number);
+    const cycleKeys = Object.keys(share.billing_entries ?? {}).filter((key) => /^\d+$/.test(key)).map(Number);
     const highest = cycleKeys.length ? Math.max(...cycleKeys) : 0;
     const value = highest ? share.billing_entries[String(highest)] : 0;
     return typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) || 0 : 0;
@@ -887,7 +887,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                 <EmptyState icon={<UsersRound size={22} />} title={shares.length ? "No matching Shares" : "No Shares in this Fund yet"} description={shares.length ? "Clear the search or change the status filter." : "Add a Share by selecting an existing Contact in this Fund."} action={!shares.length ? <button type="button" onClick={openShareModal} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white"><Plus size={16} className="mr-1 inline" /> Add Share</button> : undefined} />
               ) : filteredShares.map((share) => {
                 const contact = contactById.get(share.contact_id);
-                const highestCycle = Math.max(0,...Object.keys(share.billing_entries ?? {}).filter((k) => /^\\d+$/.test(k)).map(Number));
+                const highestCycle = Math.max(0,...Object.keys(share.billing_entries ?? {}).filter((k) => /^\d+$/.test(k)).map(Number));
                 const progress = billedCycleNumbers().length + " billed cycles";
                 return <article key={share.share_id} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                   <div className="flex min-w-0 items-start justify-between gap-2">
