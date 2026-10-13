@@ -40,9 +40,14 @@ function wholeRupees(value: unknown, label: string): number {
 }
 
 function checkedTotal(values: number[], label: string): number {
-  const total = values.reduce((sum, value) => sum + value, 0);
-  if (!Number.isSafeInteger(total)) {
-    throw new Error(label + " exceeds JavaScript's safe integer range.");
+  let total = 0;
+  for (const value of values) {
+    total += value;
+    // Check every intermediate sum: an unsafe total can later appear safe again
+    // after subtracting a debit, but precision may already have been lost.
+    if (!Number.isSafeInteger(total)) {
+      throw new Error(label + " exceeds JavaScript's safe integer range.");
+    }
   }
   return total;
 }
