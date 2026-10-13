@@ -334,10 +334,14 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   }
 
   function openCycleBilling(share: CfcfShareRow) {
-    const cycle = Math.max(1, highestCycleNumber(selectedFund));
+    const shareCycles = billedCycleNumbers([share]);
+    const highestShareCycle = shareCycles.at(-1) ?? 0;
+    // Default to the next Cycle for this Share, while keeping Cycle 100 editable at the cap.
+    const cycle = highestShareCycle >= MAX_CFCF_CYCLES ? MAX_CFCF_CYCLES : highestShareCycle + 1;
     setBillingShare(share);
-    setBillingCycleNumber(String(cycle));
-    setBillingAmount(String(share.billing_entries?.[String(cycle)] ?? 0));
+    setBillingCycleNumber(String(Math.max(1, cycle)));
+    const existing = share.billing_entries?.[String(Math.max(1, cycle))];
+    setBillingAmount(typeof existing === "number" || typeof existing === "string" ? String(existing) : "");
     setBillingError(null);
   }
 
@@ -539,9 +543,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     const contact = contactById.get(share.contact_id);
     if (!contact?.phone) { setFundNotice("This Contact has no saved phone number."); return; }
     const phone = contact.phone.replace(/\D/g, "");
-    const completed = Object.keys(share.billing_entries ?? {}).filter((key) => /^\d+$/.test(key)).length;
-    const planned = selectedFund?.number_of_cycles;
-    const cycleProgress = planned ? completed + "/" + planned : String(completed) + " recorded";
+    const completed = billedCycleNumbers([share]).length;
+    const cycleProgress = String(completed) + " billed cycles";
     const message = mode === "reminder"
       ? `Hello ${contact.name}, this is a reminder for your ClearFlow Share in ${selectedFund?.fund_name ?? "the Fund"}. Pending due: ${formatINR(share.total_pending)}. Total billed: ${formatINR(share.share_total_billed_amount)}. Please let us know when payment is convenient. Thank you.`
       : `ClearFlow Share Statement\\nFund: ${selectedFund?.fund_name ?? "—"}\\nMember: ${contact.name}\\nShare ID: ${share.share_id}\\nCycles completed/recorded: ${cycleProgress}\\nCurrent billed (highest recorded Cycle): ${formatINR(currentBilledForShare(share))}\\nTotal billed: ${formatINR(share.share_total_billed_amount)}\\nTotal paid (net): ${formatINR(share.share_net_payment_received)}\\nPending due: ${formatINR(share.total_pending)}\\nAdvance: ${formatINR(share.total_advance)}\\nPayout status: ${share.payout_status === "drawn" ? "Drawn" : "Undrawn"}`;
@@ -888,7 +891,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               ) : filteredShares.map((share) => {
                 const contact = contactById.get(share.contact_id);
                 const highestCycle = Math.max(0,...Object.keys(share.billing_entries ?? {}).filter((k) => /^\d+$/.test(k)).map(Number));
-                const progress = billedCycleNumbers().length + " billed cycles";
+                const progress = billedCycleNumbers([share]).length + " billed cycles";
                 return <article key={share.share_id} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                   <div className="flex min-w-0 items-start justify-between gap-2">
                     <div className="min-w-0"><p className="inline-block rounded-lg bg-slate-100 px-3 py-1 font-mono text-sm font-bold text-slate-700">{share.share_id}</p><h3 className="mt-2 break-words text-base font-semibold text-slate-900">{contact?.name ?? "Contact unavailable"}</h3><p className="mt-1 break-all text-sm text-slate-500">{contact?.phone ?? "No phone saved"}</p></div>
@@ -1000,6 +1003,11 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                       <p className="mt-1 break-words text-xs text-slate-500">
                         {formatDate(item.date)}{item.paymentType ? " · " + item.paymentType : ""}
                       </p>
+                      {item.kind === "payment" && item.shareId && (
+                        <p className="mt-2 break-words text-xs font-medium text-sky-800">
+                          Share {item.shareId}{(() => { const row = shares.find((share) => share.share_id === item.shareId); const contact = row ? contactById.get(row.contact_id) : undefined; return contact?.name ? " · " + contact.name : ""; })()}
+                        </p>
+                      )}
                       {item.remarks && <p className="mt-2 break-words text-sm leading-5 text-slate-600">{item.remarks}</p>}
                       <p className="mt-2 break-all text-[11px] text-slate-400">Entry ID · {item.id}</p>
                     </div>
