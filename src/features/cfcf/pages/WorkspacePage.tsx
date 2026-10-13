@@ -1218,7 +1218,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         {deleteTarget && <div className="space-y-4">
           <div className="rounded-xl border border-rose-200 bg-rose-50 p-3">
             <p className="text-sm font-semibold text-rose-900">{deleteTarget.label}</p>
-            <p className="mt-2 text-sm leading-5 text-rose-800">{deleteTarget.kind === "fund" ? "Fund deletion is blocked if it has any Shares, Payments, Fund adjustments, or non-zero Cycle payout/commission values." : "Share deletion is blocked if any Payment row, billing entry, payout, or stored financial balance exists."}</p>
+            <p className="mt-2 text-sm leading-5 text-rose-800">{deleteTarget.kind === "fund" ? "Fund deletion is blocked if it has any Shares, Payments, Fund adjustments, or any saved Cycle payout or commission values (including zero)." : "Share deletion is blocked if any Payment row, billing entry, payout status/history, or stored financial balance exists."}</p>
             <p className="mt-2 text-xs leading-5 text-rose-800">Related financial records will not be cascade-deleted.</p>
           </div>
           {deleteError && <p role="alert" className="rounded-xl border border-rose-300 bg-white p-3 text-sm text-rose-800">{deleteError}</p>}
