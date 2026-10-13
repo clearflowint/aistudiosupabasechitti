@@ -270,6 +270,10 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         if (!isCurrent) return;
         setShares(shareRows);
         setContacts(contactRows);
+        // Keep an open Share statement aligned with the latest saved billing/payout fields.
+        setStatementShare((currentStatement) => currentStatement
+          ? shareRows.find((share) => share.share_id === currentStatement.share_id) ?? null
+          : null);
 
         if (activeTab === "ledger") {
           const rows = await listCfcfLedgerItems(workspace.tenantId, selectedFundId);
@@ -296,7 +300,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       .then((items) => { if (current) setLedgerItems(items); })
       .catch((error: unknown) => { if (current) setFundNotice(error instanceof Error ? error.message : "Unable to load statement transactions."); });
     return () => { current = false; };
-  }, [statementShare?.share_id, selectedFundId, workspace.tenantId]);
+  }, [statementShare?.share_id, selectedFundId, workspace.tenantId, detailReloadKey]);
 
   function printShareStatement() {
     const content = document.querySelector("[data-cfcf-share-statement]")?.innerHTML;
