@@ -119,7 +119,7 @@ test("ignores Share, Payment, and Fund adjustment rows outside the selected tena
       share({ share_id: "other-fund", fund_id: "fund-2", billing_entries: { "1": 8000 } }),
     ],
     [
-      payment({ amount: 200 }),
+      payment({ share_id: "in-scope", amount: 200 }),
       payment({ payment_id: "other-tenant-payment", tenant_id: "tenant-2", share_id: "other-tenant", amount: 7000 }),
       payment({ payment_id: "other-fund-payment", fund_id: "fund-2", share_id: "other-fund", amount: 6000 }),
     ],
