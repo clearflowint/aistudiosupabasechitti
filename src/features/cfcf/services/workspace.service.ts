@@ -46,15 +46,11 @@ export async function createCfcfFund(
   const fundName = input.fundName.trim();
   if (!fundName) throw new Error("Enter a fund name.");
 
-  for (const [label, value] of [
-    ["Cycle count", input.numberOfCycles],
-    ["Share count", input.numberOfShares],
-  ] as const) {
-    if (value !== null && value !== undefined
-      && (!Number.isSafeInteger(value) || value < 1 || value > 2147483647)) {
-      throw new Error(label + " must be a positive whole number.");
-    }
+  if (input.numberOfCycles !== null && input.numberOfCycles !== undefined
+    && (!Number.isSafeInteger(input.numberOfCycles) || input.numberOfCycles < 1 || input.numberOfCycles > MAX_CFCF_CYCLES)) {
+    throw new Error("Cycle count must be a whole number from 1 to 100.");
   }
+  // CFCF PRODUCT: Share count is derived from saved Share rows; callers cannot set it manually.
 
   const { data, error } = await supabase
     .from("cfcf_funds")
