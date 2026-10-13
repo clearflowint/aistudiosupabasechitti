@@ -13,6 +13,15 @@ import type {
 
 const MAX_CFCF_CYCLES = 100;
 
+function localDateFromTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value.slice(0, 10);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return year + "-" + month + "-" + day;
+}
+
 const FUND_FIELDS =
   "fund_id, product_id, tenant_id, person_id, fund_name, start_date, number_of_cycles, number_of_shares, current_cycle, cycle_payout_amounts, cycle_commissions, fund_net_balance, fund_total_billed_amount, fund_total_pending_amount, fund_total_advance, fund_total_withdrawn, fund_total_commissions, other_amount, status, created_at, updated_at";
 
@@ -157,7 +166,7 @@ export async function listCfcfLedgerItems(
       shareId: null,
       entryType: row.entry_type,
       amount: row.amount,
-      date: row.created_at.slice(0, 10),
+      date: localDateFromTimestamp(row.created_at),
       paymentType: null,
       remarks: row.remarks,
     })),
