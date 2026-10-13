@@ -1009,6 +1009,13 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               )}
             </section>
           )}
+          <section className="mt-5 rounded-2xl border-2 border-rose-200 bg-rose-50/60 p-4">
+            <p className="text-xs font-bold uppercase tracking-wider text-rose-800">Danger Zone</p>
+            <h3 className="mt-1 text-base font-semibold text-slate-900">Permanent deletion</h3>
+            <p className="mt-1 text-sm leading-5 text-slate-600">Only empty records can be deleted. Every request requires three confirmations and the database blocks records with financial history.</p>
+            <button type="button" onClick={() => { if (!selectedFund) return; setDeleteStep(1); setDeleteAcknowledged(false); setDeleteTypedId(""); setDeleteError(null); setDeleteTarget({ kind: "fund", id: selectedFund.fund_id, label: selectedFund.fund_name }); }} disabled={!selectedFund} className="mt-3 min-h-11 w-full rounded-xl border border-rose-300 bg-white px-3 text-sm font-semibold text-rose-800 disabled:opacity-40">Delete selected Fund · {selectedFund.fund_name}</button>
+            {shares.length > 0 && <div className="mt-3 space-y-2"><p className="text-sm font-semibold text-rose-900">Delete an empty Share</p>{shares.map((share) => { const contact = contactById.get(share.contact_id); return <div key={share.share_id} className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-rose-100 bg-white p-3"><div className="min-w-0"><p className="break-words text-sm font-semibold text-slate-800">{contact?.name ?? "Share"}</p><p className="break-all text-xs text-slate-500">Share ID · {share.share_id}</p></div><button type="button" onClick={() => { setDeleteStep(1); setDeleteAcknowledged(false); setDeleteTypedId(""); setDeleteError(null); setDeleteTarget({ kind: "share", id: share.share_id, label: contact?.name ?? share.share_id, fundId: selectedFund.fund_id }); }} className="min-h-10 shrink-0 rounded-lg border border-rose-300 px-3 text-xs font-semibold text-rose-800">Delete</button></div>; })}</div>}
+          </section>
         </>
       ) : null}
 
