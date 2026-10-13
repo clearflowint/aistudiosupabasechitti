@@ -260,10 +260,15 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
       )}
 
       <section aria-label="Contact list" className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-        <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <h2 className="text-lg font-semibold text-slate-950">Contact list</h2>
-            <p className="mt-1 text-sm text-slate-500">{contacts.length} {contacts.length === 1 ? "contact" : "contacts"}</p>
+        <div className="flex min-w-0 items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-700">
+              <UsersRound size={20} />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-lg font-bold tracking-tight text-slate-950">Contact list</h2>
+              <p className="mt-0.5 text-sm text-slate-500">{contacts.length} {contacts.length === 1 ? "contact" : "contacts"}</p>
+            </div>
           </div>
           <button
             type="button"
@@ -271,14 +276,13 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
             disabled={isLoading || isRefreshing}
             aria-label="Refresh contacts"
             title="Refresh contacts"
-            className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 self-start rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 sm:self-auto"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <RefreshCw size={15} className={isRefreshing ? "animate-spin" : ""} />
-            Refresh
+            <RefreshCw size={17} className={isRefreshing ? "animate-spin" : ""} />
           </button>
         </div>
-        <label className="relative mt-3 block w-full border-t border-slate-100 pt-3">
-          <Search size={17} className="pointer-events-none absolute left-3 top-[calc(50%+6px)] -translate-y-1/2 text-slate-400" />
+        <label className="relative mt-4 block w-full border-t border-slate-100 pt-4">
+          <Search size={17} className="pointer-events-none absolute left-3 top-[calc(50%+8px)] -translate-y-1/2 text-slate-400" />
           <input
             type="search"
             value={search}
