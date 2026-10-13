@@ -52,6 +52,11 @@ interface WorkspacePageProps {
 const MAX_CFCF_CYCLES = 100;
 const emptyFundForm = { fundName: "", startDate: "", numberOfCycles: "" };
 
+function localDateInputValue(): string {
+  const now = new Date();
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+}
+
 interface SavedWorkspaceView {
   tab: WorkspaceTab;
   fundId: string;
@@ -107,7 +112,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [paymentShare, setPaymentShare] = useState<CfcfShareRow | null>(null);
   const [paymentEntryType, setPaymentEntryType] = useState<"credit" | "debit">("credit");
   const [paymentAmount, setPaymentAmount] = useState("");
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
+  const [paymentDate, setPaymentDate] = useState(localDateInputValue());
   const [paymentMode, setPaymentMode] = useState<"UPI" | "Cash" | "Other">("UPI");
   const [paymentRemarks, setPaymentRemarks] = useState("");
   const [paymentError, setPaymentError] = useState<string | null>(null);
@@ -333,6 +338,23 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     }
   }
 
+  async function handleMarkUndrawn() {
+    if (!payoutShare || !selectedFund || isSavingPayout || payoutShare.payout_status !== "drawn") return;
+    setIsSavingPayout(true);
+    setPayoutError(null);
+    try {
+      await setCfcfSharePayout(workspace.tenantId, selectedFund.fund_id, payoutShare.share_id, "undrawn", null, 0);
+      setPayoutShare(null);
+      setFundNotice("Share marked undrawn. The payout status was reset; existing Payment records were not changed.");
+      setDetailReloadKey((current) => current + 1);
+      setFundReloadKey((current) => current + 1);
+    } catch (error) {
+      setPayoutError(error instanceof Error ? error.message : "Unable to reset payout status.");
+    } finally {
+      setIsSavingPayout(false);
+    }
+  }
+
   function openCycleBilling(share: CfcfShareRow) {
     const shareCycles = billedCycleNumbers([share]);
     const highestShareCycle = shareCycles.at(-1) ?? 0;
@@ -476,7 +498,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     setPaymentShare(share);
     setPaymentEntryType("credit");
     setPaymentAmount("");
-    setPaymentDate(new Date().toISOString().slice(0, 10));
+    setPaymentDate(localDateInputValue());
     setPaymentMode("UPI");
     setPaymentRemarks("");
     setPaymentError(null);
@@ -1046,7 +1068,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       <Modal
         isOpen={Boolean(payoutShare)}
         title="Update Share payout"
-        description="Select the Cycle and review its stored payout amount. This changes payout status only; record actual money separately under Payments."
+        description="Select the Cycle and review its stored payout amount. This changes payout status only; record actual money separately under Payments. Mark Undrawn resets payout fields without deleting Payment history."
         onClose={() => { if (!isSavingPayout) { setPayoutShare(null); setPayoutError(null); } }}
       >
         <form onSubmit={(event) => void handleSavePayout(event)} className="space-y-4">
@@ -1072,9 +1094,14 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             <p className="mt-1.5 text-xs text-slate-500">Prefilled from the Cycle payout amount, but editable to record the actual stored withdrawn amount.</p>
           </div>
           {payoutError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-800">{payoutError}</div>}
-          <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
-            <button type="button" onClick={() => setPayoutShare(null)} disabled={isSavingPayout} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button>
-            <button type="submit" disabled={isSavingPayout} className="min-h-11 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingPayout ? "Saving…" : "Save drawn status"}</button>
+          <div className="flex flex-wrap justify-between gap-2 border-t border-slate-100 pt-4">
+            {payoutShare?.payout_status === "drawn" ? (
+              <button type="button" onClick={() => void handleMarkUndrawn()} disabled={isSavingPayout} className="min-h-11 rounded-xl border border-rose-200 bg-rose-50 px-3 text-sm font-semibold text-rose-800 disabled:opacity-50">{isSavingPayout ? "Saving…" : "Mark Undrawn"}</button>
+            ) : <span />}
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setPayoutShare(null)} disabled={isSavingPayout} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button>
+              <button type="submit" disabled={isSavingPayout} className="min-h-11 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingPayout ? "Saving…" : "Save drawn status"}</button>
+            </div>
           </div>
         </form>
       </Modal>
