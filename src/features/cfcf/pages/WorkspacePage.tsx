@@ -47,6 +47,7 @@ interface WorkspacePageProps {
   workspace: AuthorizedWorkspace;
 }
 
+const MAX_CFCF_CYCLES = 100;
 const emptyFundForm = { fundName: "", startDate: "", numberOfCycles: "" };
 
 interface SavedWorkspaceView {
@@ -306,8 +307,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     if (!payoutShare || !selectedFund || isSavingPayout) return;
     const cycle = Number(payoutCycleNumber);
     const amount = Number(withdrawnAmount);
-    if (!Number.isSafeInteger(cycle) || cycle < 1) {
-      setPayoutError("Choose a valid Cycle number.");
+    if (!Number.isSafeInteger(cycle) || cycle < 1 || cycle > MAX_CFCF_CYCLES) {
+      setPayoutError("Choose a Cycle number from 1 to 100.");
       return;
     }
     if (withdrawnAmount.trim() === "" || !Number.isSafeInteger(amount) || amount < 0 || amount > 2147483647) {
@@ -341,8 +342,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     if (!billingShare || !selectedFund || isSavingBilling) return;
     const cycleNumber = Number(billingCycleNumber);
     const amount = Number(billingAmount);
-    if (!Number.isSafeInteger(cycleNumber) || cycleNumber < 1) {
-      setBillingError("Choose a valid positive Cycle number.");
+    if (!Number.isSafeInteger(cycleNumber) || cycleNumber < 1 || cycleNumber > MAX_CFCF_CYCLES) {
+      setBillingError("Choose a Cycle number from 1 to 100.");
       return;
     }
     if (billingAmount.trim() === "" || !Number.isSafeInteger(amount) || amount < 0 || amount > 2147483647) {
@@ -376,6 +377,10 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   async function handleSaveCycleValues(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedFund || cycleEditNumber === null || isSavingCycle) return;
+    if (!Number.isInteger(cycleEditNumber) || cycleEditNumber < 1 || cycleEditNumber > MAX_CFCF_CYCLES) {
+      setCycleEditError("A Fund can have at most 100 Cycles.");
+      return;
+    }
     const payout = cyclePayoutInput.trim() === "" ? null : Number(cyclePayoutInput);
     const commission = cycleCommissionInput.trim() === "" ? null : Number(cycleCommissionInput);
     for (const [label, value] of [["Payout", payout], ["Commission", commission]] as const) {
@@ -808,9 +813,10 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                   </label>
                   <button type="button" disabled={isSavingPlannedCount} onClick={() => void handleSavePlannedCount()} className="self-end min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 disabled:opacity-50">{isSavingPlannedCount ? "Saving…" : "Save count"}</button>
                 </div>
-                <button type="button" onClick={() => openCycleEditor(highestCycleNumber(selectedFund) + 1)} className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-sky-600 px-3 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-50">
-                  <Plus size={16} /> Create next Cycle
+                <button type="button" onClick={() => openCycleEditor(highestCycleNumber(selectedFund) + 1)} disabled={highestCycleNumber(selectedFund) >= MAX_CFCF_CYCLES} className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-sky-600 px-3 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50">
+                  <Plus size={16} /> {highestCycleNumber(selectedFund) >= MAX_CFCF_CYCLES ? "Cycle limit reached (100)" : "Create next Cycle"}
                 </button>
+                <p className="mt-2 text-xs text-slate-500">ClearFlow supports up to 100 Cycles per Fund. Planned Cycle count remains descriptive only.</p>
               </section>
               {highestCycleNumber(selectedFund) > 0 ? (() => {
                 const cycleNumber = highestCycleNumber(selectedFund);
@@ -1008,7 +1014,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               const savedPayout = selectedFund?.cycle_payout_amounts?.[Number(event.target.value) - 1];
               setWithdrawnAmount(typeof savedPayout === "number" ? String(savedPayout) : "");
             }} required className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm">
-              {Array.from({ length: Math.max(highestCycleNumber(selectedFund), Number(payoutCycleNumber) || 1) }, (_, index) => index + 1).map((cycle) => (
+              {Array.from({ length: Math.min(MAX_CFCF_CYCLES, Math.max(highestCycleNumber(selectedFund), Number(payoutCycleNumber) || 1)) }, (_, index) => index + 1).map((cycle) => (
                 <option key={cycle} value={String(cycle)}>Cycle {cycle}</option>
               ))}
             </select>
@@ -1050,7 +1056,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               required
               className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
             >
-              {Array.from({ length: Math.max(highestCycleNumber(selectedFund), Number(billingCycleNumber) || 1) }, (_, index) => index + 1).map((cycle) => (
+              {Array.from({ length: Math.min(MAX_CFCF_CYCLES, Math.max(highestCycleNumber(selectedFund), Number(billingCycleNumber) || 1)) }, (_, index) => index + 1).map((cycle) => (
                 <option key={cycle} value={String(cycle)}>Cycle {cycle}{cycle === selectedFund?.current_cycle ? " · Current" : ""}</option>
               ))}
             </select>
