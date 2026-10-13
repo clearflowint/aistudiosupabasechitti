@@ -26,6 +26,7 @@ import {
   createCfcfFund,
   createCfcfShare,
   recordCfcfSharePayment,
+  recordCfcfFundOtherEntry,
   recordCfcfCycleBilling,
   listCfcfFunds,
   listCfcfLedgerItems,
@@ -106,6 +107,12 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [paymentRemarks, setPaymentRemarks] = useState("");
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [isSavingPayment, setIsSavingPayment] = useState(false);
+  const [isFundEntryModalOpen, setIsFundEntryModalOpen] = useState(false);
+  const [fundEntryType, setFundEntryType] = useState<"credit" | "debit">("debit");
+  const [fundEntryAmount, setFundEntryAmount] = useState("");
+  const [fundEntryRemarks, setFundEntryRemarks] = useState("");
+  const [fundEntryError, setFundEntryError] = useState<string | null>(null);
+  const [isSavingFundEntry, setIsSavingFundEntry] = useState(false);
   const [statementShare, setStatementShare] = useState<CfcfShareRow | null>(null);
   const [cycleEditNumber, setCycleEditNumber] = useState<number | null>(null);
   const [cyclePayoutInput, setCyclePayoutInput] = useState("");
@@ -447,6 +454,31 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setDetailReloadKey((n) => n + 1); setFundReloadKey((n) => n + 1);
     } catch (error) { setPaymentError(error instanceof Error ? error.message : "Unable to record transaction."); }
     finally { setIsSavingPayment(false); }
+  }
+
+  async function handleRecordFundEntry(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedFund || isSavingFundEntry) return;
+    const amount = Number(fundEntryAmount);
+    if (!fundEntryAmount.trim() || !Number.isSafeInteger(amount) || amount <= 0 || amount > 2147483647) {
+      setFundEntryError("Enter a positive whole-rupee amount.");
+      return;
+    }
+    setIsSavingFundEntry(true);
+    setFundEntryError(null);
+    try {
+      await recordCfcfFundOtherEntry(workspace.tenantId, selectedFund.fund_id, workspace.personId, fundEntryType, amount, fundEntryRemarks);
+      setIsFundEntryModalOpen(false);
+      setFundEntryAmount("");
+      setFundEntryRemarks("");
+      setFundNotice(fundEntryType === "credit" ? "Fund credit recorded." : "Fund debit recorded.");
+      setDetailReloadKey((n) => n + 1);
+      setFundReloadKey((n) => n + 1);
+    } catch (error) {
+      setFundEntryError(error instanceof Error ? error.message : "Unable to record Fund adjustment.");
+    } finally {
+      setIsSavingFundEntry(false);
+    }
   }
 
   function openShareWhatsApp(share: CfcfShareRow, mode: "reminder" | "report") {
@@ -830,6 +862,15 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
 
           {activeTab === "ledger" && (
             <section className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h2 className="text-base font-semibold text-slate-900">Fund Ledger</h2>
+                  <p className="text-sm text-slate-500">Share Payments and Fund adjustments are separate records.</p>
+                </div>
+                <button type="button" onClick={() => { setFundEntryType("debit"); setFundEntryAmount(""); setFundEntryRemarks(""); setFundEntryError(null); setIsFundEntryModalOpen(true); }} disabled={!selectedFund} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">
+                  Add Fund Adjustment
+                </button>
+              </div>
               {selectedShareId && (
                 <button
                   type="button"
@@ -1012,6 +1053,20 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           <label className="block"><span className="mb-1.5 block text-sm font-medium">Remarks (optional)</span><textarea rows={2} value={paymentRemarks} onChange={(event) => setPaymentRemarks(event.target.value)} maxLength={500} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="Reference or correction reason"/></label>
           {paymentError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{paymentError}</p>}
           <div className="flex justify-end gap-2 border-t border-slate-100 pt-4"><button type="button" onClick={() => setPaymentShare(null)} disabled={isSavingPayment} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button><button type="submit" disabled={isSavingPayment} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white">{isSavingPayment ? "Saving…" : paymentEntryType==="credit" ? "Confirm Payment" : "Confirm Correction"}</button></div>
+        </form>
+      </Modal>
+
+      <Modal isOpen={isFundEntryModalOpen} title="Record Fund Adjustment" description="Record a Fund-level credit or debit, such as stationery, discount, or expense. This is not a Share Payment." onClose={() => { if (!isSavingFundEntry) setIsFundEntryModalOpen(false); }}>
+        <form onSubmit={(event) => void handleRecordFundEntry(event)} className="space-y-4">
+          <div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">Fund</p><p className="font-semibold">{selectedFund?.fund_name ?? "No Fund selected"}</p></div>
+          <div><span className="mb-1.5 block text-sm font-medium">Entry type</span><div className="grid grid-cols-2 gap-2">
+            <button type="button" aria-pressed={fundEntryType === "credit"} onClick={() => setFundEntryType("credit")} className={["min-h-11 rounded-xl px-2 text-sm font-semibold", fundEntryType === "credit" ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-700"].join(" ")}>Credit</button>
+            <button type="button" aria-pressed={fundEntryType === "debit"} onClick={() => setFundEntryType("debit")} className={["min-h-11 rounded-xl px-2 text-sm font-semibold", fundEntryType === "debit" ? "bg-rose-600 text-white" : "bg-slate-100 text-slate-700"].join(" ")}>Debit</button>
+          </div></div>
+          <label className="block"><span className="mb-1.5 block text-sm font-medium">Amount (₹)</span><input type="number" min="1" max="2147483647" step="1" required value={fundEntryAmount} onChange={(event) => setFundEntryAmount(event.target.value)} className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm" placeholder="Enter amount"/></label>
+          <label className="block"><span className="mb-1.5 block text-sm font-medium">Remarks</span><textarea rows={2} required maxLength={500} value={fundEntryRemarks} onChange={(event) => setFundEntryRemarks(event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="e.g. stationery, expense, discount"/></label>
+          {fundEntryError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{fundEntryError}</p>}
+          <div className="flex justify-end gap-2 border-t border-slate-100 pt-4"><button type="button" onClick={() => setIsFundEntryModalOpen(false)} disabled={isSavingFundEntry} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button><button type="submit" disabled={isSavingFundEntry || !selectedFund} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingFundEntry ? "Saving…" : "Record adjustment"}</button></div>
         </form>
       </Modal>
 
