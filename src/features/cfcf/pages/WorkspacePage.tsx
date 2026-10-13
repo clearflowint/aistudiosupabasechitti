@@ -67,8 +67,9 @@ const workspaceTabs: { id: WorkspaceTab; label: string; icon: typeof Layers3 }[]
 
 export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [funds, setFunds] = useState<CfcfFundRow[]>([]);
-  const [selectedFundId, setSelectedFundId] = useState(() => readSavedWorkspaceView(workspace.tenantId).fundId);
-  const [activeTab, setActiveTab] = useState<WorkspaceTab>(() => readSavedWorkspaceView(workspace.tenantId).tab);
+  const [initialSavedView] = useState(() => readSavedWorkspaceView(workspace.tenantId));
+  const [selectedFundId, setSelectedFundId] = useState(initialSavedView.fundId);
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>(initialSavedView.tab);
   const [isLoadingFunds, setIsLoadingFunds] = useState(true);
   const [fundsError, setFundsError] = useState<string | null>(null);
   const [shares, setShares] = useState<CfcfShareRow[]>([]);
