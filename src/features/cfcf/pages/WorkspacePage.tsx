@@ -25,8 +25,7 @@ import {
   listCfcfShares,
   type CfcfLedgerItem,
 } from "../services/workspace.service";
-import type { CfcfContactRow } from "../types/database.types";
-import type { CfcfFundRow, CfcfShareRow } from "../types/database.types";
+import type { CfcfContactRow, CfcfFundRow, CfcfShareRow } from "../types/database.types";
 
 type WorkspaceTab = "funds" | "cycles" | "shares" | "ledger";
 
