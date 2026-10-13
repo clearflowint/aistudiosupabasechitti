@@ -178,8 +178,8 @@ export async function recordCfcfCycleBilling(
   cycleNumber: number,
   amount: number,
 ): Promise<void> {
-  if (!Number.isSafeInteger(cycleNumber) || cycleNumber < 1) {
-    throw new Error("Choose a valid cycle number.");
+  if (!Number.isSafeInteger(cycleNumber) || cycleNumber < 1 || cycleNumber > 500) {
+    throw new Error("Cycle number must be between 1 and 500.");
   }
   if (!Number.isSafeInteger(amount) || amount < 0 || amount > 2147483647) {
     throw new Error("Billing amount must be a whole rupee amount of zero or more.");
