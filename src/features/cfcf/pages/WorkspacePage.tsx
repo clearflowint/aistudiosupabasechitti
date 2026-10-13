@@ -31,10 +31,12 @@ import {
   listCfcfFunds,
   listCfcfLedgerItems,
   listCfcfShares,
+  inspectCfcfFundFinancialSummary,
   setCfcfSharePayout,
   saveCfcfCycleValues,
   updateCfcfPlannedCycleCount,
   type CfcfLedgerItem,
+  type CfcfFinancialReconciliation,
 } from "../services/workspace.service";
 import type { CfcfContactRow, CfcfFundRow, CfcfShareRow } from "../types/database.types";
 
@@ -113,6 +115,9 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [fundEntryRemarks, setFundEntryRemarks] = useState("");
   const [fundEntryError, setFundEntryError] = useState<string | null>(null);
   const [isSavingFundEntry, setIsSavingFundEntry] = useState(false);
+  const [financialReconciliation, setFinancialReconciliation] = useState<CfcfFinancialReconciliation | null>(null);
+  const [reconciliationError, setReconciliationError] = useState<string | null>(null);
+  const [isReconciling, setIsReconciling] = useState(false);
   const [statementShare, setStatementShare] = useState<CfcfShareRow | null>(null);
   const [cycleEditNumber, setCycleEditNumber] = useState<number | null>(null);
   const [cyclePayoutInput, setCyclePayoutInput] = useState("");
@@ -454,6 +459,21 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setDetailReloadKey((n) => n + 1); setFundReloadKey((n) => n + 1);
     } catch (error) { setPaymentError(error instanceof Error ? error.message : "Unable to record transaction."); }
     finally { setIsSavingPayment(false); }
+  }
+
+  async function handleReconcileFinancialSummary() {
+    if (!selectedFund || isReconciling) return;
+    setIsReconciling(true);
+    setReconciliationError(null);
+    setFinancialReconciliation(null);
+    try {
+      const result = await inspectCfcfFundFinancialSummary(workspace.tenantId, selectedFund.fund_id);
+      setFinancialReconciliation(result);
+    } catch (error) {
+      setReconciliationError(error instanceof Error ? error.message : "Unable to reconcile stored financial summaries.");
+    } finally {
+      setIsReconciling(false);
+    }
   }
 
   async function handleRecordFundEntry(event: FormEvent<HTMLFormElement>) {
@@ -867,10 +887,32 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                   <h2 className="text-base font-semibold text-slate-900">Fund Ledger</h2>
                   <p className="text-sm text-slate-500">Share Payments and Fund adjustments are separate records.</p>
                 </div>
-                <button type="button" onClick={() => { setFundEntryType("debit"); setFundEntryAmount(""); setFundEntryRemarks(""); setFundEntryError(null); setIsFundEntryModalOpen(true); }} disabled={!selectedFund} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">
-                  Add Fund Adjustment
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => void handleReconcileFinancialSummary()} disabled={!selectedFund || isReconciling} className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 disabled:opacity-50">
+                    {isReconciling ? "Checking…" : "Reconcile totals"}
+                  </button>
+                  <button type="button" onClick={() => { setFundEntryType("debit"); setFundEntryAmount(""); setFundEntryRemarks(""); setFundEntryError(null); setIsFundEntryModalOpen(true); }} disabled={!selectedFund} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">
+                    Add Fund Adjustment
+                  </button>
+                </div>
               </div>
+              {reconciliationError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{reconciliationError}</div>}
+              {financialReconciliation && (
+                <div role="status" className={["space-y-3 rounded-xl border p-3", financialReconciliation.mismatches.length === 0 ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"].join(" ")}>
+                  <div>
+                    <p className="font-semibold">{financialReconciliation.mismatches.length === 0 ? "Stored financial summaries match the ledger" : "Financial summary differences found"}</p>
+                    <p className="mt-1 text-sm">Read-only check. No records were changed. Payments, Share billing, payouts, commissions and Fund adjustments were compared with stored summaries.</p>
+                  </div>
+                  {financialReconciliation.mismatches.length > 0 && (
+                    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+                      <table className="w-full min-w-[520px] text-left text-sm">
+                        <thead className="bg-slate-100 text-xs uppercase text-slate-600"><tr><th className="px-3 py-2">Record</th><th className="px-3 py-2">Field</th><th className="px-3 py-2 text-right">Stored</th><th className="px-3 py-2 text-right">Expected</th></tr></thead>
+                        <tbody>{financialReconciliation.mismatches.map((item) => <tr key={item.recordType + ":" + item.recordId + ":" + item.field} className="border-t border-slate-100"><td className="px-3 py-2">{item.recordType === "fund" ? "Fund" : "Share"} · {item.recordId}</td><td className="px-3 py-2">{item.field}</td><td className="px-3 py-2 text-right tabular-nums">{item.stored.toLocaleString("en-IN")}</td><td className="px-3 py-2 text-right tabular-nums">{item.expected.toLocaleString("en-IN")}</td></tr>)}</tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
               {selectedShareId && (
                 <button
                   type="button"
