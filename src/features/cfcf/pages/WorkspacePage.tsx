@@ -7,7 +7,10 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   CalendarDays,
+  ChevronLeft,
   ChevronRight,
+  RotateCcw,
+  Pencil,
   CreditCard,
   Layers3,
   Plus,
@@ -37,12 +40,13 @@ import {
   setCfcfSharePayout,
   saveCfcfCycleValues,
   updateCfcfPlannedCycleCount,
+  updateCfcfFundDetails,
   type CfcfLedgerItem,
   type CfcfFinancialReconciliation,
 } from "../services/workspace.service";
 import type { CfcfContactRow, CfcfFundRow, CfcfShareRow } from "../types/database.types";
 
-type WorkspaceTab = "funds" | "cycles" | "shares" | "ledger";
+type WorkspaceTab = "shares" | "ledger";
 type ShareFilter = "all" | "pending" | "drawn" | "undrawn";
 
 interface WorkspacePageProps {
@@ -63,16 +67,16 @@ interface SavedWorkspaceView {
 }
 
 function readSavedWorkspaceView(tenantId: string): SavedWorkspaceView {
-  const fallback: SavedWorkspaceView = { tab: "cycles", fundId: "" };
+  const fallback: SavedWorkspaceView = { tab: "shares", fundId: "" };
   try {
     const raw = window.localStorage.getItem("clearflow:cfcf-workspace-view:v2:" + tenantId);
     if (!raw) return fallback;
     const saved = JSON.parse(raw) as { tab?: unknown; fundId?: unknown };
-    const validTabs: WorkspaceTab[] = ["funds", "cycles", "shares", "ledger"];
+    const validTabs: WorkspaceTab[] = ["shares", "ledger"];
     return {
       tab: typeof saved.tab === "string" && validTabs.includes(saved.tab as WorkspaceTab)
         ? saved.tab as WorkspaceTab
-        : "cycles",
+        : "shares",
       fundId: typeof saved.fundId === "string" ? saved.fundId : "",
     };
   } catch {
@@ -81,8 +85,6 @@ function readSavedWorkspaceView(tenantId: string): SavedWorkspaceView {
 }
 
 const workspaceTabs: { id: WorkspaceTab; label: string; icon: typeof Layers3 }[] = [
-  { id: "funds", label: "Funds", icon: Layers3 },
-  { id: "cycles", label: "Cycles", icon: CalendarDays },
   { id: "shares", label: "Shares", icon: UsersRound },
   { id: "ledger", label: "Ledger", icon: CreditCard },
 ];
@@ -151,6 +153,14 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [fundNotice, setFundNotice] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ kind: "share" | "fund"; id: string; label: string; fundId?: string } | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteStep, setDeleteStep] = useState(1);
+  const [deleteAcknowledged, setDeleteAcknowledged] = useState(false);
+  const [deleteTypedId, setDeleteTypedId] = useState("");
+  const [selectedCycleNumber, setSelectedCycleNumber] = useState<number | null>(null);
+  const [isFundEditOpen, setIsFundEditOpen] = useState(false);
+  const [fundEditForm, setFundEditForm] = useState({ fundName: "", startDate: "", numberOfCycles: "" });
+  const [fundEditError, setFundEditError] = useState<string | null>(null);
+  const [isSavingFundEdit, setIsSavingFundEdit] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const lastTenantId = useRef(workspace.tenantId);
   const hydratedViewTenantId = useRef<string | null>(null);
@@ -723,8 +733,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               <WalletCards size={16} className="shrink-0 text-sky-700" />
               Your funds
             </div>
-            <h2 className="mt-1 break-words text-xl font-semibold tracking-tight text-slate-900">Funds, cycles and shares</h2>
-            <p className="mt-1 text-sm leading-5 text-slate-500">Choose a fund, then open its cycles, shares, or ledger.</p>
+            <h2 className="mt-1 break-words text-xl font-semibold tracking-tight text-slate-900">Workspace</h2>
+            <p className="mt-1 text-sm leading-5 text-slate-500">Manage funds, shares and ledger records.</p>
             <p className="mt-2 inline-flex items-center gap-2 rounded-lg bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-600"><CalendarDays size={14} className="text-sky-700" />{new Date().toLocaleDateString("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -747,7 +757,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           </div>
         </div>
 
-        <div role="tablist" aria-label="Workspace sections" className="mt-4 grid grid-cols-4 gap-1 rounded-2xl bg-slate-100 p-1">
+        <div role="tablist" aria-label="Workspace sections" className="mt-3 grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 p-1">
           {workspaceTabs.map((tab) => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
@@ -808,140 +818,21 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         />
       ) : selectedFund ? (
         <>
-          {activeTab !== "funds" && (
-            <section className="rounded-2xl border border-sky-100 bg-sky-50 p-3">
-              <label htmlFor="workspace-selected-fund" className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-sky-900">
-                Current fund
-              </label>
-              <select
-                id="workspace-selected-fund"
-                value={selectedFundId}
-                onChange={(event) => {
-                  setSelectedFundId(event.target.value);
-                  setShareSearch("");
-                  setShareFilter("all");
-                  setSelectedShareId(null);
-                }}
-                className="min-h-12 w-full min-w-0 rounded-xl border border-sky-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:ring-4 focus:ring-sky-100"
-              >
-                {funds.map((fund) => (
-                  <option value={fund.fund_id} key={fund.fund_id}>{fund.fund_name}</option>
-                ))}
-              </select>
-            </section>
-          )}
-
-          {activeTab === "funds" && (
-            <section className="space-y-3">
-              {funds.map((fund) => (
-                <article
-                  key={fund.fund_id}
-                  className={[
-                    "min-w-0 rounded-2xl border bg-white p-4 shadow-sm transition sm:p-5",
-                    selectedFundId === fund.fund_id ? "border-sky-300 ring-1 ring-sky-100" : "border-slate-200",
-                  ].join(" ")}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setSelectedFundId(fund.fund_id)}
-                    className="flex min-h-11 w-full min-w-0 items-start justify-between gap-3 text-left"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <h3 className="break-words text-base font-semibold text-slate-900">{fund.fund_name}</h3>
-                      <p className="mt-1 break-all text-xs text-slate-400">Fund ID · {fund.fund_id}</p>
-                    </div>
-                    <span className={[
-                      "shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold capitalize",
-                      fund.status === "active" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600",
-                    ].join(" ")}>
-                      {fund.status}
-                    </span>
-                  </button>
-
-                  <div className="mt-4 grid grid-cols-2 gap-2">
-                    <StoredValue label="Planned Cycle count" value={fund.number_of_cycles ?? "—"} />
-                    <StoredValue label="Actual Shares" value={fund.number_of_shares ?? 0} />
-                    <StoredValue label="Current cycle" value={fund.current_cycle} />
-                    <StoredValue label="Start date" value={fund.start_date ? formatDate(fund.start_date) : "—"} />
-                    <StoredValue label="Stored net balance" value={formatINR(fund.fund_net_balance)} />
-                    <StoredValue label="Total billed" value={formatINR(fund.fund_total_billed_amount)} />
-                    <StoredValue label="Total pending" value={formatINR(fund.fund_total_pending_amount)} />
-                    <StoredValue label="Total advance" value={formatINR(fund.fund_total_advance)} />
-                    <StoredValue label="Total withdrawn" value={formatINR(fund.fund_total_withdrawn)} />
-                    <StoredValue label="Total commissions" value={formatINR(fund.fund_total_commissions)} />
-                    <StoredValue label="Other amount" value={formatINR(fund.other_amount)} />
-                  </div>
-
-                  <div className="mt-4 grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => openFundTab(fund.fund_id, "cycles")}
-                      className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-sky-600 px-2 text-sm font-semibold text-white transition hover:bg-sky-700"
-                    >
-                      Cycles <ChevronRight size={15} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openFundTab(fund.fund_id, "shares")}
-                      className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                    >
-                      Shares <ChevronRight size={15} />
-                    </button>
-                  </div>
-                  <details className="mt-4 rounded-xl border border-rose-200 bg-rose-50/60 p-3">
-                    <summary className="min-h-8 cursor-pointer text-sm font-semibold text-rose-800">Danger zone · Delete empty Fund</summary>
-                    <p className="mt-2 text-xs leading-5 text-rose-800">Deletion is allowed only when this Fund has no Shares, Payments, Fund adjustments, or any saved Cycle payout or commission values. Financial history is never cascade-deleted.</p>
-                    <button type="button" onClick={() => { setDeleteTarget({ kind: "fund", id: fund.fund_id, label: fund.fund_name }); setDeleteError(null); }} className="mt-3 min-h-10 w-full rounded-lg border border-rose-300 bg-white px-3 text-sm font-semibold text-rose-800">Delete this empty Fund</button>
-                  </details>
-                </article>
-              ))}
-            </section>
-          )}
-
-          {activeTab === "cycles" && (
-            <section className="space-y-3">
-              <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Selected fund</p>
-                <h3 className="mt-1 break-words text-lg font-semibold text-slate-900">{selectedFund.fund_name}</h3>
-                <p className="mt-1 text-sm text-slate-500">
-                  Cycle payout and commission are manually stored values. Planned Cycle count is editable and never blocks additional Cycles.
-                </p>
-                <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
-                  <label className="min-w-0">
-                    <span className="mb-1 block text-xs font-semibold text-slate-600">Planned Cycle count</span>
-                    <input type="number" min="0" max={MAX_CFCF_CYCLES} step="1" value={plannedCycleInput !== "" ? plannedCycleInput : String(selectedFund.number_of_cycles ?? "")} onChange={(event) => setPlannedCycleInput(event.target.value)} placeholder="Optional" className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm" />
-                  </label>
-                  <button type="button" disabled={isSavingPlannedCount} onClick={() => void handleSavePlannedCount()} className="self-end min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 disabled:opacity-50">{isSavingPlannedCount ? "Saving…" : "Save count"}</button>
-                </div>
-                <p className="mt-3 text-xs text-slate-500">Only Cycles with saved billing entries appear here. Record billing for a new Cycle from a Share; it appears after billing is saved. Maximum 100 Cycles per Fund.</p>
-              </section>
-              {billedCycleNumbers().length > 0 ? billedCycleNumbers().map((cycleNumber) => {
-                const payout = selectedFund.cycle_payout_amounts?.[cycleNumber - 1];
-                const commission = selectedFund.cycle_commissions?.[cycleNumber - 1];
-                return (
-                  <article key={cycleNumber} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Cycle {cycleNumber}</p>
-                        <h3 className="mt-1 text-base font-semibold text-slate-900">Billed Cycle</h3>
-                      </div>
-                      {cycleNumber === highestCycleNumber(selectedFund) && <span className="shrink-0 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700">Latest billed</span>}
-                    </div>
-                    <div className="mt-4 grid grid-cols-2 gap-2">
-                      <StoredValue label="Stored payout" value={displayStoredAmount(payout)} />
-                      <StoredValue label="Stored commission" value={displayStoredAmount(commission)} />
-                    </div>
-                    <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      <button type="button" onClick={() => openCycleEditor(cycleNumber)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-sky-600 px-3 text-sm font-semibold text-white hover:bg-sky-700">Edit Cycle values</button>
-                      <button type="button" onClick={() => setActiveTab("shares")} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">View fund shares <ChevronRight size={16} /></button>
-                    </div>
-                  </article>
-                );
-              }) : (
-                <EmptyState icon={<CalendarDays size={22} />} title="No billed Cycles yet" description="A Cycle appears here only after billing has been saved for at least one Share." />
-              )}
-                </section>
-          )}
+          <section aria-label="Choose Fund" className="space-y-3">
+            <div className="grid grid-cols-3 gap-2">
+              {funds.map((fund) => <button key={fund.fund_id} type="button" onClick={() => { setSelectedFundId(fund.fund_id); setSelectedShareId(null); setSelectedCycleNumber(null); }} aria-pressed={selectedFundId === fund.fund_id} className={["min-h-12 min-w-0 rounded-xl border px-2 py-2 text-sm font-semibold leading-4", selectedFundId === fund.fund_id ? "border-sky-600 bg-sky-600 text-white" : "border-slate-200 bg-white text-slate-700"].join(" ")}><span className="line-clamp-2 break-words">{fund.fund_name}</span></button>)}
+            </div>
+            <article className="rounded-2xl border border-sky-100 bg-white p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-wide text-sky-700">Fund information & ledger summary</p><h3 className="mt-1 break-words text-lg font-semibold text-slate-900">{selectedFund.fund_name}</h3><p className="mt-1 break-all text-xs text-slate-400">Fund ID · {selectedFund.fund_id}</p><p className="mt-1 text-sm text-slate-500">Start date · {selectedFund.start_date ? formatDate(selectedFund.start_date) : "Not set"} · Planned Cycles · {selectedFund.number_of_cycles ?? "Not set"}</p></div>
+                <button type="button" onClick={() => { setFundEditForm({ fundName: selectedFund.fund_name ?? "", startDate: selectedFund.start_date ?? "", numberOfCycles: selectedFund.number_of_cycles == null ? "" : String(selectedFund.number_of_cycles) }); setFundEditError(null); setIsFundEditOpen(true); }} className="inline-flex min-h-10 shrink-0 items-center gap-1 rounded-lg border border-slate-200 px-3 text-sm font-semibold text-slate-700"><Pencil size={15}/> Edit</button></div>
+              <div className="mt-3 grid grid-cols-2 gap-2"><StoredValue label="Net balance (stored)" value={formatINR(selectedFund.fund_net_balance ?? 0)}/><StoredValue label="Total billed (stored)" value={formatINR(selectedFund.fund_total_billed_amount ?? 0)}/><StoredValue label="Pending (stored)" value={formatINR(selectedFund.fund_total_pending_amount ?? 0)}/><StoredValue label="Advance (stored)" value={formatINR(selectedFund.fund_total_advance ?? 0)}/><StoredValue label="Withdrawn (stored)" value={formatINR(selectedFund.fund_total_withdrawn ?? 0)}/><StoredValue label="Commission (stored)" value={formatINR(selectedFund.fund_total_commissions ?? 0)}/></div>
+              <button type="button" onClick={() => setActiveTab("ledger")} className="mt-3 min-h-11 w-full rounded-xl border border-sky-200 bg-sky-50 px-3 text-sm font-semibold text-sky-800">Open Fund Ledger & Report</button>
+            </article>
+            {(() => { const availableCycles = billedCycleNumbers(); const currentCycle = selectedCycleNumber !== null && availableCycles.includes(selectedCycleNumber) ? selectedCycleNumber : (availableCycles.at(-1) ?? null); const payout = currentCycle === null ? undefined : selectedFund.cycle_payout_amounts?.[currentCycle - 1]; const commission = currentCycle === null ? undefined : selectedFund.cycle_commissions?.[currentCycle - 1]; return <article className="rounded-2xl border border-violet-200 bg-violet-50 p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-2"><div><p className="text-xs font-semibold uppercase tracking-wide text-violet-700">Cycle ledger</p><h3 className="mt-1 text-lg font-semibold text-slate-900">{currentCycle === null ? "No billed Cycles yet" : "Cycle " + currentCycle}</h3></div><div className="flex items-center gap-1"><button type="button" aria-label="Previous billed Cycle" disabled={currentCycle === null || availableCycles.indexOf(currentCycle) <= 0} onClick={() => { if (currentCycle !== null) setSelectedCycleNumber(availableCycles[availableCycles.indexOf(currentCycle) - 1]); }} className="grid h-10 w-10 place-items-center rounded-lg border border-violet-200 bg-white disabled:opacity-40"><ChevronLeft size={18}/></button><button type="button" aria-label="Go to latest billed Cycle" disabled={currentCycle === null || currentCycle === availableCycles.at(-1)} onClick={() => setSelectedCycleNumber(availableCycles.at(-1) ?? null)} className="grid h-10 w-10 place-items-center rounded-lg border border-violet-200 bg-white disabled:opacity-40"><RotateCcw size={17}/></button></div></div>
+              {currentCycle === null ? <p className="mt-2 text-sm leading-5 text-slate-600">A Cycle appears only after billing is saved for a Share. Planned Cycles are not shown as if they were real.</p> : <><div className="mt-3 grid grid-cols-2 gap-2"><StoredValue label="Stored payout" value={displayStoredAmount(payout)}/><StoredValue label="Stored commission" value={displayStoredAmount(commission)}/></div><div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={() => openCycleEditor(currentCycle)} className="min-h-11 rounded-xl bg-violet-700 px-3 text-sm font-semibold text-white">Edit Cycle values</button><button type="button" onClick={() => setActiveTab("shares")} className="min-h-11 rounded-xl border border-violet-200 bg-white px-3 text-sm font-semibold text-violet-800">View Shares</button></div></>}
+            </article>; })()}
+          </section>
 
           {activeTab === "shares" && (
             <section className="space-y-3">
