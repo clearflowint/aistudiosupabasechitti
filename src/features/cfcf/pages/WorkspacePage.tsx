@@ -813,6 +813,11 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                       Shares <ChevronRight size={15} />
                     </button>
                   </div>
+                  <details className="mt-4 rounded-xl border border-rose-200 bg-rose-50/60 p-3">
+                    <summary className="min-h-8 cursor-pointer text-sm font-semibold text-rose-800">Danger zone · Delete empty Fund</summary>
+                    <p className="mt-2 text-xs leading-5 text-rose-800">Deletion is allowed only when this Fund has no Shares, Payments, Fund adjustments, or non-zero saved Cycle values. Financial history is never cascade-deleted.</p>
+                    <button type="button" onClick={() => { setDeleteTarget({ kind: "fund", id: fund.fund_id, label: fund.fund_name }); setDeleteError(null); }} className="mt-3 min-h-10 w-full rounded-lg border border-rose-300 bg-white px-3 text-sm font-semibold text-rose-800">Delete this empty Fund</button>
+                  </details>
                 </article>
               ))}
             </section>
@@ -904,6 +909,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                     <button type="button" onClick={() => openPaymentModal(share)} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-sky-600 px-2 text-sm font-semibold text-white"><CreditCard size={16}/> Record Payment</button>
                     <button type="button" onClick={() => openCycleBilling(share)} disabled={billedCycleNumbers().length >= MAX_CFCF_CYCLES} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-2 text-xs font-semibold text-violet-800 disabled:opacity-50"><CalendarDays size={14}/> Cycle billing</button>
                     <button type="button" onClick={() => openPayoutModal(share)} disabled={billedCycleNumbers().length === 0} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-2 text-xs font-semibold text-amber-800 disabled:cursor-not-allowed disabled:opacity-50"><WalletCards size={14}/> {share.payout_status==="drawn"?"Edit payout":"Undrawn"}</button>
+                    <button type="button" onClick={() => { setDeleteTarget({ kind: "share", id: share.share_id, label: contact?.name ?? share.share_id }); setDeleteError(null); }} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-2 text-xs font-semibold text-rose-800">Delete empty Share</button>
                   </div>
                 </article>;
               })}
@@ -926,6 +932,19 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                   </button>
                 </div>
               </div>
+              <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <h3 className="text-sm font-semibold text-slate-900">Fund ledger summary</h3>
+                <p className="mt-1 text-xs text-slate-500">Stored values from the Fund row. Other credits and debits are independent of Share Payments.</p>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <StoredValue label="Net Fund balance" value={formatINR(selectedFund.fund_net_balance)} />
+                  <StoredValue label="Other amount (credits − debits)" value={formatINR(selectedFund.other_amount)} />
+                  <StoredValue label="Total billed" value={formatINR(selectedFund.fund_total_billed_amount)} />
+                  <StoredValue label="Pending" value={formatINR(selectedFund.fund_total_pending_amount)} />
+                  <StoredValue label="Advance" value={formatINR(selectedFund.fund_total_advance)} />
+                  <StoredValue label="Withdrawn" value={formatINR(selectedFund.fund_total_withdrawn)} />
+                  <StoredValue label="Commissions" value={formatINR(selectedFund.fund_total_commissions)} />
+                </div>
+              </section>
               {reconciliationError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{reconciliationError}</div>}
               {financialReconciliation && (
                 <div role="status" className={["space-y-3 rounded-xl border p-3", financialReconciliation.mismatches.length === 0 ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"].join(" ")}>
@@ -1141,6 +1160,21 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             <section><h4 className="font-semibold">Previous transactions</h4>{history.length ? <div className="mt-2 divide-y divide-slate-200 rounded-xl border border-slate-200">{history.map((item)=><div key={item.id} className="flex justify-between gap-3 p-3 text-sm"><div><p className="font-semibold capitalize">{item.entryType} · {formatDate(item.date)}</p><p className="text-xs text-slate-500">{item.paymentType ?? "—"}{item.remarks ? " · "+item.remarks : ""}</p></div><strong>{formatINR(item.amount)}</strong></div>)}</div> : <p className="mt-2 text-sm text-slate-500">No previous transactions loaded. Open Ledger once to load transaction history.</p>}</section>
           </div>;
         })()}
+      </Modal>
+
+      <Modal isOpen={Boolean(deleteTarget)} title={deleteTarget?.kind === "fund" ? "Danger zone · Delete Fund" : "Danger zone · Delete Share"} description="Permanent action restricted to records without financial history." onClose={() => { if (!isDeleting) { setDeleteTarget(null); setDeleteError(null); } }}>
+        {deleteTarget && <div className="space-y-4">
+          <div className="rounded-xl border border-rose-200 bg-rose-50 p-3">
+            <p className="text-sm font-semibold text-rose-900">{deleteTarget.label}</p>
+            <p className="mt-2 text-sm leading-5 text-rose-800">{deleteTarget.kind === "fund" ? "Fund deletion is blocked if it has any Shares, Payments, Fund adjustments, or non-zero Cycle payout/commission values." : "Share deletion is blocked if any Payment row, billing entry, payout, or stored financial balance exists."}</p>
+            <p className="mt-2 text-xs leading-5 text-rose-800">Related financial records will not be cascade-deleted.</p>
+          </div>
+          {deleteError && <p role="alert" className="rounded-xl border border-rose-300 bg-white p-3 text-sm text-rose-800">{deleteError}</p>}
+          <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+            <button type="button" onClick={() => { setDeleteTarget(null); setDeleteError(null); }} disabled={isDeleting} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button>
+            <button type="button" onClick={() => void handleConfirmDelete()} disabled={isDeleting} className="min-h-11 rounded-xl bg-rose-700 px-4 text-sm font-semibold text-white disabled:opacity-50">{isDeleting ? "Deleting…" : "Confirm delete"}</button>
+          </div>
+        </div>}
       </Modal>
 
       <Modal
