@@ -366,6 +366,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setPayoutShare(null);
       setFundNotice("Share marked drawn. No payment transaction was created.");
       setDetailReloadKey((current) => current + 1);
+      setFundReloadKey((current) => current + 1);
     } catch (error) {
       setPayoutError(error instanceof Error ? error.message : "Unable to update payout status.");
     } finally {
