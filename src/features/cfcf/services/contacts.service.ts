@@ -112,6 +112,22 @@ export async function updateCfcfContact(
   return data as CfcfContactRow;
 }
 
+
+/** Contacts with at least one Share in this tenant are shareholders and must be retained. */
+export async function listCfcfShareholderContactIds(tenantId: string): Promise<Set<string>> {
+  const { data, error } = await supabase
+    .from("cfcf_shares")
+    .select("contact_id")
+    .eq("product_id", cfcfConfig.productId)
+    .eq("tenant_id", tenantId)
+    .not("contact_id", "is", null);
+
+  if (error) throw new Error("Unable to determine shareholder contacts: " + error.message);
+  return new Set((data ?? [])
+    .map((row) => row.contact_id)
+    .filter((contactId): contactId is string => typeof contactId === "string" && contactId.length > 0));
+}
+
 export async function deleteCfcfContact(
   tenantId: string,
   contactId: string,
