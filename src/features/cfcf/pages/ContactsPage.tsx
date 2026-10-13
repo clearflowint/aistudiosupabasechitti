@@ -2,7 +2,7 @@
 // MIX: Reuses the shared Modal and the workspace identity supplied by the neutral app shell.
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { ContactRound, Mail, MessageCircle, Phone, Plus, RefreshCw, Search, UsersRound, Pencil, Trash2 } from "lucide-react";
+import { ContactRound, Plus, RefreshCw, Search, UsersRound, Pencil, Trash2 } from "lucide-react";
 import type { AuthorizedWorkspace } from "../../../core/workspace/workspace.types";
 import { Modal } from "../../../components/ui/Modal";
 import type { CfcfContactRow } from "../types/database.types";
@@ -331,79 +331,44 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
           )}
         </section>
       ) : !loadError ? (
-        <section className="grid min-w-0 grid-cols-1 gap-2.5 sm:grid-cols-2">
-          {filteredContacts.map((contact) => (
-            <article key={contact.contact_id} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
-              <div className="flex min-w-0 items-start gap-3">
-                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-700">
-                  <UsersRound size={20} />
+        <section aria-label="Saved contacts" className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <ul className="divide-y divide-slate-100">
+            {filteredContacts.map((contact) => (
+              <li key={contact.contact_id} className="flex min-w-0 flex-col gap-2.5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-700">
+                    <UsersRound size={19} />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="break-words text-sm font-semibold text-slate-950">{contact.name}</h3>
+                    <p className="mt-0.5 break-all text-sm text-slate-600">{contact.phone}</p>
+                  </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <h3 className="break-words text-base font-semibold text-slate-950">{contact.name}</h3>
-                  <p className="mt-1 break-words text-xs leading-5 text-slate-400">
-                    Added {new Date(contact.created_at).toLocaleDateString("en-IN")}
-                  </p>
+                <div className="flex shrink-0 items-center justify-end gap-2 self-end sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => openEditModal(contact)}
+                    aria-label={"Edit " + contact.name}
+                    title="Edit contact"
+                    className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 transition hover:bg-slate-100"
+                  >
+                    <Pencil size={17} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setDeleteError(null); setDeletingContact(contact); }}
+                    aria-label={"Delete " + contact.name}
+                    title="Delete contact"
+                    className="grid h-10 w-10 place-items-center rounded-xl border border-rose-200 bg-rose-50 text-rose-800 transition hover:bg-rose-100"
+                  >
+                    <Trash2 size={17} />
+                  </button>
                 </div>
-              </div>
-
-              <div className="mt-3 space-y-1.5 border-t border-slate-100 pt-2.5">
-                <p className="flex min-w-0 items-start gap-2 break-all text-sm text-slate-700">
-                  <Phone size={15} className="mt-0.5 shrink-0 text-slate-400" />
-                  <span>{contact.phone}</span>
-                </p>
-                {contact.email && (
-                  <p className="flex min-w-0 items-start gap-2 break-all text-sm text-slate-600">
-                    <Mail size={15} className="mt-0.5 shrink-0 text-slate-400" />
-                    <span>{contact.email}</span>
-                  </p>
-                )}
-                {contact.remarks && (
-                  <p className="break-words text-sm leading-5 text-slate-500">{contact.remarks}</p>
-                )}
-              </div>
-
-              <div className="mt-3 grid grid-cols-4 gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => openEditModal(contact)}
-                  aria-label={"Edit " + contact.name}
-                  title="Edit contact"
-                  className="inline-flex min-h-10 min-w-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
-                >
-                  <Pencil size={16} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setDeleteError(null); setDeletingContact(contact); }}
-                  aria-label={"Delete " + contact.name}
-                  title="Delete contact"
-                  className="inline-flex min-h-10 min-w-0 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-1 text-xs font-semibold text-rose-800 transition hover:bg-rose-100"
-                >
-                  <Trash2 size={16} />
-                </button>
-                <a
-                  href={"tel:" + contact.phone}
-                  aria-label={"Call " + contact.name}
-                  title="Call contact"
-                  className="inline-flex min-h-10 min-w-0 items-center justify-center rounded-xl border border-blue-200 bg-blue-50 px-1 text-xs font-semibold text-blue-800 transition hover:bg-blue-100"
-                >
-                  <Phone size={16} />
-                </a>
-                <a
-                  href={"https://wa.me/" + contact.phone.replace(/\D/g, "")}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label={"WhatsApp " + contact.name}
-                  title="Message on WhatsApp"
-                  className="inline-flex min-h-10 min-w-0 items-center justify-center rounded-xl bg-emerald-600 px-1 text-sm font-semibold text-white transition hover:bg-emerald-700"
-                >
-                  <MessageCircle size={16} />
-                </a>
-              </div>
-            </article>
-          ))}
+              </li>
+            ))}
+          </ul>
           {search.trim() && (
-            <p className="col-span-full px-1 py-2 text-xs text-slate-500">
+            <p className="border-t border-slate-100 px-4 py-3 text-xs text-slate-500">
               Showing {filteredContacts.length} matching {filteredContacts.length === 1 ? "contact" : "contacts"}.
             </p>
           )}
