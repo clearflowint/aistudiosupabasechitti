@@ -12,6 +12,7 @@ import {
   Layers3,
   Plus,
   RefreshCw,
+  Search,
   UsersRound,
   WalletCards,
 } from "lucide-react";
@@ -28,6 +29,7 @@ import {
 import type { CfcfContactRow, CfcfFundRow, CfcfShareRow } from "../types/database.types";
 
 type WorkspaceTab = "funds" | "cycles" | "shares" | "ledger";
+type ShareFilter = "all" | "pending" | "drawn" | "undrawn";
 
 interface WorkspacePageProps {
   workspace: AuthorizedWorkspace;
@@ -41,16 +43,16 @@ interface SavedWorkspaceView {
 }
 
 function readSavedWorkspaceView(tenantId: string): SavedWorkspaceView {
-  const fallback: SavedWorkspaceView = { tab: "funds", fundId: "" };
+  const fallback: SavedWorkspaceView = { tab: "shares", fundId: "" };
   try {
-    const raw = window.localStorage.getItem("clearflow:cfcf-workspace-view:v1:" + tenantId);
+    const raw = window.localStorage.getItem("clearflow:cfcf-workspace-view:v2:" + tenantId);
     if (!raw) return fallback;
     const saved = JSON.parse(raw) as { tab?: unknown; fundId?: unknown };
     const validTabs: WorkspaceTab[] = ["funds", "cycles", "shares", "ledger"];
     return {
       tab: typeof saved.tab === "string" && validTabs.includes(saved.tab as WorkspaceTab)
         ? saved.tab as WorkspaceTab
-        : "funds",
+        : "shares",
       fundId: typeof saved.fundId === "string" ? saved.fundId : "",
     };
   } catch {
@@ -73,6 +75,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [isLoadingFunds, setIsLoadingFunds] = useState(true);
   const [fundsError, setFundsError] = useState<string | null>(null);
   const [shares, setShares] = useState<CfcfShareRow[]>([]);
+  const [shareSearch, setShareSearch] = useState("");
+  const [shareFilter, setShareFilter] = useState<ShareFilter>("all");
   const [contacts, setContacts] = useState<CfcfContactRow[]>([]);
   const [ledgerItems, setLedgerItems] = useState<CfcfLedgerItem[]>([]);
   const [selectedShareId, setSelectedShareId] = useState<string | null>(null);
@@ -144,7 +148,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     }
     try {
       window.localStorage.setItem(
-        "clearflow:cfcf-workspace-view:v1:" + workspace.tenantId,
+        "clearflow:cfcf-workspace-view:v2:" + workspace.tenantId,
         JSON.stringify({ tab: activeTab, fundId: selectedFundId }),
       );
     } catch {
@@ -266,6 +270,26 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     [contacts],
   );
 
+  const filteredShares = useMemo(() => {
+    const query = shareSearch.trim().toLocaleLowerCase();
+    return shares.filter((share) => {
+      if (shareFilter === "pending" && share.total_pending <= 0) return false;
+      if (shareFilter === "drawn" && share.payout_status !== "drawn") return false;
+      if (shareFilter === "undrawn" && share.payout_status !== "undrawn") return false;
+      if (!query) return true;
+      const contact = contactById.get(share.contact_id);
+      return [contact?.name ?? "", contact?.phone ?? "", share.share_id]
+        .some((value) => value.toLocaleLowerCase().includes(query));
+    });
+  }, [shares, contactById, shareSearch, shareFilter]);
+
+  const shareFilterOptions: { id: ShareFilter; label: string; count: number }[] = [
+    { id: "all", label: "All", count: shares.length },
+    { id: "pending", label: "Pending", count: shares.filter((share) => share.total_pending > 0).length },
+    { id: "drawn", label: "Drawn", count: shares.filter((share) => share.payout_status === "drawn").length },
+    { id: "undrawn", label: "Undrawn", count: shares.filter((share) => share.payout_status === "undrawn").length },
+  ];
+
   return (
     <div className="min-w-0 space-y-4 pb-2">
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
@@ -369,7 +393,12 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               <select
                 id="workspace-selected-fund"
                 value={selectedFundId}
-                onChange={(event) => setSelectedFundId(event.target.value)}
+                onChange={(event) => {
+                  setSelectedFundId(event.target.value);
+                  setShareSearch("");
+                  setShareFilter("all");
+                  setSelectedShareId(null);
+                }}
                 className="min-h-12 w-full min-w-0 rounded-xl border border-sky-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:ring-4 focus:ring-sky-100"
               >
                 {funds.map((fund) => (
@@ -495,14 +524,73 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
 
           {activeTab === "shares" && (
             <section className="space-y-3">
+              <section aria-label="Search and filter shares" className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+                <div className="flex min-w-0 items-center gap-2">
+                  <label className="relative min-w-0 flex-1">
+                    <Search size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="search"
+                      value={shareSearch}
+                      onChange={(event) => setShareSearch(event.target.value)}
+                      placeholder="Search contact, phone or Share ID"
+                      aria-label="Search contact, phone or Share ID"
+                      className="min-h-11 w-full min-w-0 rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-3 text-sm outline-none placeholder:text-slate-400 focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setDetailReloadKey((current) => current + 1)}
+                    disabled={isLoadingDetails}
+                    aria-label="Refresh selected Fund details"
+                    title="Refresh Share records"
+                    className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-sky-700 hover:bg-sky-50 disabled:opacity-50"
+                  >
+                    <RefreshCw size={17} className={isLoadingDetails ? "animate-spin" : ""} />
+                  </button>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Share status filters">
+                  {shareFilterOptions.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      aria-pressed={shareFilter === option.id}
+                      onClick={() => setShareFilter(option.id)}
+                      className={[
+                        "flex min-h-10 min-w-0 items-center justify-center gap-1 rounded-xl border px-2 py-2 text-xs font-semibold transition sm:text-sm",
+                        shareFilter === option.id
+                          ? "border-slate-900 bg-slate-900 text-white shadow-sm"
+                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
+                      ].join(" ")}
+                    >
+                      <span>{option.label}</span>
+                      <span className={shareFilter === option.id ? "text-slate-300" : "text-slate-400"}>({option.count})</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
               {isLoadingDetails ? (
                 <LoadingCard message="Loading shares…" />
               ) : detailsError ? (
                 <ErrorCard message={detailsError} onRetry={() => setDetailReloadKey((current) => current + 1)} />
               ) : shares.length === 0 ? (
                 <EmptyState icon={<UsersRound size={22} />} title="No shares in this fund yet" description="When shares are created, each share will appear here with its contact, saved billing entries, payment status, and payout details." />
+              ) : filteredShares.length === 0 ? (
+                <EmptyState
+                  icon={<Search size={22} />}
+                  title="No matching shares"
+                  description="No Share matches this search and status filter. Clear the search or choose All to see every Share in this Fund."
+                  action={(
+                    <button
+                      type="button"
+                      onClick={() => { setShareSearch(""); setShareFilter("all"); }}
+                      className="min-h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-sky-800 hover:bg-sky-50"
+                    >
+                      Clear search and filters
+                    </button>
+                  )}
+                />
               ) : (
-                shares.map((share) => {
+                filteredShares.map((share) => {
                   const contact = contactById.get(share.contact_id);
                   const billingEntries = Object.entries(share.billing_entries ?? {});
                   const isBillingExpanded = expandedBillingShareId === share.share_id;
