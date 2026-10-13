@@ -39,10 +39,35 @@ BEGIN
   END IF;
   -- Validate the selected Share's own saved billing, not an unrelated Share in the same Fund.
   IF jsonb_typeof(COALESCE(v_share.billing_entries,'{}'::jsonb))<>'object'
-     OR NOT (v_share.billing_entries ? p_payout_cycle_number::text)
-     OR jsonb_typeof(v_share.billing_entries->(p_payout_cycle_number::text))<>'number'
-     OR (v_share.billing_entries->>(p_payout_cycle_number::text)) !~ '^[0-9]+$'
-     OR (v_share.billing_entries->>(p_payout_cycle_number::text))::numeric>2147483647 THEN
+     OR NOT (COALESCE(v_share.billing_entries,'{}'::jsonb) ? p_payout_cycle_number::text)
+     OR jsonb_typeof(COALESCE(v_share.billing_entries,'{}'::jsonb)->(p_payout_cycle_number::text))<>'number'
+     OR (COALESCE(v_share.billing_entries,'{}'::jsonb)->>(p_payout_cycle_number::text)) !~ '^[0-9]+
+   RAISE EXCEPTION 'The selected Share must have valid saved billing for the payout Cycle' USING ERRCODE='22023';
+  END IF;
+  UPDATE public.cfcf_shares
+  SET payout_status='drawn',payout_cycle_number=p_payout_cycle_number,
+      withdrawn_amount=p_withdrawn_amount,updated_at=now()
+  WHERE share_id=p_share_id AND fund_id=p_fund_id AND tenant_id=p_tenant_id AND product_id='CFCF';
+ ELSE
+  UPDATE public.cfcf_shares
+  SET payout_status='undrawn',payout_cycle_number=NULL,withdrawn_amount=0,updated_at=now()
+  WHERE share_id=p_share_id AND fund_id=p_fund_id AND tenant_id=p_tenant_id AND product_id='CFCF';
+ END IF;
+
+ v_summary:=public.cfcf_recalculate_fund_summary(p_tenant_id,p_fund_id);
+ RETURN jsonb_build_object(
+  'share_id',p_share_id,'payout_status',p_payout_status,
+  'payout_cycle_number',CASE WHEN p_payout_status='drawn' THEN p_payout_cycle_number ELSE NULL END,
+  'withdrawn_amount',CASE WHEN p_payout_status='drawn' THEN p_withdrawn_amount ELSE 0 END,
+  'fund_summary',v_summary
+ );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.cfcf_set_share_payout(text,text,text,text,integer,integer) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.cfcf_set_share_payout(text,text,text,text,integer,integer) TO authenticated;
+
+     OR (COALESCE(v_share.billing_entries,'{}'::jsonb)->>(p_payout_cycle_number::text))::numeric>2147483647 THEN
    RAISE EXCEPTION 'The selected Share must have valid saved billing for the payout Cycle' USING ERRCODE='22023';
   END IF;
   UPDATE public.cfcf_shares
