@@ -6,7 +6,7 @@ import { ContactRound, Plus, RefreshCw, Search, UsersRound, Pencil, Trash2 } fro
 import type { AuthorizedWorkspace } from "../../../core/workspace/workspace.types";
 import { Modal } from "../../../components/ui/Modal";
 import type { CfcfContactRow } from "../types/database.types";
-import { createCfcfContact, deleteCfcfContact, listCfcfContacts, updateCfcfContact } from "../services/contacts.service";
+import { createCfcfContact, deleteCfcfContact, listCfcfContacts, listCfcfShareholderContactIds, updateCfcfContact } from "../services/contacts.service";
 import { ContactGroupsPanel } from "./ContactGroupsPanel";
 
 interface ContactsPageProps {
@@ -17,6 +17,7 @@ const emptyForm = { name: "", phone: "", email: "", remarks: "" };
 
 export function ContactsPage({ workspace }: ContactsPageProps) {
   const [contacts, setContacts] = useState<CfcfContactRow[]>([]);
+  const [shareholderContactIds, setShareholderContactIds] = useState<Set<string>>(() => new Set());
   const contactsRequestId = useRef(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -45,11 +46,18 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
     setLoadError(null);
 
     try {
-      const rows = await listCfcfContacts(workspace.tenantId);
-      if (requestId === contactsRequestId.current) setContacts(rows);
+      const [rows, shareholderIds] = await Promise.all([
+        listCfcfContacts(workspace.tenantId),
+        listCfcfShareholderContactIds(workspace.tenantId),
+      ]);
+      if (requestId === contactsRequestId.current) {
+        setContacts(rows);
+        setShareholderContactIds(shareholderIds);
+      }
     } catch (error) {
       if (requestId === contactsRequestId.current) {
         setContacts([]);
+        setShareholderContactIds(new Set());
         setLoadError(error instanceof Error ? error.message : "Unable to load contacts.");
       }
     } finally {
@@ -110,6 +118,10 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
 
   async function handleDeleteContact() {
     if (!deletingContact || isDeleting) return;
+    if (shareholderContactIds.has(deletingContact.contact_id)) {
+      setDeleteError("This contact is a Shareholder because they have one or more Shares. Deletion is disabled.");
+      return;
+    }
     setDeleteError(null);
     setIsDeleting(true);
     try {
@@ -340,7 +352,12 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
                     <UsersRound size={19} />
                   </div>
                   <div className="min-w-0">
-                    <h3 className="break-words text-sm font-semibold text-slate-950">{contact.name}</h3>
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <h3 className="break-words text-sm font-semibold text-slate-950">{contact.name}</h3>
+                      {shareholderContactIds.has(contact.contact_id) && (
+                        <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">Shareholder</span>
+                      )}
+                    </div>
                     <p className="mt-0.5 break-all text-sm text-slate-600">{contact.phone}</p>
                   </div>
                 </div>
@@ -357,9 +374,10 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
                   <button
                     type="button"
                     onClick={() => { setDeleteError(null); setDeletingContact(contact); }}
-                    aria-label={"Delete " + contact.name}
-                    title="Delete contact"
-                    className="grid h-10 w-10 place-items-center rounded-xl border border-rose-200 bg-rose-50 text-rose-800 transition hover:bg-rose-100"
+                    disabled={shareholderContactIds.has(contact.contact_id)}
+                    aria-label={shareholderContactIds.has(contact.contact_id) ? contact.name + " is a Shareholder and cannot be deleted" : "Delete " + contact.name}
+                    title={shareholderContactIds.has(contact.contact_id) ? "Shareholder contacts cannot be deleted" : "Delete contact"}
+                    className="grid h-10 w-10 place-items-center rounded-xl border border-rose-200 bg-rose-50 text-rose-800 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-rose-50"
                   >
                     <Trash2 size={17} />
                   </button>
@@ -477,13 +495,13 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
       <Modal
         isOpen={Boolean(deletingContact)}
         title="Delete contact?"
-        description="This permanently removes the contact only if no existing Share uses it."
+        description="Shareholder contacts cannot be deleted because their existing Shares reference them."
         onClose={() => { if (!isDeleting) { setDeletingContact(null); setDeleteError(null); } }}
       >
         <div className="space-y-4">
           <p className="text-sm leading-6 text-slate-600">
             {deletingContact ? <>Delete <strong className="text-slate-900">{deletingContact.name}</strong> from this workspace?</> : "Choose a contact to delete."}
-            {" "}Contacts linked to existing Shares cannot be deleted, so their records remain intact.
+            {" "}Contacts linked to one or more Shares are tagged as Shareholder and cannot be deleted, so their records remain intact.
           </p>
           {deleteError && (
             <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm leading-5 text-rose-800">
