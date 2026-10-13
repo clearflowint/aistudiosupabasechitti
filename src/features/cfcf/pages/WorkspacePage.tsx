@@ -285,11 +285,19 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   }
 
   function openPayoutModal(share: CfcfShareRow) {
-    const cycle = Math.max(1, highestCycleNumber(selectedFund));
+    // If this Share is already drawn, keep its recorded Cycle and actual withdrawn amount,
+    // including an intentional zero. Otherwise default to the highest existing Cycle.
+    const cycle = share.payout_status === "drawn" && share.payout_cycle_number
+      ? share.payout_cycle_number
+      : Math.max(1, highestCycleNumber(selectedFund));
     const cyclePayout = selectedFund?.cycle_payout_amounts?.[cycle - 1];
     setPayoutShare(share);
-    setPayoutCycleNumber(String(share.payout_cycle_number ?? cycle));
-    setWithdrawnAmount(String(share.withdrawn_amount || (typeof cyclePayout === "number" ? cyclePayout : "")));
+    setPayoutCycleNumber(String(cycle));
+    setWithdrawnAmount(
+      share.payout_status === "drawn"
+        ? String(share.withdrawn_amount)
+        : typeof cyclePayout === "number" ? String(cyclePayout) : "",
+    );
     setPayoutError(null);
   }
 
