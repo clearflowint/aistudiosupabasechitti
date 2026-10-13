@@ -270,15 +270,32 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
             <p className="mt-1 text-sm leading-5 text-slate-500">Organize Contacts into reusable audiences for bulk campaigns.</p>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => void loadGroups(true)} disabled={isLoading || isRefreshing} className={buttonClass + " border border-slate-200 text-slate-700 hover:bg-slate-50"}>
-            <RefreshCw size={15} className={isRefreshing ? "animate-spin" : ""} /> Refresh
+        <div className="grid w-full min-w-0 grid-cols-[44px_minmax(0,1fr)_minmax(0,1fr)] gap-2 sm:w-auto">
+          <button
+            type="button"
+            onClick={() => void loadGroups(true)}
+            disabled={isLoading || isRefreshing}
+            aria-label="Refresh contact groups"
+            title="Refresh contact groups"
+            className="inline-flex min-h-10 min-w-0 items-center justify-center rounded-xl border border-slate-200 px-2 py-2 text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <RefreshCw size={17} className={isRefreshing ? "animate-spin" : ""} />
           </button>
-          <button type="button" onClick={openCampaign} disabled={groups.length === 0 || !CAMPAIGN_AUTOMATION_ENABLED} title={!CAMPAIGN_AUTOMATION_ENABLED ? "Campaign automation is not configured yet" : undefined} className={buttonClass + " bg-emerald-600 text-white hover:bg-emerald-700"}>
-            <Megaphone size={16} /> Launch campaign
+          <button
+            type="button"
+            onClick={openCampaign}
+            disabled={groups.length === 0 || !CAMPAIGN_AUTOMATION_ENABLED}
+            title={!CAMPAIGN_AUTOMATION_ENABLED ? "Campaign automation is not configured yet" : undefined}
+            className={buttonClass + " min-w-0 gap-1.5 whitespace-nowrap bg-emerald-600 px-2 text-xs text-white hover:bg-emerald-700"}
+          >
+            <Megaphone size={15} className="shrink-0" /> <span>Launch campaign</span>
           </button>
-          <button type="button" onClick={openCreateGroup} className={buttonClass + " bg-violet-600 text-white hover:bg-violet-700"}>
-            <FolderPlus size={16} /> New group
+          <button
+            type="button"
+            onClick={openCreateGroup}
+            className={buttonClass + " min-w-0 gap-1.5 whitespace-nowrap bg-violet-600 px-2 text-xs text-white hover:bg-violet-700"}
+          >
+            <FolderPlus size={15} className="shrink-0" /> <span>New group</span>
           </button>
         </div>
       </div>
