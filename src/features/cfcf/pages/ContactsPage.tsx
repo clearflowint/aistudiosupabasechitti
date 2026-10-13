@@ -249,30 +249,6 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
           </div>
         </div>
 
-        <div className="mt-4 flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-          <label className="relative block w-full sm:max-w-md">
-            <Search size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search name, phone, email or notes"
-              className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-            />
-          </label>
-          <div className="flex items-center justify-between gap-3 text-sm text-slate-500 sm:justify-end">
-            <span>{contacts.length} {contacts.length === 1 ? "contact" : "contacts"}</span>
-            <button
-              type="button"
-              onClick={() => void loadContacts(true)}
-              disabled={isLoading || isRefreshing}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <RefreshCw size={15} className={isRefreshing ? "animate-spin" : ""} />
-              Refresh
-            </button>
-          </div>
-        </div>
       </section>
 
       <ContactGroupsPanel workspace={workspace} contacts={contacts} contactsLoaded={!isLoading && !loadError} />
@@ -282,6 +258,36 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
           {notice}
         </div>
       )}
+
+      <section aria-label="Contact list" className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-slate-950">Contact list</h2>
+            <p className="mt-1 text-sm text-slate-500">{contacts.length} {contacts.length === 1 ? "contact" : "contacts"}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void loadContacts(true)}
+            disabled={isLoading || isRefreshing}
+            aria-label="Refresh contacts"
+            title="Refresh contacts"
+            className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 self-start rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 sm:self-auto"
+          >
+            <RefreshCw size={15} className={isRefreshing ? "animate-spin" : ""} />
+            Refresh
+          </button>
+        </div>
+        <label className="relative mt-3 block w-full border-t border-slate-100 pt-3">
+          <Search size={17} className="pointer-events-none absolute left-3 top-[calc(50%+6px)] -translate-y-1/2 text-slate-400" />
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search name, phone, email or notes"
+            className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+          />
+        </label>
+      </section>
 
       {loadError && (
         <section role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-900">
