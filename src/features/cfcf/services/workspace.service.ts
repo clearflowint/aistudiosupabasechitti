@@ -3,6 +3,7 @@
 
 import { supabase } from "../../../core/database/supabaseClient";
 import { cfcfConfig } from "../config/cfcf.config";
+import { calculateCfcfFundFinancialSummary } from "./financial-calculations";
 import type {
   CfcfFundOtherEntryRow,
   CfcfFundRow,
@@ -316,4 +317,74 @@ export async function recordCfcfSharePayment(
     if (error.code === "42501") throw new Error("You do not have owner access to record this transaction.");
     throw new Error("Unable to record payment/correction: " + error.message);
   }
+}
+
+
+// CFCF PRODUCT: Read-only reconciliation for validating stored summaries before functional testing.
+// SKELETON: Reports differences; never mutates financial history or database rows.
+export interface CfcfFinancialReconciliation {
+  fundId: string;
+  expected: ReturnType<typeof calculateCfcfFundFinancialSummary>;
+  mismatches: Array<{ recordType: "fund" | "share"; recordId: string; field: string; stored: number; expected: number }>;
+}
+
+export async function inspectCfcfFundFinancialSummary(
+  tenantId: string,
+  fundId: string,
+): Promise<CfcfFinancialReconciliation> {
+  const [fundResult, sharesResult, paymentsResult, otherEntriesResult] = await Promise.all([
+    supabase.from("cfcf_funds").select("*")
+      .eq("product_id", cfcfConfig.productId).eq("tenant_id", tenantId).eq("fund_id", fundId).single(),
+    supabase.from("cfcf_shares").select("*")
+      .eq("product_id", cfcfConfig.productId).eq("tenant_id", tenantId).eq("fund_id", fundId),
+    supabase.from("cfcf_payments").select("*")
+      .eq("product_id", cfcfConfig.productId).eq("tenant_id", tenantId).eq("fund_id", fundId),
+    supabase.from("cfcf_fund_other_entries").select("*")
+      .eq("product_id", cfcfConfig.productId).eq("tenant_id", tenantId).eq("fund_id", fundId),
+  ]);
+  if (fundResult.error || !fundResult.data) {
+    throw new Error("Unable to load Fund for financial reconciliation: " + (fundResult.error?.message ?? "Fund not found."));
+  }
+  if (sharesResult.error) throw new Error("Unable to load Shares for financial reconciliation: " + sharesResult.error.message);
+  if (paymentsResult.error) throw new Error("Unable to load Payments for financial reconciliation: " + paymentsResult.error.message);
+  if (otherEntriesResult.error) throw new Error("Unable to load Fund adjustments for financial reconciliation: " + otherEntriesResult.error.message);
+
+  const fund = fundResult.data as CfcfFundRow;
+  const shares = (sharesResult.data ?? []) as CfcfShareRow[];
+  const payments = (paymentsResult.data ?? []) as CfcfPaymentRow[];
+  const otherEntries = (otherEntriesResult.data ?? []) as CfcfFundOtherEntryRow[];
+  const expected = calculateCfcfFundFinancialSummary(fund, shares, payments, otherEntries);
+  const mismatches: CfcfFinancialReconciliation["mismatches"] = [];
+  const compare = (
+    recordType: "fund" | "share",
+    recordId: string,
+    field: string,
+    stored: number | null,
+    calculated: number,
+  ) => {
+    if (stored !== calculated) {
+      mismatches.push({ recordType, recordId, field, stored: stored ?? 0, expected: calculated });
+    }
+  };
+
+  compare("fund", fund.fund_id, "number_of_shares", fund.number_of_shares, expected.numberOfShares);
+  compare("fund", fund.fund_id, "fund_total_billed_amount", fund.fund_total_billed_amount, expected.fundTotalBilledAmount);
+  compare("fund", fund.fund_id, "fund_total_pending_amount", fund.fund_total_pending_amount, expected.fundTotalPendingAmount);
+  compare("fund", fund.fund_id, "fund_total_advance", fund.fund_total_advance, expected.fundTotalAdvance);
+  compare("fund", fund.fund_id, "fund_total_withdrawn", fund.fund_total_withdrawn, expected.fundTotalWithdrawn);
+  compare("fund", fund.fund_id, "fund_total_commissions", fund.fund_total_commissions, expected.fundTotalCommissions);
+  compare("fund", fund.fund_id, "other_amount", fund.other_amount, expected.otherAmount);
+  compare("fund", fund.fund_id, "fund_net_balance", fund.fund_net_balance, expected.fundNetBalance);
+
+  for (const expectedShare of expected.shares) {
+    const stored = shares.find((share) => share.share_id === expectedShare.shareId);
+    if (!stored) continue;
+    compare("share", stored.share_id, "share_total_billed_amount", stored.share_total_billed_amount, expectedShare.shareTotalBilledAmount);
+    compare("share", stored.share_id, "share_net_payment_received", stored.share_net_payment_received, expectedShare.shareNetPaymentReceived);
+    compare("share", stored.share_id, "total_pending", stored.total_pending, expectedShare.totalPending);
+    compare("share", stored.share_id, "total_advance", stored.total_advance, expectedShare.totalAdvance);
+    compare("share", stored.share_id, "withdrawn_amount", stored.withdrawn_amount, expectedShare.withdrawnAmount);
+  }
+
+  return { fundId, expected, mismatches };
 }
