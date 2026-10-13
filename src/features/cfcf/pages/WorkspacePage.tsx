@@ -452,7 +452,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   async function handleSavePlannedCount() {
     if (!selectedFund || isSavingPlannedCount) return;
     const value = plannedCycleInput.trim() === "" ? null : Number(plannedCycleInput);
-    if (value !== null && (!Number.isSafeInteger(value) || value < 0 || value > 2147483647)) {
+    if (value !== null && (!Number.isSafeInteger(value) || value < 0 || value > MAX_CFCF_CYCLES)) {
       setFundNotice("Planned Cycle count must be between 0 and 100.");
       return;
     }
