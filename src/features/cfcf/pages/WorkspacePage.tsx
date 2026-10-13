@@ -44,7 +44,7 @@ interface SavedWorkspaceView {
 }
 
 function readSavedWorkspaceView(tenantId: string): SavedWorkspaceView {
-  const fallback: SavedWorkspaceView = { tab: "shares", fundId: "" };
+  const fallback: SavedWorkspaceView = { tab: "cycles", fundId: "" };
   try {
     const raw = window.localStorage.getItem("clearflow:cfcf-workspace-view:v2:" + tenantId);
     if (!raw) return fallback;
@@ -53,7 +53,7 @@ function readSavedWorkspaceView(tenantId: string): SavedWorkspaceView {
     return {
       tab: typeof saved.tab === "string" && validTabs.includes(saved.tab as WorkspaceTab)
         ? saved.tab as WorkspaceTab
-        : "shares",
+        : "cycles",
       fundId: typeof saved.fundId === "string" ? saved.fundId : "",
     };
   } catch {
@@ -207,10 +207,25 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     return () => { isCurrent = false; };
   }, [workspace.tenantId, selectedFundId, activeTab, detailReloadKey]);
 
+  function highestCycleNumber(fund: CfcfFundRow | null, fundShares: CfcfShareRow[] = shares): number {
+    if (!fund) return 0;
+    const billingCycles = fundShares.flatMap((share) =>
+      Object.keys(share.billing_entries ?? {}).map((key) => /^\\d+$/.test(key) ? Number(key) : 0),
+    );
+    return Math.max(
+      0,
+      fund.current_cycle ?? 0,
+      fund.cycle_payout_amounts?.length ?? 0,
+      fund.cycle_commissions?.length ?? 0,
+      ...billingCycles,
+    );
+  }
+
   function openCycleBilling(share: CfcfShareRow) {
+    const cycle = Math.max(1, highestCycleNumber(selectedFund));
     setBillingShare(share);
-    setBillingCycleNumber(String(Math.max(1, selectedFund?.current_cycle ?? 1)));
-    setBillingAmount(String(share.billing_entries?.[String(Math.max(1, selectedFund?.current_cycle ?? 1))] ?? ""));
+    setBillingCycleNumber(String(cycle));
+    setBillingAmount(String(share.billing_entries?.[String(cycle)] ?? 0));
     setBillingError(null);
   }
 
@@ -219,8 +234,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     if (!billingShare || !selectedFund || isSavingBilling) return;
     const cycleNumber = Number(billingCycleNumber);
     const amount = Number(billingAmount);
-    if (!Number.isSafeInteger(cycleNumber) || cycleNumber < 1 || cycleNumber > (selectedFund.number_of_cycles ?? 0)) {
-      setBillingError("Choose a cycle within this Fund's configured cycle count.");
+    if (!Number.isSafeInteger(cycleNumber) || cycleNumber < 1) {
+      setBillingError("Choose a valid positive Cycle number.");
       return;
     }
     if (billingAmount.trim() === "" || !Number.isSafeInteger(amount) || amount < 0 || amount > 2147483647) {
