@@ -283,3 +283,37 @@ export async function updateCfcfPlannedCycleCount(tenantId: string, fundId: stri
     .eq("product_id", cfcfConfig.productId).eq("tenant_id", tenantId).eq("fund_id", fundId);
   if (error) throw new Error("Unable to update planned Cycle count: " + error.message);
 }
+
+
+// CFCF PRODUCT: Share creation is an explicit atomic database operation; Share count is updated in the same transaction.
+export async function createCfcfShare(tenantId: string, fundId: string, personId: string, contactId: string): Promise<void> {
+  if (!fundId || !personId || !contactId) throw new Error("Choose a Fund and Contact.");
+  const { error } = await supabase.rpc("cfcf_create_share", {
+    p_tenant_id: tenantId, p_fund_id: fundId,
+    p_share_id: crypto.randomUUID().replace(/-/g, "").toUpperCase(),
+    p_person_id: personId, p_contact_id: contactId,
+  });
+  if (error) {
+    if (error.code === "42501") throw new Error("You do not have owner access to add a Share.");
+    if (error.code === "23505") throw new Error("This Share ID already exists. Try again.");
+    throw new Error("Unable to add Share: " + error.message);
+  }
+}
+
+export async function recordCfcfSharePayment(
+  tenantId: string, fundId: string, shareId: string, personId: string,
+  entryType: "credit" | "debit", amount: number, entryDate: string,
+  paymentType: "UPI" | "Cash" | "Other", remarks: string,
+): Promise<void> {
+  if (!Number.isSafeInteger(amount) || amount <= 0 || amount > 2147483647) throw new Error("Enter a positive whole-rupee amount.");
+  if (!["UPI", "Cash", "Other"].includes(paymentType)) throw new Error("Choose a valid payment mode.");
+  const { error } = await supabase.rpc("cfcf_record_share_payment", {
+    p_tenant_id: tenantId, p_fund_id: fundId, p_share_id: shareId, p_person_id: personId,
+    p_entry_type: entryType, p_amount: amount, p_entry_date: entryDate || null,
+    p_payment_type: paymentType, p_remarks: remarks.trim() || null,
+  });
+  if (error) {
+    if (error.code === "42501") throw new Error("You do not have owner access to record this transaction.");
+    throw new Error("Unable to record payment/correction: " + error.message);
+  }
+}
