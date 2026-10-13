@@ -171,8 +171,12 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     setPaymentShare(null);
     setBillingShare(null);
     setPayoutShare(null);
+    setStatementShare(null);
+    setIsShareModalOpen(false);
     setIsFundEntryModalOpen(false);
     setCycleEditNumber(null);
+    setCyclePayoutInput("");
+    setCycleCommissionInput("");
     setPaymentError(null);
     setBillingError(null);
     setPayoutError(null);
