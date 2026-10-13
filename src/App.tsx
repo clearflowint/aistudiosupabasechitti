@@ -15,15 +15,32 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const authenticatedEmailRef = useRef<string | null>(null);
   const [workspace, setWorkspace] = useState<AuthorizedWorkspace | null>(null);
-  const [activePageId, setActivePageId] = useState(
-    () => activeProduct.navigation.find(({ isHome }) => isHome)?.id ?? "home",
-  );
+  const [activePageId, setActivePageId] = useState(() => {
+    const homeId = activeProduct.navigation.find(({ isHome }) => isHome)?.id ?? "home";
+    try {
+      const savedPageId = window.localStorage.getItem("clearflow:active-page:v1");
+      return savedPageId && activeProduct.navigation.some(({ id }) => id === savedPageId)
+        ? savedPageId
+        : homeId;
+    } catch {
+      return homeId;
+    }
+  });
   const [isLoadingWorkspace, setIsLoadingWorkspace] = useState(true);
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [authorizationAttempt, setAuthorizationAttempt] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [databaseStatus, setDatabaseStatus] = useState<ConnectionStatus | null>(null);
+
+  // MIX: Remember the top-level destination so a browser refresh restores the same app screen.
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("clearflow:active-page:v1", activePageId);
+    } catch {
+      // The app remains usable when browser storage is unavailable.
+    }
+  }, [activePageId]);
 
   // SKELETON: Restore the shared Supabase session and react to sign-in/sign-out events.
   useEffect(() => {
@@ -42,11 +59,15 @@ export default function App() {
       const nextEmail = currentUser?.email?.toLowerCase() ?? null;
 
       if (authenticatedEmailRef.current !== nextEmail) {
+        const hadAuthenticatedUser = authenticatedEmailRef.current !== null;
         authenticatedEmailRef.current = nextEmail;
         setWorkspace(null);
         setDatabaseStatus(null);
         setErrorMessage(null);
-        setActivePageId(activeProduct.navigation.find(({ isHome }) => isHome)?.id ?? "home");
+        // Preserve the restored page during initial session recovery; reset only when an existing session changes.
+        if (hadAuthenticatedUser) {
+          setActivePageId(activeProduct.navigation.find(({ isHome }) => isHome)?.id ?? "home");
+        }
       }
       setUser(currentUser);
     });
