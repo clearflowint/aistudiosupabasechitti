@@ -159,6 +159,17 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     [funds, selectedFundId],
   );
 
+  // CFCF PRODUCT: Clear Fund-specific filters and unsaved form inputs when switching Funds.
+  useEffect(() => {
+    setPlannedCycleInput("");
+    setShareSearch("");
+    setShareFilter("all");
+    setSelectedShareId(null);
+    setFinancialReconciliation(null);
+    setReconciliationError(null);
+  }, [selectedFundId]);
+
+
   // MIX: Discard previous-tenant data and ignore stale responses after a tenant switch.
   useEffect(() => {
     let isCurrent = true;
