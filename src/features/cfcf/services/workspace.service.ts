@@ -178,8 +178,8 @@ export async function recordCfcfCycleBilling(
   cycleNumber: number,
   amount: number,
 ): Promise<void> {
-  if (!Number.isSafeInteger(cycleNumber) || cycleNumber < 1 || cycleNumber > 500) {
-    throw new Error("Cycle number must be between 1 and 500.");
+  if (!Number.isSafeInteger(cycleNumber) || cycleNumber < 1 || cycleNumber > 2147483647) {
+    throw new Error("Cycle number must be a positive whole number.");
   }
   if (!Number.isSafeInteger(amount) || amount < 0 || amount > 2147483647) {
     throw new Error("Billing amount must be a whole rupee amount of zero or more.");
@@ -213,9 +213,9 @@ export async function setCfcfSharePayout(
   if (payoutStatus === "drawn" && (
     !Number.isSafeInteger(payoutCycleNumber) ||
     (payoutCycleNumber ?? 0) < 1 ||
-    (payoutCycleNumber ?? 0) > 500
+    (payoutCycleNumber ?? 0) > 2147483647
   )) {
-    throw new Error("Payout Cycle must be between 1 and 500.");
+    throw new Error("Payout Cycle must be a positive whole number.");
   }
   if (!Number.isSafeInteger(withdrawnAmount) || withdrawnAmount < 0 || withdrawnAmount > 2147483647) {
     throw new Error("Withdrawn amount must be a whole rupee amount of zero or more.");
@@ -243,8 +243,8 @@ export async function saveCfcfCycleValues(
   payoutAmount: number | null,
   commissionAmount: number | null,
 ): Promise<void> {
-  if (!Number.isSafeInteger(cycleNumber) || cycleNumber < 1 || cycleNumber > 500) {
-    throw new Error("Cycle number must be between 1 and 500.");
+  if (!Number.isSafeInteger(cycleNumber) || cycleNumber < 1 || cycleNumber > 2147483647) {
+    throw new Error("Cycle number must be a positive whole number.");
   }
   for (const [label, value] of [["Payout amount", payoutAmount], ["Commission", commissionAmount]] as const) {
     if (value !== null && (!Number.isSafeInteger(value) || value < 0 || value > 2147483647)) {
