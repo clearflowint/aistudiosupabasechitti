@@ -138,9 +138,10 @@ test("ignores Share, Payment, and Fund adjustment rows outside the selected tena
 });
 
 test("rejects invalid commission entries rather than silently accepting malformed data", () => {
+  const invalidFund = { ...fund, cycle_commissions: [1.5] };
   assert.throws(
-    () => calculate([share()], [], [],),
-    /Expected 3 arguments|/,
+    () => calculateCfcfFundFinancialSummary(invalidFund, [share()], [], []),
+    /non-negative whole-rupee/,
   );
 });
 
