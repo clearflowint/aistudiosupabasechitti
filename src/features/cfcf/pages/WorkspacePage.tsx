@@ -414,7 +414,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     const payout = cyclePayoutInput.trim() === "" ? null : Number(cyclePayoutInput);
     const commission = cycleCommissionInput.trim() === "" ? null : Number(cycleCommissionInput);
     for (const [label, value] of [["Payout", payout], ["Commission", commission]] as const) {
-      if (value !== null && (!Number.isSafeInteger(value) || value < 0 || value > 2147483647)) {
+      if (value !== null && (!Number.isSafeInteger(value) || value < 0 || value > MAX_CFCF_CYCLES)) {
         setCycleEditError(label + " must be a whole rupee amount or left blank.");
         return;
       }
@@ -438,7 +438,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     if (!selectedFund || isSavingPlannedCount) return;
     const value = plannedCycleInput.trim() === "" ? null : Number(plannedCycleInput);
     if (value !== null && (!Number.isSafeInteger(value) || value < 0 || value > 2147483647)) {
-      setFundNotice("Planned Cycle count must be zero or a positive whole number.");
+      setFundNotice("Planned Cycle count must be between 0 and 100.");
       return;
     }
     setIsSavingPlannedCount(true);
@@ -601,8 +601,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     const numberOfCycles = fundForm.numberOfCycles.trim() ? Number(fundForm.numberOfCycles) : null;
     const numberOfShares = null;
 
-    if (numberOfCycles !== null && (!Number.isSafeInteger(numberOfCycles) || numberOfCycles < 1)) {
-      setFundFormError("Cycle count must be a positive whole number.");
+    if (numberOfCycles !== null && (!Number.isSafeInteger(numberOfCycles) || numberOfCycles < 1 || numberOfCycles > MAX_CFCF_CYCLES)) {
+      setFundFormError("Cycle count must be a whole number from 1 to 100.");
       return;
     }
      setIsSavingFund(true);
@@ -859,7 +859,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                 <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
                   <label className="min-w-0">
                     <span className="mb-1 block text-xs font-semibold text-slate-600">Planned Cycle count</span>
-                    <input type="number" min="0" step="1" value={plannedCycleInput !== "" ? plannedCycleInput : String(selectedFund.number_of_cycles ?? "")} onChange={(event) => setPlannedCycleInput(event.target.value)} placeholder="Optional" className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm" />
+                    <input type="number" min="0" max={MAX_CFCF_CYCLES} step="1" value={plannedCycleInput !== "" ? plannedCycleInput : String(selectedFund.number_of_cycles ?? "")} onChange={(event) => setPlannedCycleInput(event.target.value)} placeholder="Optional" className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm" />
                   </label>
                   <button type="button" disabled={isSavingPlannedCount} onClick={() => void handleSavePlannedCount()} className="self-end min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 disabled:opacity-50">{isSavingPlannedCount ? "Saving…" : "Save count"}</button>
                 </div>
@@ -1253,6 +1253,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                 type="number"
                 inputMode="numeric"
                 min="1"
+                max={MAX_CFCF_CYCLES}
                 step="1"
                 value={fundForm.numberOfCycles}
                 onChange={(event) => setFundForm((current) => ({ ...current, numberOfCycles: event.target.value }))}
