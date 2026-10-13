@@ -812,13 +812,10 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                   </label>
                   <button type="button" disabled={isSavingPlannedCount} onClick={() => void handleSavePlannedCount()} className="self-end min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 disabled:opacity-50">{isSavingPlannedCount ? "Saving…" : "Save count"}</button>
                 </div>
-                <button type="button" onClick={() => openCycleEditor(highestCycleNumber(selectedFund) + 1)} disabled={highestCycleNumber(selectedFund) >= MAX_CFCF_CYCLES} className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-sky-600 px-3 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50">
-                  <Plus size={16} /> {highestCycleNumber(selectedFund) >= MAX_CFCF_CYCLES ? "Cycle limit reached (100)" : "Create next Cycle"}
-                </button>
-                <p className="mt-2 text-xs text-slate-500">ClearFlow supports up to 100 Cycles per Fund. Planned Cycle count remains descriptive only.</p>
+                <p className="mt-3 text-xs text-slate-500">Only Cycles with saved billing entries appear here. Record billing for a new Cycle from a Share; it appears after billing is saved. Maximum 100 Cycles per Fund.</p>
               </section>
-              {highestCycleNumber(selectedFund) > 0 ? (() => {
-                const cycleNumber = highestCycleNumber(selectedFund);
+              {billedCycleNumbers().length > 0 ? billedCycleNumbers().map((cycleNumber) => {
+                const cycleNumberUnused = cycleNumber;
                 const payout = selectedFund.cycle_payout_amounts?.[cycleNumber - 1];
                 const commission = selectedFund.cycle_commissions?.[cycleNumber - 1];
                 return (
@@ -826,7 +823,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Cycle {cycleNumber}</p>
-                        <h3 className="mt-1 text-base font-semibold text-slate-900">Highest Cycle</h3>
+                        <h3 className="mt-1 text-base font-semibold text-slate-900">Billed Cycle</h3>
                       </div>
                       <span className="shrink-0 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700">Latest</span>
                     </div>
@@ -841,7 +838,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                   </article>
                 );
               })() : (
-                <EmptyState icon={<CalendarDays size={22} />} title="No cycles recorded yet" description="Cycle cards will appear as cycle data is recorded for this Fund." />
+                <EmptyState icon={<CalendarDays size={22} />} title="No billed Cycles yet" description="A Cycle appears here only after billing has been saved for at least one Share." />
               )}
                 </section>
           )}
@@ -866,7 +863,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               ) : filteredShares.map((share) => {
                 const contact = contactById.get(share.contact_id);
                 const highestCycle = Math.max(0,...Object.keys(share.billing_entries ?? {}).filter((k) => /^\\d+$/.test(k)).map(Number));
-                const progress = selectedFund.number_of_cycles ? `${highestCycle}/${selectedFund.number_of_cycles} cycles` : `${highestCycle} cycles recorded`;
+                const progress = billedCycleNumbers().length + " billed cycles";
                 return <article key={share.share_id} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                   <div className="flex min-w-0 items-start justify-between gap-2">
                     <div className="min-w-0"><p className="inline-block rounded-lg bg-slate-100 px-3 py-1 font-mono text-sm font-bold text-slate-700">{share.share_id}</p><h3 className="mt-2 break-words text-base font-semibold text-slate-900">{contact?.name ?? "Contact unavailable"}</h3><p className="mt-1 break-all text-sm text-slate-500">{contact?.phone ?? "No phone saved"}</p></div>
@@ -1013,7 +1010,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               const savedPayout = selectedFund?.cycle_payout_amounts?.[Number(event.target.value) - 1];
               setWithdrawnAmount(typeof savedPayout === "number" ? String(savedPayout) : "");
             }} required className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm">
-              {Array.from({ length: Math.min(MAX_CFCF_CYCLES, Math.max(highestCycleNumber(selectedFund), Number(payoutCycleNumber) || 1)) }, (_, index) => index + 1).map((cycle) => (
+              {billedCycleNumbers().map((cycle) => (
                 <option key={cycle} value={String(cycle)}>Cycle {cycle}</option>
               ))}
             </select>
