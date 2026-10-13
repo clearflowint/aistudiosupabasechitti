@@ -808,7 +808,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                     <div className="shrink-0 text-right"><p className={["text-sm font-bold",share.total_pending>0?"text-rose-700":"text-emerald-700"].join(" ")}>{share.total_pending>0?"−":""}{formatINR(share.total_pending)}</p><p className="text-xs text-slate-500">{share.total_pending>0?"Pending":"No pending due"}</p><span className={["mt-2 inline-block rounded-full px-2 py-1 text-xs font-semibold",share.payout_status==="drawn"?"bg-emerald-50 text-emerald-800":"bg-amber-50 text-amber-800"].join(" ")}>{share.payout_status==="drawn"?"Drawn":"Undrawn"}</span></div>
                   </div>
                   <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-2.5">
-                    <StoredValue label="Current billed · Cycle ${highestCycle || "—"}" value={formatINR(currentBilledForShare(share))}/>
+                    <StoredValue label={"Current billed · Cycle " + (highestCycle || "—")} value={formatINR(currentBilledForShare(share))}/>
                     <StoredValue label="Total billed" value={formatINR(share.share_total_billed_amount)}/>
                     <StoredValue label="Total paid (net)" value={formatINR(share.share_net_payment_received)}/>
                     <StoredValue label="Pending due" value={formatINR(share.total_pending)}/>
