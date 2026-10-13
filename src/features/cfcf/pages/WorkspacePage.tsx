@@ -236,22 +236,22 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     if (hydratedViewTenantId.current !== workspace.tenantId) {
       const savedView = readSavedWorkspaceView(workspace.tenantId);
       hydratedViewTenantId.current = workspace.tenantId;
-      setActiveTab(savedView.tab);
+      setActiveTab("shares");
       setSelectedFundId(savedView.fundId);
       return;
     }
     try {
       window.localStorage.setItem(
         "clearflow:cfcf-workspace-view:v2:" + workspace.tenantId,
-        JSON.stringify({ tab: activeTab, fundId: selectedFundId }),
+        JSON.stringify({ tab: "shares", fundId: selectedFundId }),
       );
     } catch {
       // Keep the workspace usable when browser storage is unavailable.
     }
-  }, [workspace.tenantId, activeTab, selectedFundId]);
+  }, [workspace.tenantId, selectedFundId]);
 
   // MIX: Every fund/tab transition clears fund-scoped client state before fetching.
-  // CFCF PRODUCT: Shares and contact labels are reloaded for the selected fund; ledger is fetched when requested.
+  // CFCF PRODUCT: Shares, contacts and ledger entries are loaded together for the selected Fund.
   useEffect(() => {
     let isCurrent = true;
 
@@ -281,11 +281,9 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           ? shareRows.find((share) => share.share_id === currentStatement.share_id) ?? null
           : null);
 
-        if (activeTab === "ledger") {
-          const rows = await listCfcfLedgerItems(workspace.tenantId, selectedFundId);
-          if (!isCurrent) return;
-          setLedgerItems(rows);
-        }
+        const rows = await listCfcfLedgerItems(workspace.tenantId, selectedFundId);
+        if (!isCurrent) return;
+        setLedgerItems(rows);
       } catch (error) {
         if (!isCurrent) return;
         setDetailsError(error instanceof Error ? error.message : "Unable to load workspace details.");
@@ -296,7 +294,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
 
     void loadDetails();
     return () => { isCurrent = false; };
-  }, [workspace.tenantId, selectedFundId, activeTab, detailReloadKey]);
+  }, [workspace.tenantId, selectedFundId, detailReloadKey]);
 
   // CFCF PRODUCT: Statement history loads on demand without forcing the workspace into the Ledger tab.
   useEffect(() => {
@@ -759,28 +757,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           </div>
         </div>
 
-        <div role="tablist" aria-label="Workspace sections" className="mt-3 grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 p-1">
-          {workspaceTabs.map((tab) => {
-            const Icon = tab.icon;
-            const active = activeTab === tab.id;
-            return (
-              <button
-                type="button"
-                role="tab"
-                key={tab.id}
-                aria-selected={active}
-                onClick={() => { setSelectedShareId(null); setActiveTab(tab.id); }}
-                className={[
-                  "flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[11px] font-semibold transition sm:text-xs",
-                  active ? "bg-white text-sky-800 shadow-sm" : "text-slate-500 hover:text-slate-800",
-                ].join(" ")}
-              >
-                <Icon size={17} />
-                <span className="break-words text-center leading-4">{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
+
       </section>
 
       {fundNotice && (
@@ -832,11 +809,11 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             </article>
             {(() => { const availableCycles = billedCycleNumbers(); const currentCycle = selectedCycleNumber !== null && availableCycles.includes(selectedCycleNumber) ? selectedCycleNumber : (availableCycles.at(-1) ?? null); const payout = currentCycle === null ? undefined : selectedFund.cycle_payout_amounts?.[currentCycle - 1]; const commission = currentCycle === null ? undefined : selectedFund.cycle_commissions?.[currentCycle - 1]; return <article className="rounded-2xl border border-violet-200 bg-violet-50 p-4 shadow-sm">
               <div className="flex items-center justify-between gap-2"><div><p className="text-xs font-semibold uppercase tracking-wide text-violet-700">Cycle ledger</p><h3 className="mt-1 text-lg font-semibold text-slate-900">{currentCycle === null ? "No billed Cycles yet" : "Cycle " + currentCycle}</h3></div><div className="flex items-center gap-1"><button type="button" aria-label="Previous billed Cycle" disabled={currentCycle === null || availableCycles.indexOf(currentCycle) <= 0} onClick={() => { if (currentCycle !== null) setSelectedCycleNumber(availableCycles[availableCycles.indexOf(currentCycle) - 1]); }} className="grid h-10 w-10 place-items-center rounded-lg border border-violet-200 bg-white disabled:opacity-40"><ChevronLeft size={18}/></button><button type="button" aria-label="Go to latest billed Cycle" disabled={currentCycle === null || currentCycle === availableCycles.at(-1)} onClick={() => setSelectedCycleNumber(availableCycles.at(-1) ?? null)} className="grid h-10 w-10 place-items-center rounded-lg border border-violet-200 bg-white disabled:opacity-40"><RotateCcw size={17}/></button></div></div>
-              {currentCycle === null ? <p className="mt-2 text-sm leading-5 text-slate-600">A Cycle appears only after billing is saved for a Share. Planned Cycles are not shown as if they were real.</p> : <><div className="mt-3 grid grid-cols-2 gap-2"><StoredValue label="Stored payout" value={displayStoredAmount(payout)}/><StoredValue label="Stored commission" value={displayStoredAmount(commission)}/></div><div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={() => openCycleEditor(currentCycle)} className="min-h-11 rounded-xl bg-violet-700 px-3 text-sm font-semibold text-white">Edit Cycle values</button><button type="button" onClick={() => setActiveTab("shares")} className="min-h-11 rounded-xl border border-violet-200 bg-white px-3 text-sm font-semibold text-violet-800">View Shares</button></div></>}
+              {currentCycle === null ? <p className="mt-2 text-sm leading-5 text-slate-600">A Cycle appears only after billing is saved for a Share. Planned Cycles are not shown as if they were real.</p> : <><div className="mt-3 grid grid-cols-2 gap-2"><StoredValue label="Stored payout" value={displayStoredAmount(payout)}/><StoredValue label="Stored commission" value={displayStoredAmount(commission)}/></div><div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={() => openCycleEditor(currentCycle)} className="min-h-11 rounded-xl bg-violet-700 px-3 text-sm font-semibold text-white">Edit Cycle values</button><button type="button" onClick={() => document.getElementById("cfcf-shares")?.scrollIntoView({ behavior: "smooth", block: "start" }) className="min-h-11 rounded-xl border border-violet-200 bg-white px-3 text-sm font-semibold text-violet-800">View Shares</button></div></>}
             </article>; })()}
           </section>
 
-          {activeTab === "shares" && (
+          {true && (
             <section className="space-y-3">
               <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
                 <div className="flex items-center gap-2">
@@ -877,7 +854,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                     <button type="button" onClick={() => openPaymentModal(share)} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-sky-600 px-2 text-sm font-semibold text-white"><CreditCard size={16}/> Record Payment</button>
                     <button type="button" onClick={() => openCycleBilling(share)} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-2 text-xs font-semibold text-violet-800 disabled:opacity-50"><CalendarDays size={14}/> Cycle billing</button>
                     <button type="button" onClick={() => openPayoutModal(share)} disabled={billedCycleNumbers().length === 0} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-2 text-xs font-semibold text-amber-800 disabled:cursor-not-allowed disabled:opacity-50"><WalletCards size={14}/> {share.payout_status==="drawn"?"Edit payout":"Undrawn"}</button>
-                    <button type="button" onClick={() => { setSelectedShareId(share.share_id); setActiveTab("ledger"); }} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 px-2 text-xs font-semibold text-sky-800">Share ledger</button>
+                    <button type="button" onClick={() => { setSelectedShareId(share.share_id); }} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 px-2 text-xs font-semibold text-sky-800">Share ledger</button>
                     <button type="button" onClick={() => { setDeleteStep(1); setDeleteAcknowledged(false); setDeleteTypedId(""); setDeleteTarget({ kind: "share", id: share.share_id, label: contact?.name ?? share.share_id, fundId: selectedFund.fund_id }); setDeleteError(null); }} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-2 text-xs font-semibold text-rose-800">Delete empty Share</button>
                   </div>
                 </article>;
@@ -885,8 +862,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             </section>
           )}
 
-          {activeTab === "ledger" && (
-            <section className="space-y-3">
+          {true && (
+            <section id="cfcf-shares" className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <h2 className="text-base font-semibold text-slate-900">Fund Ledger</h2>
