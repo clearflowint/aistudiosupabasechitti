@@ -331,6 +331,10 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setPayoutError("Choose a Cycle number from 1 to 100.");
       return;
     }
+    if (!billedCycleNumbers().includes(cycle)) {
+      setPayoutError("Payout Cycle must be a Cycle with saved billing. Select a billed Cycle, or mark this Share undrawn if its saved payout Cycle is no longer billed.");
+      return;
+    }
     if (withdrawnAmount.trim() === "" || !Number.isSafeInteger(amount) || amount < 0 || amount > 2147483647) {
       setPayoutError("Enter a whole-rupee withdrawn amount.");
       return;
