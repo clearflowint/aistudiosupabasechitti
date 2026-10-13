@@ -745,7 +745,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         <EmptyState
           icon={<WalletCards size={22} />}
           title="Your fund workspace is ready"
-          description="Create your first fund. Cycle counts and share counts are saved as setup inputs; totals are not calculated by the screen."
+          description="Create your first Fund. Planned Cycle count is optional; actual Share count comes from saved Shares, and financial totals are stored in Supabase."
           action={
             <button
               type="button"
@@ -810,7 +810,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
 
                   <div className="mt-4 grid grid-cols-2 gap-2">
                     <StoredValue label="Planned Cycle count" value={fund.number_of_cycles ?? "—"} />
-                    <StoredValue label="Shares configured" value={fund.number_of_shares ?? "—"} />
+                    <StoredValue label="Actual Shares" value={fund.number_of_shares ?? 0} />
                     <StoredValue label="Current cycle" value={fund.current_cycle} />
                     <StoredValue label="Start date" value={fund.start_date ? formatDate(fund.start_date) : "—"} />
                     <StoredValue label="Stored net balance" value={formatINR(fund.fund_net_balance)} />
@@ -934,6 +934,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                     <button type="button" onClick={() => openPaymentModal(share)} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-sky-600 px-2 text-sm font-semibold text-white"><CreditCard size={16}/> Record Payment</button>
                     <button type="button" onClick={() => openCycleBilling(share)} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-2 text-xs font-semibold text-violet-800 disabled:opacity-50"><CalendarDays size={14}/> Cycle billing</button>
                     <button type="button" onClick={() => openPayoutModal(share)} disabled={billedCycleNumbers().length === 0} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-2 text-xs font-semibold text-amber-800 disabled:cursor-not-allowed disabled:opacity-50"><WalletCards size={14}/> {share.payout_status==="drawn"?"Edit payout":"Undrawn"}</button>
+                    <button type="button" onClick={() => { setSelectedShareId(share.share_id); setActiveTab("ledger"); }} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 px-2 text-xs font-semibold text-sky-800">Share ledger</button>
                     <button type="button" onClick={() => { setDeleteTarget({ kind: "share", id: share.share_id, label: contact?.name ?? share.share_id }); setDeleteError(null); }} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-2 text-xs font-semibold text-rose-800">Delete empty Share</button>
                   </div>
                 </article>;
