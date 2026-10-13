@@ -271,18 +271,17 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     printWindow.print();
   }
 
-  function highestCycleNumber(fund: CfcfFundRow | null, fundShares: CfcfShareRow[] = shares): number {
-    if (!fund) return 0;
-    const billingCycles = fundShares.flatMap((share) =>
-      Object.keys(share.billing_entries ?? {}).map((key) => /^\\d+$/.test(key) ? Number(key) : 0),
-    );
-    return Math.max(
-      0,
-      fund.current_cycle ?? 0,
-      fund.cycle_payout_amounts?.length ?? 0,
-      fund.cycle_commissions?.length ?? 0,
-      ...billingCycles,
-    );
+  function billedCycleNumbers(fundShares: CfcfShareRow[] = shares): number[] {
+    return [...new Set(fundShares.flatMap((share) =>
+      Object.entries(share.billing_entries ?? {})
+        .filter(([key, value]) => /^\d+$/.test(key) && Number(key) >= 1 && Number(key) <= MAX_CFCF_CYCLES
+          && (typeof value === "number" || (typeof value === "string" && value.trim() !== "")))
+        .map(([key]) => Number(key)),
+    ))].sort((x, y) => x - y);
+  }
+
+  function highestCycleNumber(_fund: CfcfFundRow | null, fundShares: CfcfShareRow[] = shares): number {
+    return billedCycleNumbers(fundShares).at(-1) ?? 0;
   }
 
   function openPayoutModal(share: CfcfShareRow) {
