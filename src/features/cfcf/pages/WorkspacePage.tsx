@@ -815,7 +815,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                 <p className="mt-3 text-xs text-slate-500">Only Cycles with saved billing entries appear here. Record billing for a new Cycle from a Share; it appears after billing is saved. Maximum 100 Cycles per Fund.</p>
               </section>
               {billedCycleNumbers().length > 0 ? billedCycleNumbers().map((cycleNumber) => {
-                const cycleNumberUnused = cycleNumber;
                 const payout = selectedFund.cycle_payout_amounts?.[cycleNumber - 1];
                 const commission = selectedFund.cycle_commissions?.[cycleNumber - 1];
                 return (
@@ -825,7 +824,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                         <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Cycle {cycleNumber}</p>
                         <h3 className="mt-1 text-base font-semibold text-slate-900">Billed Cycle</h3>
                       </div>
-                      <span className="shrink-0 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700">Latest</span>
+                      {cycleNumber === highestCycleNumber(selectedFund) && <span className="shrink-0 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700">Latest billed</span>}
                     </div>
                     <div className="mt-4 grid grid-cols-2 gap-2">
                       <StoredValue label="Stored payout" value={displayStoredAmount(payout)} />
@@ -837,7 +836,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                     </div>
                   </article>
                 );
-              })() : (
+              }) : (
                 <EmptyState icon={<CalendarDays size={22} />} title="No billed Cycles yet" description="A Cycle appears here only after billing has been saved for at least one Share." />
               )}
                 </section>
@@ -882,8 +881,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                     <button type="button" onClick={() => openShareWhatsApp(share,"report")} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-2 text-sm font-semibold text-emerald-800"><MessageCircle size={16}/> Report</button>
                     <button type="button" onClick={() => openShareWhatsApp(share,"reminder")} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-2 text-sm font-semibold text-white"><MessageCircle size={16}/> Reminder</button>
                     <button type="button" onClick={() => openPaymentModal(share)} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-sky-600 px-2 text-sm font-semibold text-white"><CreditCard size={16}/> Record Payment</button>
-                    <button type="button" onClick={() => openCycleBilling(share)} disabled={highestCycleNumber(selectedFund)<1 && !(selectedFund.number_of_cycles && selectedFund.number_of_cycles>0)} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-2 text-xs font-semibold text-violet-800 disabled:opacity-50"><CalendarDays size={14}/> Cycle billing</button>
-                    <button type="button" onClick={() => openPayoutModal(share)} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-2 text-xs font-semibold text-amber-800"><WalletCards size={14}/> {share.payout_status==="drawn"?"Edit payout":"Undrawn"}</button>
+                    <button type="button" onClick={() => openCycleBilling(share)} disabled={billedCycleNumbers().length >= MAX_CFCF_CYCLES} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-2 text-xs font-semibold text-violet-800 disabled:opacity-50"><CalendarDays size={14}/> Cycle billing</button>
+                    <button type="button" onClick={() => openPayoutModal(share)} disabled={billedCycleNumbers().length === 0} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-2 text-xs font-semibold text-amber-800 disabled:cursor-not-allowed disabled:opacity-50"><WalletCards size={14}/> {share.payout_status==="drawn"?"Edit payout":"Undrawn"}</button>
                   </div>
                 </article>;
               })}
@@ -1041,21 +1040,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         <form onSubmit={(event) => void handleSaveCycleBilling(event)} className="space-y-4">
           <div>
             <label htmlFor="cycle-billing-cycle" className="mb-1.5 block text-sm font-medium text-slate-700">Cycle</label>
-            <select
-              id="cycle-billing-cycle"
-              value={billingCycleNumber}
-              onChange={(event) => {
-                setBillingCycleNumber(event.target.value);
-                const saved = billingShare?.billing_entries?.[event.target.value];
-                setBillingAmount(typeof saved === "number" || typeof saved === "string" ? String(saved) : "");
-              }}
-              required
-              className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-            >
-              {Array.from({ length: Math.min(MAX_CFCF_CYCLES, Math.max(highestCycleNumber(selectedFund), Number(billingCycleNumber) || 1)) }, (_, index) => index + 1).map((cycle) => (
-                <option key={cycle} value={String(cycle)}>Cycle {cycle}{cycle === selectedFund?.current_cycle ? " · Current" : ""}</option>
-              ))}
-            </select>
+            <input id="cycle-billing-cycle" type="number" inputMode="numeric" min="1" max={MAX_CFCF_CYCLES} step="1" value={billingCycleNumber} onChange={(event) => { setBillingCycleNumber(event.target.value); const saved = billingShare?.billing_entries?.[event.target.value]; setBillingAmount(typeof saved === "number" || typeof saved === "string" ? String(saved) : ""); }} required className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100" />
+            <p className="mt-1 text-xs text-slate-500">Enter a Cycle number from 1–100. A new Cycle appears in navigation only after billing is saved.</p>
           </div>
           <div>
             <label htmlFor="cycle-billing-amount" className="mb-1.5 block text-sm font-medium text-slate-700">Billing amount (₹)</label>
