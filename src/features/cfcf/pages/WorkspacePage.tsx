@@ -8,7 +8,6 @@ import {
   ArrowUpRight,
   CalendarDays,
   ChevronLeft,
-  ChevronRight,
   RotateCcw,
   Pencil,
   CreditCard,
@@ -39,7 +38,6 @@ import {
   inspectCfcfFundFinancialSummary,
   setCfcfSharePayout,
   saveCfcfCycleValues,
-  updateCfcfPlannedCycleCount,
   updateCfcfFundDetails,
   type CfcfLedgerItem,
   type CfcfFinancialReconciliation,
@@ -135,8 +133,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [cycleCommissionInput, setCycleCommissionInput] = useState("");
   const [cycleEditError, setCycleEditError] = useState<string | null>(null);
   const [isSavingCycle, setIsSavingCycle] = useState(false);
-  const [plannedCycleInput, setPlannedCycleInput] = useState("");
-  const [isSavingPlannedCount, setIsSavingPlannedCount] = useState(false);
   const [billingShare, setBillingShare] = useState<CfcfShareRow | null>(null);
   const [billingCycleNumber, setBillingCycleNumber] = useState("1");
   const [billingAmount, setBillingAmount] = useState("");
@@ -176,7 +172,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   useEffect(() => {
     reconciliationRequestId.current += 1;
     setIsReconciling(false);
-    setPlannedCycleInput("");
     setShareSearch("");
     setShareFilter("all");
     setSelectedShareId(null);
@@ -494,49 +489,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     }
   }
 
-  async function handleSavePlannedCount() {
-    if (!selectedFund || isSavingPlannedCount) return;
-    const value = plannedCycleInput.trim() === "" ? null : Number(plannedCycleInput);
-    if (value !== null && (!Number.isSafeInteger(value) || value < 0 || value > MAX_CFCF_CYCLES)) {
-      setFundNotice("Planned Cycle count must be between 0 and 100.");
-      return;
-    }
-    setIsSavingPlannedCount(true);
-    try {
-      await updateCfcfPlannedCycleCount(workspace.tenantId, selectedFund.fund_id, value);
-      setFundNotice("Planned Cycle count updated. It does not limit additional Cycles.");
-      setFundReloadKey((n) => n + 1);
-    } catch (error) {
-      setFundNotice(error instanceof Error ? error.message : "Unable to update planned Cycle count.");
-    } finally {
-      setIsSavingPlannedCount(false);
-    }
-  }
-
-
-  async function handleSaveFundEdit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selectedFund || isSavingFundEdit) return;
-    const rawCount = fundEditForm.numberOfCycles.trim();
-    const count = rawCount === "" ? null : Number(rawCount);
-    if (count !== null && (!Number.isSafeInteger(count) || count < 0 || count > MAX_CFCF_CYCLES)) {
-      setFundEditError("Planned Cycle count must be between 0 and 100.");
-      return;
-    }
-    setIsSavingFundEdit(true);
-    setFundEditError(null);
-    try {
-      await updateCfcfFundDetails(workspace.tenantId, selectedFund.fund_id, { fundName: fundEditForm.fundName, startDate: fundEditForm.startDate || null, numberOfCycles: count });
-      setIsFundEditOpen(false);
-      setFundNotice("Fund details saved. Stored financial values were not changed.");
-      setFundReloadKey((n) => n + 1);
-    } catch (error) {
-      setFundEditError(error instanceof Error ? error.message : "Unable to save Fund details.");
-    } finally {
-      setIsSavingFundEdit(false);
-    }
-  }
-
   async function handleConfirmDelete() {
     if (!deleteTarget || isDeleting || deleteStep !== 3 || !deleteAcknowledged || deleteTypedId.trim() !== deleteTarget.id) return;
     setIsDeleting(true); setDeleteError(null);
@@ -708,7 +660,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       });
       setFunds((current) => [created, ...current].sort((a, b) => b.created_at.localeCompare(a.created_at)));
       setSelectedFundId(created.fund_id);
-      setActiveTab("funds");
+      setActiveTab("shares");
       setFundNotice("Fund created successfully. Its stored details are shown below.");
       setIsFundModalOpen(false);
       setFundForm(emptyFundForm);
@@ -717,12 +669,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     } finally {
       setIsSavingFund(false);
     }
-  }
-
-  function openFundTab(fundId: string, tab: WorkspaceTab) {
-    setSelectedFundId(fundId);
-    setSelectedShareId(null);
-    setActiveTab(tab);
   }
 
   const selectedLedger = useMemo(
