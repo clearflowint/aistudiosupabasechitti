@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { FolderPlus, Pencil, Trash2, UsersRound, Megaphone, MessageCircle, Mail, Smartphone, RefreshCw, CheckCircle2 } from "lucide-react";
 import { Modal } from "../../../components/ui/Modal";
 import type { AuthorizedWorkspace } from "../../../core/workspace/workspace.types";
-import type { CfcfContactRow } from "../types/database.types";
+import type { CfcfContactGroupMemberRow, CfcfContactGroupRow, CfcfContactRow } from "../types/database.types";
 import {
   addCfcfContactToGroup,
   createCfcfContactGroup,
@@ -17,8 +17,6 @@ import {
   renameCfcfContactGroup,
   type CfcfCampaignChannel,
   type CfcfCampaignDispatchReceipt,
-  type CfcfContactGroupMemberRow,
-  type CfcfContactGroupRow,
 } from "../services/contact-groups.service";
 
 interface ContactGroupsPanelProps {
