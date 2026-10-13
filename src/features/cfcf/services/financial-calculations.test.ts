@@ -154,13 +154,12 @@ test("rejects totals that exceed JavaScript's safe integer range", () => {
   );
 });
 
-test("rejects unsafe intermediate payment totals even if later debits would reduce them", () => {
-  assert.throws(
-    () => calculate([share({ billing_entries: {} })], [
-      payment({ amount: Number.MAX_SAFE_INTEGER }),
-      payment({ payment_id: "payment-2", amount: 1 }),
-      payment({ payment_id: "payment-3", entry_type: "debit", amount: 1 }),
-    ]),
-    /safe integer range/,
-  );
+test("preserves exact net payment totals when gross ledger sums exceed the safe range", () => {
+  const result = calculate([share({ billing_entries: {} })], [
+    payment({ amount: Number.MAX_SAFE_INTEGER }),
+    payment({ payment_id: "payment-2", amount: 1 }),
+    payment({ payment_id: "payment-3", entry_type: "debit", amount: 1 }),
+  ]);
+  assert.equal(result.shares[0].shareNetPaymentReceived, Number.MAX_SAFE_INTEGER);
+  assert.equal(result.shares[0].totalAdvance, Number.MAX_SAFE_INTEGER);
 });
