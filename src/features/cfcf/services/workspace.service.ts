@@ -286,8 +286,8 @@ export async function saveCfcfCycleValues(
 
 // CFCF PRODUCT: Planned cycle count remains editable descriptive setup data, not a limit.
 export async function updateCfcfPlannedCycleCount(tenantId: string, fundId: string, count: number | null): Promise<void> {
-  if (count !== null && (!Number.isSafeInteger(count) || count < 0 || count > 2147483647)) {
-    throw new Error("Planned Cycle count must be zero or a positive whole number.");
+  if (count !== null && (!Number.isSafeInteger(count) || count < 0 || count > MAX_CFCF_CYCLES)) {
+    throw new Error("Planned Cycle count must be between 0 and 100.");
   }
   const { error } = await supabase.from("cfcf_funds").update({ number_of_cycles: count, updated_at: new Date().toISOString() })
     .eq("product_id", cfcfConfig.productId).eq("tenant_id", tenantId).eq("fund_id", fundId);
