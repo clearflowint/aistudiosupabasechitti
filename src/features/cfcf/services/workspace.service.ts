@@ -227,3 +227,58 @@ export async function setCfcfSharePayout(
     throw new Error("Unable to update Share payout: " + error.message);
   }
 }
+
+
+// CFCF PRODUCT: Cycle payout and commission are manager-entered stored values, not calculated transactions.
+export async function saveCfcfCycleValues(
+  tenantId: string,
+  fundId: string,
+  cycleNumber: number,
+  payoutAmount: number | null,
+  commissionAmount: number | null,
+): Promise<void> {
+  if (!Number.isSafeInteger(cycleNumber) || cycleNumber < 1 || cycleNumber > 500) {
+    throw new Error("Cycle number must be between 1 and 500.");
+  }
+  for (const [label, value] of [["Payout amount", payoutAmount], ["Commission", commissionAmount]] as const) {
+    if (value !== null && (!Number.isSafeInteger(value) || value < 0 || value > 2147483647)) {
+      throw new Error(label + " must be a whole rupee amount or left blank.");
+    }
+  }
+  const { data: fund, error: readError } = await supabase
+    .from("cfcf_funds")
+    .select("cycle_payout_amounts, cycle_commissions, current_cycle")
+    .eq("product_id", cfcfConfig.productId)
+    .eq("tenant_id", tenantId)
+    .eq("fund_id", fundId)
+    .single();
+  if (readError || !fund) throw new Error("Unable to load Cycle values: " + (readError?.message ?? "Fund not found."));
+  const payouts = Array.isArray(fund.cycle_payout_amounts) ? [...fund.cycle_payout_amounts] as unknown[] : [];
+  const commissions = Array.isArray(fund.cycle_commissions) ? [...fund.cycle_commissions] as unknown[] : [];
+  while (payouts.length < cycleNumber) payouts.push(null);
+  while (commissions.length < cycleNumber) commissions.push(null);
+  payouts[cycleNumber - 1] = payoutAmount;
+  commissions[cycleNumber - 1] = commissionAmount;
+  const { error } = await supabase
+    .from("cfcf_funds")
+    .update({
+      cycle_payout_amounts: payouts,
+      cycle_commissions: commissions,
+      current_cycle: Math.max(fund.current_cycle ?? 0, cycleNumber),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("product_id", cfcfConfig.productId)
+    .eq("tenant_id", tenantId)
+    .eq("fund_id", fundId);
+  if (error) throw new Error("Unable to save Cycle values: " + error.message);
+}
+
+// CFCF PRODUCT: Planned cycle count remains editable descriptive setup data, not a limit.
+export async function updateCfcfPlannedCycleCount(tenantId: string, fundId: string, count: number | null): Promise<void> {
+  if (count !== null && (!Number.isSafeInteger(count) || count < 0 || count > 2147483647)) {
+    throw new Error("Planned Cycle count must be zero or a positive whole number.");
+  }
+  const { error } = await supabase.from("cfcf_funds").update({ number_of_cycles: count, updated_at: new Date().toISOString() })
+    .eq("product_id", cfcfConfig.productId).eq("tenant_id", tenantId).eq("fund_id", fundId);
+  if (error) throw new Error("Unable to update planned Cycle count: " + error.message);
+}
