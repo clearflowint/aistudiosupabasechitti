@@ -632,8 +632,18 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Selected fund</p>
                 <h3 className="mt-1 break-words text-lg font-semibold text-slate-900">{selectedFund.fund_name}</h3>
                 <p className="mt-1 text-sm text-slate-500">
-                  Cycle cards display the values stored on the fund record; no payout or commission is calculated here.
+                  Cycle payout and commission are manually stored values. Planned Cycle count is editable and never blocks additional Cycles.
                 </p>
+                <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
+                  <label className="min-w-0">
+                    <span className="mb-1 block text-xs font-semibold text-slate-600">Planned Cycle count</span>
+                    <input type="number" min="0" step="1" value={plannedCycleInput || String(selectedFund.number_of_cycles ?? "")} onChange={(event) => setPlannedCycleInput(event.target.value)} placeholder="Optional" className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm" />
+                  </label>
+                  <button type="button" disabled={isSavingPlannedCount} onClick={() => void handleSavePlannedCount()} className="self-end min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 disabled:opacity-50">{isSavingPlannedCount ? "Saving…" : "Save count"}</button>
+                </div>
+                <button type="button" onClick={() => openCycleEditor(highestCycleNumber(selectedFund) + 1)} disabled={highestCycleNumber(selectedFund) >= 500} className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-sky-600 px-3 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-50">
+                  <Plus size={16} /> Create next Cycle
+                </button>
               </section>
               {highestCycleNumber(selectedFund) > 0 ? (() => {
                 const cycleNumber = highestCycleNumber(selectedFund);
@@ -652,24 +662,16 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                       <StoredValue label="Stored payout" value={displayStoredAmount(payout)} />
                       <StoredValue label="Stored commission" value={displayStoredAmount(commission)} />
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab("shares")}
-                      className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                    >
-                      View fund shares <ChevronRight size={16} />
-                    </button>
+                    <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <button type="button" onClick={() => openCycleEditor(cycleNumber)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-sky-600 px-3 text-sm font-semibold text-white hover:bg-sky-700">Edit Cycle values</button>
+                      <button type="button" onClick={() => setActiveTab("shares")} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">View fund shares <ChevronRight size={16} /></button>
+                    </div>
                   </article>
                 );
               })() : (
                 <EmptyState icon={<CalendarDays size={22} />} title="No cycles recorded yet" description="Cycle cards will appear as cycle data is recorded for this Fund." />
               )}
-              {(selectedFund.number_of_cycles ?? 0) > 500 && (
-                <p className="rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-800">
-                  Showing the first 500 configured cycles for this screen. The saved cycle count is unchanged.
-                </p>
-              )}
-            </section>
+                </section>
           )}
 
           {activeTab === "shares" && (
@@ -876,6 +878,30 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       ) : null}
 
       <Modal
+        isOpen={cycleEditNumber !== null}
+        title={cycleEditNumber !== null && cycleEditNumber > highestCycleNumber(selectedFund) ? "Create Cycle " + cycleEditNumber : "Edit Cycle " + cycleEditNumber}
+        description="Enter the payout and commission values to store for this Cycle. These are manual values, not payment transactions."
+        onClose={() => { if (!isSavingCycle) { setCycleEditNumber(null); setCycleEditError(null); } }}
+      >
+        <form onSubmit={(event) => void handleSaveCycleValues(event)} className="space-y-4">
+          <div className="rounded-xl bg-slate-50 p-3 text-sm font-semibold text-slate-700">Cycle {cycleEditNumber ?? ""}</div>
+          <div>
+            <label htmlFor="cycle-edit-payout" className="mb-1.5 block text-sm font-medium text-slate-700">Payout amount (₹)</label>
+            <input id="cycle-edit-payout" type="number" min="0" max="2147483647" step="1" value={cyclePayoutInput} onChange={(event) => setCyclePayoutInput(event.target.value)} placeholder="Leave blank if not entered" className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm" />
+          </div>
+          <div>
+            <label htmlFor="cycle-edit-commission" className="mb-1.5 block text-sm font-medium text-slate-700">Commission (₹)</label>
+            <input id="cycle-edit-commission" type="number" min="0" max="2147483647" step="1" value={cycleCommissionInput} onChange={(event) => setCycleCommissionInput(event.target.value)} placeholder="Leave blank if not entered" className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm" />
+          </div>
+          {cycleEditError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{cycleEditError}</div>}
+          <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+            <button type="button" onClick={() => setCycleEditNumber(null)} disabled={isSavingCycle} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button>
+            <button type="submit" disabled={isSavingCycle} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingCycle ? "Saving…" : "Save Cycle"}</button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
         isOpen={Boolean(payoutShare)}
         title="Update Share payout"
         description="Select the Cycle and review its stored payout amount. This changes payout status only; record actual money separately under Payments."
@@ -995,7 +1021,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3">
             <div className="min-w-0">
               <label htmlFor="fund-cycle-count" className="mb-1.5 block text-sm font-medium text-slate-700">Cycle count</label>
               <input
@@ -1006,20 +1032,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                 step="1"
                 value={fundForm.numberOfCycles}
                 onChange={(event) => setFundForm((current) => ({ ...current, numberOfCycles: event.target.value }))}
-                placeholder="Optional"
-                className="min-h-11 w-full min-w-0 rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-              />
-            </div>
-            <div className="min-w-0">
-              <label htmlFor="fund-share-count" className="mb-1.5 block text-sm font-medium text-slate-700">Share count</label>
-              <input
-                id="fund-share-count"
-                type="number"
-                inputMode="numeric"
-                min="1"
-                step="1"
-                value={fundForm.numberOfShares}
-                onChange={(event) => setFundForm((current) => ({ ...current, numberOfShares: event.target.value }))}
                 placeholder="Optional"
                 className="min-h-11 w-full min-w-0 rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
               />
