@@ -40,7 +40,7 @@ export function Modal({
   const panelWidth = size === "large" ? "max-w-2xl" : "max-w-lg";
 
   return (
-    <div className="fixed inset-0 z-[100] grid place-items-center overflow-y-auto p-4 sm:p-6">
+    <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto px-3 py-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:items-center sm:p-6">
       <button
         type="button"
         aria-label="Close dialog"
@@ -53,7 +53,7 @@ export function Modal({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
-        className={"relative z-10 w-full " + panelWidth + " overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-950/25"}
+        className={"relative z-10 my-auto max-h-[calc(100dvh-1.5rem)] w-full overflow-y-auto overscroll-contain " + panelWidth + " rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-950/25 sm:max-h-[calc(100dvh-3rem)]"}
       >
         <header className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 sm:px-6">
           <div>

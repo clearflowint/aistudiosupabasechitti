@@ -139,16 +139,19 @@ export async function addCfcfContactToGroup(
   groupId: string,
   contactId: string,
 ): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("contact_group_members")
     .upsert({
       group_id: groupId,
       contact_id: contactId,
       product_id: cfcfConfig.productId,
       tenant_id: tenantId,
-    }, { onConflict: "group_id,contact_id", ignoreDuplicates: true });
+    }, { onConflict: "group_id,contact_id" })
+    .select("group_id, contact_id, product_id, tenant_id, created_at")
+    .single();
 
   if (error) throw new Error("Unable to add Contact to group: " + error.message);
+  if (!data) throw new Error("Supabase did not return the saved Contact Group membership.");
 }
 
 export async function removeCfcfContactFromGroup(
@@ -156,15 +159,18 @@ export async function removeCfcfContactFromGroup(
   groupId: string,
   contactId: string,
 ): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("contact_group_members")
     .delete()
     .eq("product_id", cfcfConfig.productId)
     .eq("tenant_id", tenantId)
     .eq("group_id", groupId)
-    .eq("contact_id", contactId);
+    .eq("contact_id", contactId)
+    .select("group_id, contact_id")
+    .maybeSingle();
 
   if (error) throw new Error("Unable to remove Contact from group: " + error.message);
+  if (!data) throw new Error("The Contact Group membership was not found or could not be confirmed as deleted.");
 }
 
 /**

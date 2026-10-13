@@ -1,10 +1,9 @@
 // CFCF PRODUCT: Defines CFCF's navigation, authorization, and product-specific page ownership.
 // MIX: Implements the universal product contract; the shared shell knows only neutral navigation and authorized identity.
 
-import { ContactRound, LayoutDashboard, WalletCards } from "lucide-react";
+import { LayoutDashboard, WalletCards } from "lucide-react";
 import type { ProductDefinition } from "../../core/products/product.types";
 import { FeatureModulePage } from "../../components/workspace/FeatureModulePage";
-import { ContactsPage } from "./pages/ContactsPage";
 import { WorkspacePage } from "./pages/WorkspacePage";
 import { NotificationsPanel } from "./pages/NotificationsPanel";
 import { resolveCfcfWorkspace } from "./services/access.service";
@@ -22,12 +21,6 @@ export const cfcfProduct: ProductDefinition = {
       isHome: true,
     },
     {
-      id: "crm",
-      label: "CRM",
-      description: "Find and manage contacts",
-      icon: ContactRound,
-    },
-    {
       id: "workspace",
       label: "Workspace",
       description: "Funds, cycles, shares, and ledger",
@@ -38,7 +31,6 @@ export const cfcfProduct: ProductDefinition = {
   renderNotifications: (workspace) => <NotificationsPanel workspace={workspace} />,
   // MIX: Only the product adapter maps neutral navigation IDs to product screens.
   renderPage: (navigationItem, workspace) => {
-    if (navigationItem.id === "crm") return <ContactsPage workspace={workspace} />;
     if (navigationItem.id === "workspace") return <WorkspacePage workspace={workspace} />;
     return <FeatureModulePage navigationItem={navigationItem} workspace={workspace} />;
   },
