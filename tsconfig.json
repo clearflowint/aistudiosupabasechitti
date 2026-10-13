@@ -26,5 +26,8 @@
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true
-  }
+  },
+  "exclude": [
+    "supabase/functions/**"
+  ]
 }
