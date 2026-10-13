@@ -159,7 +159,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     [funds, selectedFundId],
   );
 
-  // CFCF PRODUCT: Clear Fund-specific filters and unsaved form inputs when switching Funds.
+  // CFCF PRODUCT: Clear Fund-specific filters, unsaved inputs, and open financial modals on Fund/tenant changes.
+  // This prevents a modal opened for one Fund from being accidentally submitted against another selected Fund.
   useEffect(() => {
     setPlannedCycleInput("");
     setShareSearch("");
@@ -167,7 +168,16 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     setSelectedShareId(null);
     setFinancialReconciliation(null);
     setReconciliationError(null);
-  }, [selectedFundId]);
+    setPaymentShare(null);
+    setBillingShare(null);
+    setPayoutShare(null);
+    setIsFundEntryModalOpen(false);
+    setCycleEditNumber(null);
+    setPaymentError(null);
+    setBillingError(null);
+    setPayoutError(null);
+    setFundEntryError(null);
+  }, [selectedFundId, workspace.tenantId]);
 
 
   // MIX: Discard previous-tenant data and ignore stale responses after a tenant switch.
