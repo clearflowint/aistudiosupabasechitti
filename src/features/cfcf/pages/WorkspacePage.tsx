@@ -1493,7 +1493,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             ) : <span />}
             <div className="flex gap-2">
               <button type="button" onClick={() => setPayoutShare(null)} disabled={isSavingPayout} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button>
-              <button type="submit" disabled={isSavingPayout || savedCycleNumbers().length === 0} className="min-h-11 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingPayout ? "Saving…" : "Save drawn status"}</button>
+              <button type="submit" disabled={isSavingPayout || savedCycleNumbers().length === 0} className="min-h-11 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingPayout ? <><RefreshCw size={16} className="animate-spin" /> Waiting for Supabase…</> : "Save drawn status"}</button>
             </div>
           </div>
         </form>
@@ -1543,7 +1543,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           {billingError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm leading-5 text-rose-800">{billingError}</div>}
           <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
             <button type="button" onClick={() => setBillingShare(null)} disabled={isSavingBilling} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">Close</button>
-            {!billingEditEnabled ? <button type="button" disabled={savedCycleNumbers().length === 0} onClick={() => { setBillingEditEnabled(true); setBillingError(null); }} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">Edit bill</button> : <button type="submit" disabled={isSavingBilling || savedCycleNumbers().length === 0} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"><CalendarDays size={16} /> {isSavingBilling ? "Saving…" : "Save bill"}</button>}
+            {!billingEditEnabled ? <button type="button" disabled={savedCycleNumbers().length === 0} onClick={() => { setBillingEditEnabled(true); setBillingError(null); }} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">Edit bill</button> : <button type="submit" disabled={isSavingBilling || savedCycleNumbers().length === 0 || !billingAmount.trim() || !Number.isSafeInteger(Number(billingAmount)) || Number(billingAmount) < 0 || Number(billingAmount) > 2147483647} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"><CalendarDays size={16} /> {isSavingBilling ? <><RefreshCw size={16} className="animate-spin" /> Waiting for Supabase…</> : "Save bill"}</button>}
           </div>
         </form>
       </Modal>
@@ -1793,7 +1793,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           <label className="block text-sm font-medium text-slate-700">Start date<input type="date" value={fundEditForm.startDate} onChange={(event) => setFundEditForm((v) => ({ ...v, startDate: event.target.value }))} className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm"/></label>
           <label className="block text-sm font-medium text-slate-700">Planned Cycle count<input type="number" min="0" max={MAX_CFCF_CYCLES} step="1" value={fundEditForm.numberOfCycles} onChange={(event) => setFundEditForm((v) => ({ ...v, numberOfCycles: event.target.value }))} placeholder="Optional" className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm"/></label>
           {fundEditError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{fundEditError}</p>}
-          <div className="flex justify-end gap-2 border-t border-slate-100 pt-3"><button type="button" onClick={() => setIsFundEditOpen(false)} disabled={isSavingFundEdit} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button><button type="submit" disabled={isSavingFundEdit} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingFundEdit ? "Saving…" : "Save details"}</button></div>
+          <div className="flex justify-end gap-2 border-t border-slate-100 pt-3"><button type="button" onClick={() => setIsFundEditOpen(false)} disabled={isSavingFundEdit} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button><button type="submit" disabled={isSavingFundEdit || !fundEditForm.fundName.trim() || (fundEditForm.numberOfCycles.trim() !== "" && (!Number.isSafeInteger(Number(fundEditForm.numberOfCycles)) || Number(fundEditForm.numberOfCycles) < 0 || Number(fundEditForm.numberOfCycles) > MAX_CFCF_CYCLES))} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingFundEdit ? <><RefreshCw size={16} className="animate-spin" /> Waiting for Supabase…</> : "Save details"}</button></div>
         </form>
       </Modal>
 
@@ -1855,7 +1855,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             <button type="button" onClick={closeFundModal} disabled={isSavingFund} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
               Cancel
             </button>
-            <button type="submit" disabled={isSavingFund} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60">
+            <button type="submit" disabled={isSavingFund || !fundForm.fundName.trim() || (fundForm.numberOfCycles.trim() !== "" && (!Number.isSafeInteger(Number(fundForm.numberOfCycles)) || Number(fundForm.numberOfCycles) < 1 || Number(fundForm.numberOfCycles) > MAX_CFCF_CYCLES))} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60">
               <Plus size={16} /> {isSavingFund ? "Saving…" : "Save fund"}
             </button>
           </div>
