@@ -176,6 +176,27 @@ export interface CfcfLedgerItem {
   adjustmentCategory: string | null;
 }
 
+export interface CfcfFundOtherAdjustmentSummary {
+  entry_count: number;
+  total_credits: number;
+  total_debits: number;
+  net_adjustments: number;
+}
+
+export async function getCfcfFundOtherAdjustmentSummary(
+  tenantId: string,
+  fundId: string,
+): Promise<CfcfFundOtherAdjustmentSummary> {
+  const { data, error } = await supabase.rpc("cfcf_get_fund_other_adjustment_summary", {
+    p_tenant_id: tenantId,
+    p_fund_id: fundId,
+  });
+  if (error) throw new Error("Unable to load Other Adjustments summary: " + error.message);
+  const result = data as CfcfFundOtherAdjustmentSummary | null;
+  if (!result) throw new Error("Other Adjustments summary was not returned.");
+  return result;
+}
+
 export async function listCfcfLedgerItems(
   tenantId: string,
   fundId: string,
