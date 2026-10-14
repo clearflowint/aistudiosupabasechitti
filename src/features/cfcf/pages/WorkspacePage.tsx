@@ -1828,14 +1828,14 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             <LoadingCard message="Loading ledger entries…" />
           ) : detailsError ? (
             <ErrorCard message={detailsError} onRetry={() => setDetailReloadKey((current) => current + 1)} />
-          ) : selectedLedger.length === 0 ? (
+          ) : ledgerItems.length === 0 ? (
             <EmptyState
               icon={<CreditCard size={22} />}
-              title={selectedShareId ? "No ledger entries for this Share" : "No ledger entries yet"}
+              title={"No ledger entries yet"}
               description="Recorded payment rows and Fund adjustments will appear here."
             />
           ) : (
-            [...selectedLedger]
+            [...ledgerItems]
               .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
               .slice(0, 40)
               .map((item) => (
@@ -1867,7 +1867,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                 </article>
               ))
           )}
-          {!isLoadingDetails && !detailsError && selectedLedger.length > 40 && (
+          {!isLoadingDetails && !detailsError && ledgerItems.length > 40 && (
             <p className="text-center text-xs text-slate-500">Showing 40 of {selectedLedger.length} records.</p>
           )}
           <div className="border-t border-slate-100 pt-3">
