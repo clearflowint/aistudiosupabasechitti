@@ -19,6 +19,8 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
   const [contacts, setContacts] = useState<CfcfContactRow[]>([]);
   const [shareholderContactIds, setShareholderContactIds] = useState<Set<string>>(() => new Set());
   const contactsRequestId = useRef(0);
+  const savingContactRef = useRef(false);
+  const deletingContactRef = useRef(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -117,11 +119,12 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
   }
 
   async function handleDeleteContact() {
-    if (!deletingContact || isDeleting) return;
+    if (!deletingContact || isDeleting || deletingContactRef.current) return;
     if (shareholderContactIds.has(deletingContact.contact_id)) {
       setDeleteError("This contact is a Shareholder because they have one or more Shares. Deletion is disabled.");
       return;
     }
+    deletingContactRef.current = true;
     setDeleteError(null);
     setIsDeleting(true);
     try {
@@ -133,6 +136,7 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
     } catch (error) {
       setDeleteError(error instanceof Error ? error.message : "Unable to delete contact.");
     } finally {
+      deletingContactRef.current = false;
       setIsDeleting(false);
     }
   }
@@ -197,6 +201,18 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
 
   async function handleSaveContact(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (savingContactRef.current || isSaving) return;
+    const digits = form.phone.replace(/\D/g, "");
+    const normalizedDigits = digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits.length === 11 && digits.startsWith("0") ? digits.slice(1) : digits;
+    if (!form.name.trim() || !/^[6-9]\d{9}$/.test(normalizedDigits)) {
+      setFormError(!form.name.trim() ? "Enter the contact's name." : "Enter a valid 10-digit Indian mobile number.");
+      return;
+    }
+    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      setFormError("Enter a valid email address or leave it blank.");
+      return;
+    }
+    savingContactRef.current = true;
     setFormError(null);
     setIsSaving(true);
 
@@ -223,6 +239,7 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Unable to add contact.");
     } finally {
+      savingContactRef.current = false;
       setIsSaving(false);
     }
   }
@@ -468,7 +485,7 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
             <button type="button" onClick={closeModal} disabled={isSaving} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
               Cancel
             </button>
-            <button type="submit" disabled={isSaving} className="inline-flex items-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60">
+            <button type="submit" disabled={isSaving || !form.name.trim() || !/^[6-9]\\d{9}$/.test(form.phone.replace(/\\D/g, "").replace(/^91(?=\\d{10}$)/, "").replace(/^0(?=\\d{10}$)/, ""))} className="inline-flex items-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60">
               {editingContact ? <Pencil size={16} /> : <Plus size={16} />} {isSaving ? <><RefreshCw size={16} className="animate-spin" /> Waiting for Supabase…</> : editingContact ? "Save changes" : "Save contact"}
             </button>
           </div>
