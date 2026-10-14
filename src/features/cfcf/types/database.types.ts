@@ -80,8 +80,6 @@ export interface CfcfShareRow {
   fund_id: string;
   person_id: string;
   contact_id: string;
-  billing_entries: Record<string, unknown>;
-  billing_entry_dates: Record<string, string>;
   share_total_billed_amount: number;
   share_net_payment_received: number;
   total_pending: number;
@@ -92,6 +90,45 @@ export interface CfcfShareRow {
   status: ActiveRecordStatus;
   created_at: string;
   updated_at: string;
+}
+
+export interface CfcfCycleRow {
+  cycle_id: number;
+  product_id: CfcfProductId;
+  tenant_id: string;
+  fund_id: string;
+  cycle_number: number;
+  planned_payout_amount: number | null;
+  commission_amount: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CfcfBillRow {
+  bill_id: number;
+  product_id: CfcfProductId;
+  tenant_id: string;
+  fund_id: string;
+  cycle_id: number;
+  share_id: string;
+  amount: number;
+  bill_date: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CfcfActivityLogRow {
+  action_id: number;
+  product_id: CfcfProductId;
+  tenant_id: string;
+  actor_person_id: string | null;
+  action_type: string;
+  entity_type: string;
+  entity_id: string | null;
+  description: string;
+  before_data: Record<string, unknown> | null;
+  after_data: Record<string, unknown> | null;
+  created_at: string;
 }
 
 export interface CfcfPaymentRow {
