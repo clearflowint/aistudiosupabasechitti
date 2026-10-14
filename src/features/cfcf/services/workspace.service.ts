@@ -277,17 +277,28 @@ export async function recordCfcfCycleBilling(
   // as bulk billing. Read the saved Cycle and all of its bills, replace only
   // the selected Share's amount, and send the complete Cycle bill set so no
   // other Share's bill can be deleted by the bulk-save semantics.
-  const [cycles, bills] = await Promise.all([
+  const [cycles, bills, shares] = await Promise.all([
     listCfcfCycles(tenantId, fundId),
     listCfcfBills(tenantId, fundId),
+    listCfcfShares(tenantId, fundId),
   ]);
   const cycle = cycles.find((row) => row.cycle_number === cycleNumber);
   if (!cycle) throw new Error("Cycle not found. Add the Cycle first.");
+  if (!shares.some((share) => share.share_id === shareId && share.status === "active")) {
+    throw new Error("This Share is not active in the selected Fund.");
+  }
 
-  const cycleBills = bills
-    .filter((bill) => bill.cycle_id === cycle.cycle_id && bill.share_id !== shareId)
-    .map((bill) => ({ share_id: bill.share_id, amount: bill.amount }));
-  cycleBills.push({ share_id: shareId, amount });
+  // The RPC requires a bill row for every active Share. Preserve every other
+  // Share's saved amount and use zero for a legacy Cycle that predates default bills.
+  const existingByShare = new Map(
+    bills.filter((bill) => bill.cycle_id === cycle.cycle_id).map((bill) => [bill.share_id, bill.amount]),
+  );
+  const cycleBills = shares
+    .filter((share) => share.status === "active")
+    .map((share) => ({
+      share_id: share.share_id,
+      amount: share.share_id === shareId ? amount : (existingByShare.get(share.share_id) ?? 0),
+    }));
 
   await saveCfcfCycleWorkspace(
     tenantId,
