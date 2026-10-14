@@ -42,17 +42,12 @@ export default function App() {
     }
   }, [activePageId]);
 
-  // SKELETON: Restore the shared Supabase session and react to sign-in/sign-out events.
+  // SKELETON: Resolve the persisted session before allowing the sign-in screen to render.
+  // Supabase emits the initial auth event asynchronously; subscribing first avoids a flash
+  // of the landing page while getSession() restores a valid persisted session.
   useEffect(() => {
     let isMounted = true;
-
-    void authService.getCurrentUser().then((currentUser) => {
-      if (!isMounted) return;
-      authenticatedEmailRef.current = currentUser?.email?.toLowerCase() ?? null;
-      setUser(currentUser);
-    }).finally(() => {
-      if (isMounted) setIsLoadingWorkspace(false);
-    });
+    let initialSessionResolved = false;
 
     const { data } = authService.onAuthStateChange((_event, currentUser) => {
       if (!isMounted) return;
@@ -70,6 +65,25 @@ export default function App() {
         }
       }
       setUser(currentUser);
+      if (!initialSessionResolved) {
+        initialSessionResolved = true;
+        setIsLoadingWorkspace(false);
+      }
+    });
+
+    void authService.getCurrentUser().then((currentUser) => {
+      if (!isMounted) return;
+      // The auth event may have already supplied a newer session; don't overwrite it with this snapshot.
+      if (!initialSessionResolved) {
+        authenticatedEmailRef.current = currentUser?.email?.toLowerCase() ?? null;
+        setUser(currentUser);
+        initialSessionResolved = true;
+        setIsLoadingWorkspace(false);
+      }
+    }).catch(() => {
+      if (!isMounted) return;
+      // Don't flash sign-in on a transient lookup failure. Keep the restoring screen until
+      // Supabase reports an auth state or a subsequent retry resolves the session.
     });
 
     return () => {
