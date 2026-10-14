@@ -1144,7 +1144,29 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               {cycleError && <p role="alert" className="mt-2 text-sm text-rose-700">{cycleError}</p>}
             </article>; })()}
             <button type="button" disabled={isCycleBusy} onClick={async () => { setIsCycleBusy(true); setCycleError(null); try { const row = await addCfcfCycle(workspace.tenantId, selectedFund.fund_id); const savedBills = await listCfcfBills(workspace.tenantId, selectedFund.fund_id); setBills(savedBills); setCycleRows((rows) => [...rows, row].sort((a,b)=>a.cycle_number-b.cycle_number)); setSelectedCycleNumber(row.cycle_number); } catch (e) { setCycleError(e instanceof Error ? e.message : "Unable to add Cycle."); } finally { setIsCycleBusy(false); } }} className="min-h-12 w-full rounded-xl border border-violet-600 bg-violet-700 px-3 text-base font-bold text-white shadow-sm active:bg-violet-800 disabled:opacity-60">{isCycleBusy ? "Working…" : `Add Cycle ${Math.max(0,...cycleRows.map((row)=>row.cycle_number),...billedCycleNumbers())+1}`}</button>
-            
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                disabled
+                title="Disabled until the n8n reminder workflow is configured."
+                aria-label="Send pending reminder to all shares (disabled)"
+                className="inline-flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-2 py-2 text-center text-xs font-bold leading-4 text-amber-900 opacity-60 cursor-not-allowed"
+              >
+                <MessageCircle size={16} className="shrink-0" />
+                <span>Send Pending Reminder to All</span>
+              </button>
+              <button
+                type="button"
+                disabled
+                title="Disabled until the n8n report workflow is configured."
+                aria-label="Send report to all shares (disabled)"
+                className="inline-flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-sky-300 bg-sky-50 px-2 py-2 text-center text-xs font-bold leading-4 text-sky-900 opacity-60 cursor-not-allowed"
+              >
+                <FileText size={16} className="shrink-0" />
+                <span>Send Report to All</span>
+              </button>
+            </div>
+            <p className="text-center text-xs text-slate-500">Bulk WhatsApp automation is disabled until the n8n webhook is configured.</p>
             </div>
           </section>
 
