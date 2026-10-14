@@ -25,7 +25,7 @@ export const authService = {
     callback: (event: string, user: User | null) => void,
   ) {
     return supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "USER_UPDATED") {
+      if (event === "INITIAL_SESSION" || event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "USER_UPDATED") {
         callback(event, session?.user ?? null);
       }
     });
