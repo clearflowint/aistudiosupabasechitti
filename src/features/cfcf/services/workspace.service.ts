@@ -32,6 +32,21 @@ export async function listCfcfCycles(tenantId: string, fundId: string): Promise<
   return (data ?? []) as CfcfCycleRow[];
 }
 
+export interface CfcfCycleSummary {
+  cycle_number: number;
+  total_billed: number;
+  billed_shares: number;
+  not_billed_shares: number;
+  total_paid_out: number;
+  withdrawn_shares: Array<{ share_id: string; contact_id: string; contact_name: string | null; withdrawn_amount: number }>;
+}
+
+export async function getCfcfCycleSummary(tenantId: string, fundId: string, cycleNumber: number): Promise<CfcfCycleSummary> {
+  const { data, error } = await supabase.rpc("cfcf_get_cycle_summary", { p_tenant_id: tenantId, p_fund_id: fundId, p_cycle_number: cycleNumber });
+  if (error) throw new Error("Unable to load Cycle statement: " + error.message);
+  return data as CfcfCycleSummary;
+}
+
 export async function addCfcfCycle(tenantId: string, fundId: string): Promise<CfcfCycleRow> {
   const { data, error } = await supabase.rpc("cfcf_add_cycle", { p_tenant_id: tenantId, p_fund_id: fundId });
   if (error) throw new Error("Unable to add Cycle: " + error.message);
