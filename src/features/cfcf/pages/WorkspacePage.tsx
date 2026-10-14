@@ -237,13 +237,9 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   // CFCF PRODUCT: Clear Fund-specific filters, unsaved inputs, and open financial modals on Fund/tenant changes.
   // This prevents a modal opened for one Fund from being accidentally submitted against another selected Fund.
   useEffect(() => {
-    reconciliationRequestId.current += 1;
-    setIsReconciling(false);
     setShareSearch("");
     setShareFilter("all");
     setSelectedShareId(null);
-    setFinancialReconciliation(null);
-    setReconciliationError(null);
     setPaymentShare(null);
     setBillingShare(null);
     setPayoutShare(null);
