@@ -172,8 +172,16 @@ BEGIN
     WHEN 'contacts' THEN 'contact'
     ELSE TG_TABLE_NAME
   END;
-  v_entity_id := COALESCE(v_row ->> 'fund_id', v_row ->> 'cycle_id', v_row ->> 'bill_id',
-    v_row ->> 'share_id', v_row ->> 'payment_id', v_row ->> 'entry_id', v_row ->> 'contact_id');
+  v_entity_id := CASE TG_TABLE_NAME
+    WHEN 'cfcf_funds' THEN v_row ->> 'fund_id'
+    WHEN 'cfcf_cycles' THEN v_row ->> 'cycle_id'
+    WHEN 'cfcf_bills' THEN v_row ->> 'bill_id'
+    WHEN 'cfcf_shares' THEN v_row ->> 'share_id'
+    WHEN 'cfcf_payments' THEN v_row ->> 'payment_id'
+    WHEN 'cfcf_fund_other_entries' THEN v_row ->> 'entry_id'
+    WHEN 'contacts' THEN v_row ->> 'contact_id'
+    ELSE COALESCE(v_row ->> 'id', v_row ->> 'entity_id')
+  END;
   v_action := lower(v_entity_type || '_' || TG_OP);
   SELECT p.person_id INTO v_actor_person_id
   FROM public.persons p
@@ -197,7 +205,8 @@ BEGIN
       ORDER BY keep.created_at DESC, keep.action_id DESC
       LIMIT 500
     );
-  RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+  IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+  RETURN NEW;
 END;
 $function$;
 
