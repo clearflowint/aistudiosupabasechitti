@@ -126,6 +126,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [isSavingPayment, setIsSavingPayment] = useState(false);
   const [paymentReview, setPaymentReview] = useState(false);
   const paymentRequestRef = useRef<string | null>(null);
+  const [isFundPaymentLedgerOpen, setIsFundPaymentLedgerOpen] = useState(false);
   const [isFundEntryModalOpen, setIsFundEntryModalOpen] = useState(false);
   const [fundEntryType, setFundEntryType] = useState<"credit" | "debit">("debit");
   const [fundEntryAmount, setFundEntryAmount] = useState("");
@@ -1220,65 +1221,16 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             </section>
           </section>
 
-          {true && (
-            <section id="cfcf-shares" className="space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h2 className="text-base font-semibold text-slate-900">Fund Ledger</h2>
-                  <p className="text-sm text-slate-500">Share Payments and Fund adjustments are separate records.</p>
-                </div>
-              </div>
-              {selectedShareId && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedShareId(null)}
-                  className="min-h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-sky-800"
-                >
-                  Show full fund ledger
-                </button>
-              )}
-              {isLoadingDetails ? (
-                <LoadingCard message="Loading ledger entries…" />
-              ) : detailsError ? (
-                <ErrorCard message={detailsError} onRetry={() => setDetailReloadKey((current) => current + 1)} />
-              ) : selectedLedger.length === 0 ? (
-                <EmptyState
-                  icon={<CreditCard size={22} />}
-                  title={selectedShareId ? "No ledger entries for this share" : "No ledger entries yet"}
-                  description="Recorded payment rows and fund entries will appear here. This view shows stored entries and does not recalculate balances."
-                />
-              ) : (
-                selectedLedger.map((item) => (
-                  <article key={item.id} className="flex min-w-0 items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                    <div className={[
-                      "grid h-10 w-10 shrink-0 place-items-center rounded-xl",
-                      item.entryType === "credit" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700",
-                    ].join(" ")}>
-                      {item.entryType === "credit" ? <ArrowDownLeft size={19} /> : <ArrowUpRight size={19} />}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex min-w-0 items-start justify-between gap-2">
-                        <h3 className="break-words text-sm font-semibold capitalize text-slate-900">
-                          {item.kind === "payment" ? "Payment" : "Fund entry"} · {item.entryType}
-                        </h3>
-                        <p className="shrink-0 text-sm font-bold text-slate-900">{formatINR(item.amount)}</p>
-                      </div>
-                      <p className="mt-1 break-words text-xs text-slate-500">
-                        {formatDate(item.date)}{item.paymentType ? " · " + item.paymentType : ""}
-                      </p>
-                      {item.kind === "payment" && item.shareId && (
-                        <p className="mt-2 break-words text-xs font-medium text-sky-800">
-                          Share {item.shareId}{(() => { const row = shares.find((share) => share.share_id === item.shareId); const contact = row ? contactById.get(row.contact_id) : undefined; return contact?.name ? " · " + contact.name : ""; })()}
-                        </p>
-                      )}
-                      {item.remarks && <p className="mt-2 break-words text-sm leading-5 text-slate-600">{item.remarks}</p>}
-                      <p className="mt-2 break-all text-[11px] text-slate-400">Entry ID · {item.id}</p>
-                    </div>
-                  </article>
-                ))
-              )}
-            </section>
-          )}
+          <section className="space-y-2">
+            <button
+              type="button"
+              onClick={() => setIsFundPaymentLedgerOpen(true)}
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 text-sm font-semibold text-sky-800 shadow-sm hover:bg-sky-100"
+            >
+              <CreditCard size={17} /> Fund Payment Record Ledger
+            </button>
+            <p className="text-center text-xs text-slate-500">Opens the 40 most recent payment and Fund adjustment records.</p>
+          </section>
           <section className="mt-5 rounded-2xl border-2 border-rose-200 bg-rose-50/60 p-4">
             <p className="text-xs font-bold uppercase tracking-wider text-rose-800">Danger Zone</p>
             <h3 className="mt-1 text-base font-semibold text-slate-900">Permanent deletion</h3>
@@ -1862,6 +1814,66 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             </button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        isOpen={isFundPaymentLedgerOpen}
+        title="Fund Payment Record Ledger"
+        description="Showing up to 40 recent stored records. Share Payments and Fund adjustments remain separate records."
+        onClose={() => setIsFundPaymentLedgerOpen(false)}
+        size="large"
+      >
+        <div className="space-y-3">
+          {isLoadingDetails ? (
+            <LoadingCard message="Loading ledger entries…" />
+          ) : detailsError ? (
+            <ErrorCard message={detailsError} onRetry={() => setDetailReloadKey((current) => current + 1)} />
+          ) : selectedLedger.length === 0 ? (
+            <EmptyState
+              icon={<CreditCard size={22} />}
+              title={selectedShareId ? "No ledger entries for this Share" : "No ledger entries yet"}
+              description="Recorded payment rows and Fund adjustments will appear here."
+            />
+          ) : (
+            [...selectedLedger]
+              .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
+              .slice(0, 40)
+              .map((item) => (
+                <article key={item.id} className="flex min-w-0 items-start gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                  <div className={[
+                    "grid h-9 w-9 shrink-0 place-items-center rounded-lg",
+                    item.entryType === "credit" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700",
+                  ].join(" ")}>
+                    {item.entryType === "credit" ? <ArrowDownLeft size={17} /> : <ArrowUpRight size={17} />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 items-start justify-between gap-2">
+                      <h3 className="break-words text-sm font-semibold capitalize text-slate-900">
+                        {item.kind === "payment" ? "Payment" : "Fund adjustment"} · {item.entryType}
+                      </h3>
+                      <p className="shrink-0 text-sm font-bold text-slate-900">{formatINR(item.amount)}</p>
+                    </div>
+                    <p className="mt-1 break-words text-xs text-slate-500">
+                      {formatDate(item.date)}{item.paymentType ? " · " + item.paymentType : ""}
+                    </p>
+                    {item.kind === "payment" && item.shareId && (
+                      <p className="mt-1 break-words text-xs font-medium text-sky-800">
+                        Share {item.shareId}{(() => { const row = shares.find((share) => share.share_id === item.shareId); const contact = row ? contactById.get(row.contact_id) : undefined; return contact?.name ? " · " + contact.name : ""; })()}
+                      </p>
+                    )}
+                    {item.remarks && <p className="mt-1 break-words text-sm leading-5 text-slate-600">{item.remarks}</p>}
+                    <p className="mt-1 break-all text-[10px] text-slate-400">Entry ID · {item.id}</p>
+                  </div>
+                </article>
+              ))
+          )}
+          {!isLoadingDetails && !detailsError && selectedLedger.length > 40 && (
+            <p className="text-center text-xs text-slate-500">Showing 40 of {selectedLedger.length} records.</p>
+          )}
+          <div className="border-t border-slate-100 pt-3">
+            <button type="button" onClick={() => setIsFundPaymentLedgerOpen(false)} className="min-h-11 w-full rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white">Close ledger</button>
+          </div>
+        </div>
       </Modal>
 
       <Modal
