@@ -22,7 +22,7 @@ BEGIN
   v_tenant_id := v_row->>'tenant_id';
 
   IF v_tenant_id IS NULL OR COALESCE(v_row->>'product_id','CFCF') <> 'CFCF' THEN
-    RETURN COALESCE(NEW,OLD);
+    IF TG_OP='DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
   END IF;
 
   IF TG_TABLE_NAME='cfcf_shares' THEN
@@ -42,7 +42,7 @@ BEGIN
   ELSIF TG_TABLE_NAME='cfcf_payments' THEN
     v_entity_type := 'shareholder_payment';
   ELSE
-    RETURN COALESCE(NEW,OLD);
+    IF TG_OP='DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
   END IF;
 
   v_entity_id := COALESCE(v_row->>'cycle_id',v_row->>'bill_id',v_row->>'payment_id',v_row->>'share_id');
@@ -85,7 +85,7 @@ BEGIN
       LIMIT 500
     );
 
-  RETURN COALESCE(NEW,OLD);
+  IF TG_OP='DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
 END;
 $function$;
 
