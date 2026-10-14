@@ -65,7 +65,9 @@ export default function App() {
         }
       }
       setUser(currentUser);
-      if (!initialSessionResolved) {
+      // Safari can emit an empty INITIAL_SESSION while its persisted session is still being
+      // recovered. In that case, let getCurrentUser() settle before showing the sign-in page.
+      if (!initialSessionResolved && (currentUser !== null || _event !== "INITIAL_SESSION")) {
         initialSessionResolved = true;
         setIsLoadingWorkspace(false);
       }
