@@ -1298,13 +1298,14 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           const amount = plannedPayoutInput.trim() === "" ? null : Number(plannedPayoutInput);
           if (amount === null || !Number.isSafeInteger(amount) || amount < 0 || amount > 2147483647) { setPlannedPayoutError("Enter a whole-rupee amount of zero or more."); return; }
           if (!plannedPayoutReview) { setPlannedPayoutReview(true); setPlannedPayoutError(null); return; }
+          if (!beginAction("planned-payout")) return;
           setIsCycleBusy(true); setPlannedPayoutError(null);
           try {
             const updated = await setCfcfCyclePlannedPayout(workspace.tenantId, selectedFund.fund_id, plannedPayoutCycle, amount);
             setCycleRows((rows) => rows.map((row) => row.cycle_number === plannedPayoutCycle ? { ...row, planned_payout_amount: updated.planned_payout_amount } : row));
             setPlannedPayoutCycle(null); setPlannedPayoutReview(false); setFundNotice("Planned payout saved. No payment or withdrawal was recorded."); setDetailReloadKey((v) => v + 1);
           } catch (error) { setPlannedPayoutError(error instanceof Error ? error.message : "Unable to save planned payout."); }
-          finally { setIsCycleBusy(false); }
+          finally { endAction("planned-payout"); setIsCycleBusy(false); }
         }} className="space-y-4">
 
           <label htmlFor="planned-payout-amount" className="block text-sm font-medium text-slate-700">Planned payout (₹)<input id="planned-payout-amount" type="number" inputMode="numeric" min="0" max="2147483647" step="1" required value={plannedPayoutInput} onChange={(event) => setPlannedPayoutInput(event.target.value)} className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm"/></label>
