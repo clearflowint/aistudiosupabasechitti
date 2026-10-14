@@ -34,6 +34,7 @@ import {
   listCfcfFunds,
   listCfcfLedgerItems,
   listCfcfShares,
+  listCfcfBills,
   inspectCfcfFundFinancialSummary,
   setCfcfSharePayout,
   saveCfcfCycleValues,
@@ -48,7 +49,7 @@ import {
   type CfcfLedgerItem,
   type CfcfFinancialReconciliation,
 } from "../services/workspace.service";
-import type { CfcfContactRow, CfcfFundRow, CfcfShareRow } from "../types/database.types";
+import type { CfcfBillRow, CfcfContactRow, CfcfFundRow, CfcfShareRow } from "../types/database.types";
 
 type WorkspaceTab = "shares" | "ledger";
 type ShareFilter = "all" | "pending" | "drawn" | "undrawn";
@@ -97,6 +98,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [isLoadingFunds, setIsLoadingFunds] = useState(true);
   const [fundsError, setFundsError] = useState<string | null>(null);
   const [shares, setShares] = useState<CfcfShareRow[]>([]);
+  const [bills, setBills] = useState<CfcfBillRow[]>([]);
   const [shareSearch, setShareSearch] = useState("");
   const [shareFilter, setShareFilter] = useState<ShareFilter>("all");
   const [contacts, setContacts] = useState<CfcfContactRow[]>([]);
@@ -230,6 +232,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     if (tenantChanged) {
       setFunds([]);
       setShares([]);
+      setBills([]);
       setContacts([]);
       setLedgerItems([]);
       setSelectedShareId(null);
@@ -284,6 +287,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     let isCurrent = true;
 
     setShares([]);
+    setBills([]);
     setContacts([]);
     setLedgerItems([]);
     setSelectedShareId(null);
@@ -297,12 +301,14 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     setIsLoadingDetails(true);
     const loadDetails = async () => {
       try {
-        const [shareRows, contactRows] = await Promise.all([
+        const [shareRows, billRows, contactRows] = await Promise.all([
           listCfcfShares(workspace.tenantId, selectedFundId),
+          listCfcfBills(workspace.tenantId, selectedFundId),
           listCfcfContacts(workspace.tenantId),
         ]);
         if (!isCurrent) return;
         setShares(shareRows);
+        setBills(billRows);
         setContacts(contactRows);
         // Keep an open Share statement aligned with the latest saved billing/payout fields.
         setStatementShare((currentStatement) => currentStatement
@@ -355,28 +361,37 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   }
 
   function billedCycleNumbers(fundShares: CfcfShareRow[] = shares): number[] {
-    return [...new Set(fundShares.flatMap((share) =>
-      Object.entries(share.billing_entries ?? {})
-        .filter(([key, value]) => /^\d+$/.test(key) && Number(key) >= 1 && Number(key) <= MAX_CFCF_CYCLES
-          && (typeof value === "number" || (typeof value === "string" && value.trim() !== "")))
-        .map(([key]) => Number(key)),
-    ))].sort((x, y) => x - y);
+    const ids = new Set(fundShares.map((share) => share.share_id));
+    const cycleById = new Map(cycleRows.map((cycle) => [cycle.cycle_id, cycle.cycle_number]));
+    return [...new Set(bills.filter((bill) => ids.has(bill.share_id))
+      .map((bill) => cycleById.get(bill.cycle_id))
+      .filter((number): number is number => number !== undefined))]
+      .sort((x, y) => x - y);
   }
 
-  function highestCycleNumber(_fund: CfcfFundRow | null, fundShares: CfcfShareRow[] = shares): number {
-    return billedCycleNumbers(fundShares).at(-1) ?? 0;
+  function savedCycleNumbers(): number[] {
+    return cycleRows.map((cycle) => cycle.cycle_number).sort((a, b) => a - b);
+  }
+
+  function billForShareCycle(shareId: string, cycleNumber: number): CfcfBillRow | undefined {
+    const cycle = cycleRows.find((row) => row.cycle_number === cycleNumber);
+    return cycle ? bills.find((bill) => bill.share_id === shareId && bill.cycle_id === cycle.cycle_id) : undefined;
+  }
+
+  function highestCycleNumber(_fund: CfcfFundRow | null, _fundShares: CfcfShareRow[] = shares): number {
+    return savedCycleNumbers().at(-1) ?? 0;
   }
 
   function openPayoutModal(share: CfcfShareRow) {
     // If this Share is already drawn, keep its recorded Cycle and actual withdrawn amount,
     // including an intentional zero. Otherwise default to the highest existing Cycle.
-    const availableCycles = billedCycleNumbers();
+    const availableCycles = savedCycleNumbers();
     const cycle = share.payout_status === "drawn"
       && share.payout_cycle_number !== null
       && availableCycles.includes(share.payout_cycle_number)
       ? share.payout_cycle_number
       : Math.max(1, highestCycleNumber(selectedFund));
-    const cyclePayout = selectedFund?.cycle_payout_amounts?.[cycle - 1];
+    const cyclePayout = cycleRows.find((row) => row.cycle_number === cycle)?.planned_payout_amount;
     setPayoutShare(share);
     setPayoutCycleNumber(String(cycle));
     setWithdrawnAmount(
@@ -396,8 +411,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setPayoutError("Choose a Cycle number from 1 to 100.");
       return;
     }
-    if (!billedCycleNumbers().includes(cycle)) {
-      setPayoutError("Payout Cycle must be a Cycle with saved billing. Select a billed Cycle, or mark this Share undrawn if its saved payout Cycle is no longer billed.");
+    if (!savedCycleNumbers().includes(cycle)) {
+      setPayoutError("Choose an existing saved Cycle for this payout.");
       return;
     }
     if (withdrawnAmount.trim() === "" || !Number.isSafeInteger(amount) || amount < 0 || amount > 2147483647) {
@@ -437,15 +452,14 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   }
 
   function openCycleBilling(share: CfcfShareRow) {
-    const shareCycles = billedCycleNumbers([share]);
-    const highestShareCycle = shareCycles.at(-1) ?? 0;
-    // Default to the next Cycle for this Share, while keeping Cycle 100 editable at the cap.
-    const cycle = highestShareCycle >= MAX_CFCF_CYCLES ? MAX_CFCF_CYCLES : highestShareCycle + 1;
+    const cycle = selectedCycleNumber !== null && savedCycleNumbers().includes(selectedCycleNumber)
+      ? selectedCycleNumber
+      : highestCycleNumber(selectedFund);
     setBillingShare(share);
-    setBillingCycleNumber(String(Math.max(1, cycle)));
-    const existing = share.billing_entries?.[String(Math.max(1, cycle))];
-    setBillingAmount(typeof existing === "number" || typeof existing === "string" ? String(existing) : "");
-    setBillingError(null);
+    setBillingCycleNumber(String(cycle || 1));
+    const existing = cycle ? billForShareCycle(share.share_id, cycle) : undefined;
+    setBillingAmount(existing ? String(existing.amount) : "");
+    setBillingError(cycle ? null : "Add a Cycle before entering bills.");
   }
 
   async function handleSaveCycleBilling(event: FormEvent<HTMLFormElement>) {
@@ -478,10 +492,9 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
 
   function openCycleEditor(cycleNumber: number) {
     setCycleEditNumber(cycleNumber);
-    const payout = selectedFund?.cycle_payout_amounts?.[cycleNumber - 1];
-    const commission = selectedFund?.cycle_commissions?.[cycleNumber - 1];
-    setCyclePayoutInput(typeof payout === "number" ? String(payout) : "");
-    setCycleCommissionInput(typeof commission === "number" ? String(commission) : "");
+    const cycle = cycleRows.find((row) => row.cycle_number === cycleNumber);
+    setCyclePayoutInput(cycle?.planned_payout_amount == null ? "" : String(cycle.planned_payout_amount));
+    setCycleCommissionInput(cycle?.commission_amount == null ? "" : String(cycle.commission_amount));
     setCycleEditError(null);
   }
 
@@ -504,6 +517,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     setCycleEditError(null);
     try {
       await saveCfcfCycleValues(workspace.tenantId, selectedFund.fund_id, cycleEditNumber, payout, commission);
+      setCycleRows((rows) => rows.map((row) => row.cycle_number === cycleEditNumber ? { ...row, planned_payout_amount: payout, commission_amount: commission } : row));
       setCycleEditNumber(null);
       setFundNotice("Cycle values saved.");
       setFundReloadKey((n) => n + 1);
@@ -670,8 +684,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
 
   function currentBilledForShare(share: CfcfShareRow): number {
     const highest = billedCycleNumbers([share]).at(-1) ?? 0;
-    const value = highest ? share.billing_entries[String(highest)] : 0;
-    return typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) || 0 : 0;
+    return highest ? billForShareCycle(share.share_id, highest)?.amount ?? 0 : 0;
   }
 
   function openFundModal() {
