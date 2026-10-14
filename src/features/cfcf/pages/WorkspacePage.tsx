@@ -11,7 +11,6 @@ import {
   RotateCcw,
   Pencil,
   CreditCard,
-  Layers3,
   Plus,
   FileText,
   MessageCircle,
