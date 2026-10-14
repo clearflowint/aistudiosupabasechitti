@@ -32,10 +32,8 @@ export function Modal({
     const body = document.body;
     const previousOverflow = body.style.overflow;
     const previousOverscrollBehavior = body.style.overscrollBehavior;
-    const previousTouchAction = body.style.touchAction;
     body.style.overflow = "hidden";
     body.style.overscrollBehavior = "none";
-    body.style.touchAction = "none";
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") onClose();
@@ -46,7 +44,6 @@ export function Modal({
       window.removeEventListener("keydown", handleKeyDown);
       body.style.overflow = previousOverflow;
       body.style.overscrollBehavior = previousOverscrollBehavior;
-      body.style.touchAction = previousTouchAction;
     };
   }, [isOpen, onClose]);
 
