@@ -159,6 +159,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [deleteStep, setDeleteStep] = useState(1);
   const [deleteAcknowledged, setDeleteAcknowledged] = useState(false);
   const [deleteTypedId, setDeleteTypedId] = useState("");
+  const [shareDeleteRecords, setShareDeleteRecords] = useState<{ bills: CfcfBillRow[]; payments: CfcfLedgerItem[] } | null>(null);
+  const [isLoadingShareDeleteRecords, setIsLoadingShareDeleteRecords] = useState(false);
   const [selectedCycleNumber, setSelectedCycleNumber] = useState<number | null>(null);
   const [cycleRows, setCycleRows] = useState<CfcfCycleRow[]>([]);
   const [cycleBillInputs, setCycleBillInputs] = useState<Record<string, string>>({});
@@ -609,6 +611,23 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     }
   }
 
+  async function openShareDelete(share: CfcfShareRow) {
+    setDeleteStep(1);
+    setDeleteAcknowledged(false);
+    setDeleteTypedId("");
+    setDeleteError(null);
+    setShareDeleteRecords(null);
+    setDeleteTarget({ kind: "share", id: share.share_id, label: contactById.get(share.contact_id)?.name ?? share.share_id, fundId: share.fund_id });
+    setIsLoadingShareDeleteRecords(true);
+    try {
+      const [fundBills, fundLedger] = await Promise.all([listCfcfBills(workspace.tenantId, share.fund_id), listCfcfLedgerItems(workspace.tenantId, share.fund_id)]);
+      setShareDeleteRecords({ bills: fundBills.filter((bill) => bill.share_id === share.share_id), payments: fundLedger.filter((item) => item.kind === "payment" && item.shareId === share.share_id) });
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "Unable to load this Share's related records.");
+    } finally {
+      setIsLoadingShareDeleteRecords(false);
+    }
+  }
   async function handleConfirmDelete() {
     if (!deleteTarget || isDeleting || deleteStep !== 3 || !deleteAcknowledged || deleteTypedId.trim().toLowerCase() !== workspace.email.trim().toLowerCase()) return;
     setIsDeleting(true); setDeleteError(null);
