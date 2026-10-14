@@ -1057,6 +1057,44 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         </>
       ) : null}
 
+      <Modal isOpen={plannedPayoutCycle !== null} title={plannedPayoutCycle === null ? "Planned Payout" : "Cycle " + plannedPayoutCycle + " Planned Payout"} description="Planned amount only; this does not record an actual withdrawal or shareholder payment." onClose={() => { if (!isCycleBusy) { setPlannedPayoutCycle(null); setPlannedPayoutError(null); } }}>
+        <form onSubmit={async (event) => {
+          event.preventDefault();
+          if (!selectedFund || plannedPayoutCycle === null || isCycleBusy) return;
+          const amount = plannedPayoutInput.trim() === "" ? null : Number(plannedPayoutInput);
+          if (amount === null || !Number.isSafeInteger(amount) || amount < 0 || amount > 2147483647) { setPlannedPayoutError("Enter a whole-rupee amount of zero or more."); return; }
+          setIsCycleBusy(true); setPlannedPayoutError(null);
+          try {
+            const updated = await setCfcfCyclePlannedPayout(workspace.tenantId, selectedFund.fund_id, plannedPayoutCycle, amount);
+            setCycleRows((rows) => rows.map((row) => row.cycle_number === plannedPayoutCycle ? { ...row, planned_payout_amount: updated.planned_payout_amount } : row));
+            setPlannedPayoutCycle(null); setFundNotice("Planned payout saved. No payment or withdrawal was recorded."); setDetailReloadKey((v) => v + 1);
+          } catch (error) { setPlannedPayoutError(error instanceof Error ? error.message : "Unable to save planned payout."); }
+          finally { setIsCycleBusy(false); }
+        }} className="space-y-4">
+          <label htmlFor="planned-payout-amount" className="block text-sm font-medium text-slate-700">Planned payout (₹)<input id="planned-payout-amount" type="number" inputMode="numeric" min="0" max="2147483647" step="1" required value={plannedPayoutInput} onChange={(event) => setPlannedPayoutInput(event.target.value)} className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm"/></label>
+          {plannedPayoutError && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{plannedPayoutError}</p>}
+          <div className="flex justify-end gap-2 border-t border-slate-100 pt-3"><button type="button" onClick={() => setPlannedPayoutCycle(null)} disabled={isCycleBusy} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button><button type="submit" disabled={isCycleBusy} className="min-h-11 rounded-xl bg-violet-700 px-4 text-sm font-semibold text-white disabled:opacity-50">{isCycleBusy ? "Saving…" : "Save planned payout"}</button></div>
+        </form>
+      </Modal>
+
+      <Modal isOpen={isCycleStatementOpen} title={"Cycle " + (selectedCycleNumber ?? cycleRows.at(-1)?.cycle_number ?? "") + " Statement"} description="Cycle billing and payout summary. Shareholder payments are excluded from this Cycle statement." onClose={() => setIsCycleStatementOpen(false)}>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-2">
+            <StoredValue label="Total billed" value={cycleSummary ? formatINR(cycleSummary.total_billed) : "Loading…"} />
+            <StoredValue label="Planned payout" value={displayStoredAmount(cycleSummary?.planned_payout_amount)} />
+            <StoredValue label="Billed Shares" value={cycleSummary ? cycleSummary.billed_shares : "Loading…"} />
+            <StoredValue label="Not billed Shares" value={cycleSummary ? cycleSummary.not_billed_shares : "Loading…"} />
+            <StoredValue label="Total withdrawn" value={cycleSummary ? formatINR(cycleSummary.total_paid_out) : "Loading…"} />
+            <StoredValue label="Cycle created" value={cycleRows.find((row) => row.cycle_number === (selectedCycleNumber ?? cycleRows.at(-1)?.cycle_number))?.created_at ? formatDate(cycleRows.find((row) => row.cycle_number === (selectedCycleNumber ?? cycleRows.at(-1)?.cycle_number))!.created_at) : "Date unavailable"} />
+          </div>
+          <section className="space-y-2"><h4 className="text-sm font-bold text-slate-900">Withdrawn Shares</h4>
+            {cycleSummary?.withdrawn_shares.length ? cycleSummary.withdrawn_shares.map((item) => <div key={item.share_id} className="flex min-w-0 items-start justify-between gap-3 rounded-xl border border-slate-200 p-3"><div className="min-w-0"><p className="break-words text-sm font-semibold text-slate-900">{item.contact_name || "Contact unavailable"}</p><p className="text-xs text-slate-500">Share {item.share_id}</p></div><strong className="shrink-0 text-sm text-slate-900">{formatINR(item.withdrawn_amount)}</strong></div>) : <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-500">{cycleSummary ? "No Shares have been withdrawn against this Cycle." : "Loading withdrawal details…"}</p>}
+          </section>
+          <p className="rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600">Actual withdrawals are Share payout records linked to this Cycle. Shareholder payments received remain in the separate Payments ledger.</p>
+          <div className="flex justify-end border-t border-slate-100 pt-3"><button type="button" onClick={() => setIsCycleStatementOpen(false)} className="min-h-11 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white">Close statement</button></div>
+        </div>
+      </Modal>
+
       <Modal
         isOpen={cycleDeleteTarget !== null}
         title={cycleDeleteTarget === null ? "Delete Cycle" : "Delete Cycle " + cycleDeleteTarget}
