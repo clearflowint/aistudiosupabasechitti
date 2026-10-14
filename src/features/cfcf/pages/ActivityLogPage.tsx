@@ -22,12 +22,7 @@ function formatTimestamp(value: string): string {
 }
 
 function readableAction(row: CfcfActivityLogRow): string {
-  const action = row.action_type.replaceAll("_", " ").replace(/ (insert|update|delete)$/i, "");
-  const verb = /_insert$/i.test(row.action_type) ? "added"
-    : /_update$/i.test(row.action_type) ? "updated"
-    : /_delete$/i.test(row.action_type) ? "deleted" : "changed";
-  const title = action.replace(/ (insert|update|delete)$/i, "");
-  return title.charAt(0).toUpperCase() + title.slice(1) + " " + verb;
+  return row.description || (row.entity_type + " " + row.action_type);
 }
 
 function details(value: Record<string, unknown> | null): string {
