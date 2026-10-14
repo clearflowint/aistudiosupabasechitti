@@ -14,7 +14,8 @@
     "@supabase/supabase-js": "^2.117.3",
     "lucide-react": "^0.546.0",
     "react": "^19.0.1",
-    "react-dom": "^19.0.1"
+    "react-dom": "^19.0.1",
+    "html2pdf.js": "^0.10.3"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
