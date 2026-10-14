@@ -2,14 +2,13 @@
 // MIX: Uses the shared authorized workspace identity; database RLS limits rows to the tenant owner.
 
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
+import { ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
 import type { AuthorizedWorkspace } from "../../../core/workspace/workspace.types";
 import { listCfcfActivityLog } from "../services/workspace.service";
 import type { CfcfActivityLogRow } from "../types/database.types";
 
 interface ActivityLogPageProps {
   workspace: AuthorizedWorkspace;
-  onBack: () => void;
 }
 
 function formatTimestamp(value: string): string {
@@ -40,7 +39,7 @@ function details(value: Record<string, unknown> | null): string {
   return JSON.stringify(safe, null, 2);
 }
 
-export function ActivityLogPage({ workspace, onBack }: ActivityLogPageProps) {
+export function ActivityLogPage({ workspace }: ActivityLogPageProps) {
   const [rows, setRows] = useState<CfcfActivityLogRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -62,10 +61,7 @@ export function ActivityLogPage({ workspace, onBack }: ActivityLogPageProps) {
 
   return (
     <main className="min-w-0 space-y-4 pb-6">
-      <header className="flex min-w-0 items-center justify-between gap-2">
-        <button type="button" onClick={onBack} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700">
-          <ArrowLeft size={16} /> Home
-        </button>
+      <header className="flex min-w-0 items-center justify-end gap-2">
         <button type="button" onClick={() => void refresh()} disabled={loading} aria-label="Refresh activity log" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-sky-700 disabled:opacity-50">
           <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
         </button>
