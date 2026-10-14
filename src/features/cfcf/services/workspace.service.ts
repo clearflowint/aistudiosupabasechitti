@@ -173,6 +173,7 @@ export interface CfcfLedgerItem {
   date: string;
   paymentType: string | null;
   remarks: string | null;
+  adjustmentCategory: string | null;
 }
 
 export async function listCfcfLedgerItems(
@@ -188,7 +189,7 @@ export async function listCfcfLedgerItems(
       .eq("fund_id", fundId),
     supabase
       .from("cfcf_fund_other_entries")
-      .select("entry_id, fund_id, entry_type, amount, remarks, created_at")
+      .select("entry_id, fund_id, entry_type, amount, remarks, adjustment_category, created_at")
       .eq("product_id", cfcfConfig.productId)
       .eq("tenant_id", tenantId)
       .eq("fund_id", fundId),
@@ -209,7 +210,7 @@ export async function listCfcfLedgerItems(
   >;
 
   const fundEntries = (fundEntriesResult.data ?? []) as Pick<
-    CfcfFundOtherEntryRow, "entry_id" | "fund_id" | "entry_type" | "amount" | "remarks" | "created_at"
+    CfcfFundOtherEntryRow, "entry_id" | "fund_id" | "entry_type" | "amount" | "remarks" | "adjustment_category" | "created_at"
   >[];
 
   const items: CfcfLedgerItem[] = [
@@ -234,6 +235,7 @@ export async function listCfcfLedgerItems(
       date: localDateFromTimestamp(row.created_at),
       paymentType: null,
       remarks: row.remarks,
+      adjustmentCategory: row.adjustment_category,
     })),
   ];
 
@@ -562,6 +564,7 @@ export async function recordCfcfFundOtherEntry(
   entryType: "credit" | "debit",
   amount: number,
   remarks: string,
+  adjustmentCategory: "outside_money" | "commission" | "discount" | "stationery" | "others",
 ): Promise<void> {
   if (!Number.isSafeInteger(amount) || amount <= 0 || amount > 2147483647) {
     throw new Error("Enter a positive whole-rupee amount.");
@@ -573,6 +576,7 @@ export async function recordCfcfFundOtherEntry(
     p_entry_type: entryType,
     p_amount: amount,
     p_remarks: remarks.trim() || null,
+    p_adjustment_category: adjustmentCategory,
   });
   if (error) {
     if (error.code === "42501") throw new Error("You do not have owner access to record this Fund entry.");
