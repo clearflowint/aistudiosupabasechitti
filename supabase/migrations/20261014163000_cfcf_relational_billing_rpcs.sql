@@ -46,6 +46,34 @@ BEGIN
     LEFT JOIN payment_totals pt ON pt.share_id=s.share_id
     WHERE s.product_id='CFCF' AND s.tenant_id=p_tenant_id AND s.fund_id=p_fund_id
   )
+  IF EXISTS (
+    WITH bill_totals AS (
+      SELECT b.share_id, sum(b.amount::bigint) AS billed
+      FROM public.cfcf_bills b
+      WHERE b.product_id='CFCF' AND b.tenant_id=p_tenant_id AND b.fund_id=p_fund_id
+      GROUP BY b.share_id
+    ), payment_totals AS (
+      SELECT p.share_id,
+        sum(CASE WHEN p.entry_type='credit' THEN p.amount::bigint ELSE -p.amount::bigint END) AS received
+      FROM public.cfcf_payments p
+      WHERE p.product_id='CFCF' AND p.tenant_id=p_tenant_id AND p.fund_id=p_fund_id
+      GROUP BY p.share_id
+    )
+    SELECT 1
+    FROM public.cfcf_shares s
+    LEFT JOIN bill_totals bt ON bt.share_id=s.share_id
+    LEFT JOIN payment_totals pt ON pt.share_id=s.share_id
+    WHERE s.product_id='CFCF' AND s.tenant_id=p_tenant_id AND s.fund_id=p_fund_id
+      AND (
+        COALESCE(bt.billed,0)>2147483647 OR COALESCE(pt.received,0)<0
+        OR COALESCE(pt.received,0)>2147483647
+        OR GREATEST(COALESCE(bt.billed,0)-COALESCE(pt.received,0),0)>2147483647
+        OR GREATEST(COALESCE(pt.received,0)-COALESCE(bt.billed,0),0)>2147483647
+      )
+  ) THEN
+    RAISE EXCEPTION 'A Share billing or payment summary exceeds the supported integer range' USING ERRCODE='22003';
+  END IF;
+
   UPDATE public.cfcf_shares s
   SET share_total_billed_amount=d.billed::integer,
       share_net_payment_received=d.received::integer,
@@ -58,10 +86,7 @@ BEGIN
     s.share_net_payment_received IS DISTINCT FROM d.received OR
     s.total_pending IS DISTINCT FROM GREATEST(d.billed-d.received,0) OR
     s.total_advance IS DISTINCT FROM GREATEST(d.received-d.billed,0)
-  )
-  AND (d.billed > 2147483647 OR d.received < 0 OR d.received > 2147483647
-       OR GREATEST(d.billed-d.received,0) > 2147483647
-       OR GREATEST(d.received-d.billed,0) > 2147483647);
+  );
 
   -- Reject unsupported ranges before writing any derived summary.
   IF EXISTS (
@@ -341,11 +366,10 @@ BEGIN
   IF auth.uid() IS NULL OR NOT public.is_active_tenant_owner('CFCF',p_tenant_id) THEN
     RAISE EXCEPTION 'Workspace owner access is required' USING ERRCODE='42501';
   END IF;
-  IF NOT EXISTS(SELECT 1 FROM public.cfcf_persons_dummy WHERE false) THEN NULL; END IF;
   IF NOT EXISTS(SELECT 1 FROM public.persons WHERE person_id=p_person_id AND tenant_id=p_tenant_id AND product_id='CFCF' AND status='active') THEN
     RAISE EXCEPTION 'Active manager person is required for payment attribution' USING ERRCODE='42501';
   END IF;
-  IF p_entry_type NOT IN ('credit','debit') OR p_amount IS NULL OR p_amount<=0 THEN
+  IF p_entry_type NOT IN ('credit','debit') OR p_amount IS NULL OR p_amount<=0 OR p_amount>2147483647 THEN
     RAISE EXCEPTION 'Choose Credit or Debit and enter a positive whole-rupee amount' USING ERRCODE='22023';
   END IF;
   IF p_payment_type NOT IN ('UPI','Cash','Other') THEN RAISE EXCEPTION 'Choose a valid payment mode' USING ERRCODE='22023'; END IF;
