@@ -26,6 +26,7 @@ export default function App() {
       return homeId;
     }
   });
+  const [isRestoringSession, setIsRestoringSession] = useState(true);
   const [isLoadingWorkspace, setIsLoadingWorkspace] = useState(true);
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -69,7 +70,7 @@ export default function App() {
       // recovered. In that case, let getCurrentUser() settle before showing the sign-in page.
       if (!initialSessionResolved && (currentUser !== null || _event !== "INITIAL_SESSION")) {
         initialSessionResolved = true;
-        setIsLoadingWorkspace(false);
+        setIsRestoringSession(false);
       }
     });
 
@@ -80,12 +81,11 @@ export default function App() {
         authenticatedEmailRef.current = currentUser?.email?.toLowerCase() ?? null;
         setUser(currentUser);
         initialSessionResolved = true;
-        setIsLoadingWorkspace(false);
+        setIsRestoringSession(false);
       }
     }).catch(() => {
       if (!isMounted) return;
-      // Don't flash sign-in on a transient lookup failure. Keep the restoring screen until
-      // Supabase reports an auth state or a subsequent retry resolves the session.
+      // If the snapshot fails, wait for Supabase auth events rather than treating the user as signed out.
     });
 
     return () => {
@@ -164,8 +164,12 @@ export default function App() {
     setAuthorizationAttempt((attempt) => attempt + 1);
   }
 
-  if (isLoadingWorkspace && !workspace && !errorMessage) {
+  if (isRestoringSession) {
     return <LoadingScreen message="Restoring secure session…" />;
+  }
+
+  if (isLoadingWorkspace && !workspace && !errorMessage) {
+    return <LoadingScreen message="Loading authorized workspace…" />;
   }
 
   if (!user) {
