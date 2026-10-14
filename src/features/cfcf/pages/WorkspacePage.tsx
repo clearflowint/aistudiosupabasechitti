@@ -1292,7 +1292,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       ) : null}
 
       <Modal isOpen={plannedPayoutCycle !== null} title={plannedPayoutCycle === null ? "Planned Payout" : "Cycle " + plannedPayoutCycle + " Planned Payout"} description="Planned amount only; this does not record an actual withdrawal or shareholder payment." onClose={() => { if (!isCycleBusy) { setPlannedPayoutCycle(null); setPlannedPayoutReview(false); setPlannedPayoutError(null); } }}>
-        <form onSubmit={async (event) => {
+        <form id="planned-payout-form" onSubmit={async (event) => {
           event.preventDefault();
           if (!selectedFund || plannedPayoutCycle === null || isCycleBusy) return;
           const amount = plannedPayoutInput.trim() === "" ? null : Number(plannedPayoutInput);
@@ -1373,7 +1373,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         description="Review every saved Share bill for this Cycle. Choose Edit to change bill amounts. Blank amounts are saved as ₹0; billing never creates payment transactions."
         onClose={() => { if (!isSavingCycle) { setCycleEditNumber(null); setCycleEditError(null); } }}
       >
-        <form onSubmit={(event) => void handleSaveCycleValues(event)} className="space-y-4">
+        <form id="cycle-values-form" onSubmit={(event) => void handleSaveCycleValues(event)} className="space-y-4">
 
           <div className="flex items-center justify-between gap-2 rounded-xl bg-violet-50 p-3"><div className="text-sm font-semibold text-violet-900">Cycle {cycleEditNumber ?? ""} · {shares.filter((share) => share.status === "active").length} active Shares</div><button type="button" onClick={() => setCycleEditEnabled((value) => !value)} disabled={cycleReview || isSavingCycle} className="min-h-9 rounded-lg border border-violet-200 bg-white px-3 text-xs font-semibold text-violet-800">{cycleEditEnabled ? "Review" : "Edit"}</button></div>
           <div className="grid grid-cols-2 gap-2">
@@ -1407,7 +1407,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         description="Select the Cycle and review its stored payout amount. This changes payout status only; record actual money separately under Payments. Mark Undrawn resets payout fields without deleting Payment history."
         onClose={() => { if (!isSavingPayout) { setPayoutShare(null); setPayoutError(null); } }}
       >
-        <form onSubmit={(event) => void handleSavePayout(event)} className="space-y-4">
+        <form id="share-payout-form" onSubmit={(event) => void handleSavePayout(event)} className="space-y-4">
 
           <div className={payoutReview ? "pointer-events-none opacity-60" : ""}>
             <label htmlFor="payout-cycle-number" className="mb-1.5 block text-sm font-medium text-slate-700">Payout Cycle</label>
@@ -1455,7 +1455,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         description={billingShare ? "Review this Share’s saved bill for an existing Cycle. Choose Edit to change it. This never creates a Cycle or a payment transaction." : "Review a saved Share bill."}
         onClose={() => { if (!isSavingBilling) { setBillingShare(null); setBillingError(null); } }}
       >
-        <form onSubmit={(event) => void handleSaveCycleBilling(event)} className="space-y-4">
+        <form id="share-cycle-billing-form" onSubmit={(event) => void handleSaveCycleBilling(event)} className="space-y-4">
 
           <section className="space-y-2 rounded-xl border border-slate-200 p-3">
             <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">Saved bills for this Share</h4>
