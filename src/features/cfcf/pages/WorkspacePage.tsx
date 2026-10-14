@@ -126,6 +126,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [isSavingPayment, setIsSavingPayment] = useState(false);
   const [paymentReview, setPaymentReview] = useState(false);
+  const paymentRequestRef = useRef<string | null>(null);
   const [isFundEntryModalOpen, setIsFundEntryModalOpen] = useState(false);
   const [fundEntryType, setFundEntryType] = useState<"credit" | "debit">("debit");
   const [fundEntryAmount, setFundEntryAmount] = useState("");
@@ -866,6 +867,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   }
 
   function openPaymentModal(share: CfcfShareRow) {
+    paymentRequestRef.current = null;
     setPaymentShare(share);
     setPaymentReview(false);
     setPaymentEntryType("credit");
@@ -883,13 +885,14 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     if (!paymentAmount.trim() || !Number.isSafeInteger(amount) || amount <= 0 || amount > 2147483647) {
       setPaymentError("Enter a positive whole-rupee amount."); return;
     }
-    if (!paymentReview) { setPaymentReview(true); setPaymentError(null); return; }
+    if (!paymentReview) { paymentRequestRef.current = crypto.randomUUID(); setPaymentReview(true); setPaymentError(null); return; }
     if (!beginAction("record-payment")) return;
     setIsSavingPayment(true); setPaymentError(null);
     try {
-      await recordCfcfSharePayment(workspace.tenantId, selectedFund.fund_id, paymentShare.share_id, workspace.personId, paymentEntryType, amount, paymentDate, paymentMode, paymentRemarks);
+      const savedPayment = await recordCfcfSharePayment(workspace.tenantId, selectedFund.fund_id, paymentShare.share_id, workspace.personId, paymentEntryType, amount, paymentDate, paymentMode, paymentRemarks, paymentRequestRef.current ?? crypto.randomUUID());
       setPaymentShare(null);
-      setFundNotice(paymentEntryType === "credit" ? "Payment recorded." : "Debit correction recorded.");
+      paymentRequestRef.current = null;
+      setFundNotice((savedPayment.duplicate ? "Payment was already saved" : paymentEntryType === "credit" ? "Payment recorded" : "Debit correction recorded") + " successfully in Supabase. Payment ID: " + savedPayment.payment_id + (savedPayment.duplicate ? ". No duplicate was created." : "."));
       setDetailReloadKey((n) => n + 1); setFundReloadKey((n) => n + 1);
     } catch (error) { setPaymentError(error instanceof Error ? error.message : "Unable to record transaction."); }
     finally { endAction("record-payment"); setIsSavingPayment(false); }
@@ -1583,16 +1586,16 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         </form>
       </Modal>
 
-      <Modal isOpen={Boolean(paymentShare)} title="Record Payment / Correction" description="Actual transactions are stored separately from payout status. Saving updates the transaction and Share/Fund summaries atomically." onClose={() => { if (!isSavingPayment) setPaymentShare(null); }}>
+      <Modal isOpen={Boolean(paymentShare)} title="Record Payment / Correction" description="Actual transactions are stored separately from payout status. Saving updates the transaction and Share/Fund summaries atomically." onClose={() => { if (!isSavingPayment) { setPaymentShare(null); setPaymentReview(false); paymentRequestRef.current = null; } }}>
         <form onSubmit={(event) => void handleRecordPayment(event)} className="space-y-4">
-          {paymentReview && <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3"><p className="font-semibold text-amber-900">Second confirmation required</p><p className="mt-1 text-sm text-amber-800">{paymentEntryType === "credit" ? "Credit payment" : "Debit correction"} · {contactById.get(paymentShare?.contact_id ?? "")?.name ?? "Contact"} · Fund {selectedFund?.fund_name} · Share {paymentShare?.share_id} · {formatINR(Number(paymentAmount))} · {paymentMode}. No Cycle or payout association.</p><button type="button" onClick={() => setPaymentReview(false)} className="mt-2 min-h-9 text-sm font-semibold underline">Back to edit</button></div>}
+          {paymentReview && <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3"><p className="font-semibold text-amber-900">Second confirmation required</p><p className="mt-1 text-sm text-amber-800">{paymentEntryType === "credit" ? "Credit payment" : "Debit correction"} · {contactById.get(paymentShare?.contact_id ?? "")?.name ?? "Contact"} · Fund {selectedFund?.fund_name} · Share {paymentShare?.share_id} · {formatINR(Number(paymentAmount))} · {paymentMode}. No Cycle or payout association.</p><button type="button" onClick={() => { setPaymentReview(false); paymentRequestRef.current = null; }} className="mt-2 min-h-9 text-sm font-semibold underline">Back to edit</button></div>}
           <div className={"rounded-xl bg-slate-50 p-3 " + (paymentReview ? "opacity-60" : "")}><p className="text-xs text-slate-500">Manager ID: {workspace.tenantId}</p><p className="mt-1 text-xs text-slate-500">Fund: {selectedFund?.fund_name}</p><p className="mt-1 text-xs text-slate-500">Share ID: {paymentShare?.share_id}</p><p className="mt-2 font-semibold">{contactById.get(paymentShare?.contact_id ?? "")?.name ?? "Member"}</p><p className="mt-1 text-sm text-slate-500">Current billed: {paymentShare ? formatINR(currentBilledForShare(paymentShare)) : "—"}</p></div>
           <div className={paymentReview ? "pointer-events-none opacity-60" : ""}><span className="mb-1.5 block text-sm font-medium">Record type</span><div className="grid grid-cols-2 gap-2"><button type="button" aria-pressed={paymentEntryType==="credit"} onClick={() => setPaymentEntryType("credit")} className={["min-h-11 rounded-xl px-2 text-sm font-semibold",paymentEntryType==="credit"?"bg-emerald-600 text-white":"bg-slate-100 text-slate-700"].join(" ")}>Credit (Payment)</button><button type="button" aria-pressed={paymentEntryType==="debit"} onClick={() => setPaymentEntryType("debit")} className={["min-h-11 rounded-xl px-2 text-sm font-semibold",paymentEntryType==="debit"?"bg-rose-600 text-white":"bg-slate-100 text-slate-700"].join(" ")}>Debit (Correction)</button></div></div>
           <label className={"block " + (paymentReview ? "pointer-events-none opacity-60" : "")}><span className="mb-1.5 block text-sm font-medium">Amount (₹)</span><input type="number" min="1" max="2147483647" step="1" required value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm" placeholder="Enter amount"/></label>
           <label className={"block " + (paymentReview ? "pointer-events-none opacity-60" : "")}><span className="mb-1.5 block text-sm font-medium">Payment / Adjustment mode</span><select value={paymentMode} onChange={(event) => setPaymentMode(event.target.value as "UPI"|"Cash"|"Other")} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"><option value="UPI">UPI / Google Pay / PhonePe</option><option value="Cash">Cash</option><option value="Other">Other</option></select></label>
           <label className={"block " + (paymentReview ? "pointer-events-none opacity-60" : "")}><span className="mb-1.5 block text-sm font-medium">Remarks (optional)</span><textarea rows={2} value={paymentRemarks} onChange={(event) => setPaymentRemarks(event.target.value)} maxLength={500} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="Reference or correction reason"/></label>
           {paymentError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{paymentError}</p>}
-          <div className="flex justify-end gap-2 border-t border-slate-100 pt-4"><button type="button" onClick={() => setPaymentShare(null)} disabled={isSavingPayment} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button><button type="submit" disabled={isSavingPayment || !paymentShare || !selectedFund || !paymentAmount.trim() || !Number.isSafeInteger(Number(paymentAmount)) || Number(paymentAmount) <= 0 || Number(paymentAmount) > 2147483647} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white">{isSavingPayment ? <><RefreshCw size={16} className="animate-spin" /> Waiting for Supabase…</> : paymentReview ? "Confirm and record" : paymentEntryType==="credit" ? "Review payment" : "Review correction"}</button></div>
+          <div className="flex justify-end gap-2 border-t border-slate-100 pt-4"><button type="button" onClick={() => { setPaymentShare(null); setPaymentReview(false); paymentRequestRef.current = null; }} disabled={isSavingPayment} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button><button type="submit" disabled={isSavingPayment || !paymentShare || !selectedFund || !paymentAmount.trim() || !Number.isSafeInteger(Number(paymentAmount)) || Number(paymentAmount) <= 0 || Number(paymentAmount) > 2147483647} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white">{isSavingPayment ? <><RefreshCw size={16} className="animate-spin" /> Waiting for Supabase…</> : paymentReview ? "Confirm and record" : paymentEntryType==="credit" ? "Review payment" : "Review correction"}</button></div>
         </form>
       </Modal>
 
