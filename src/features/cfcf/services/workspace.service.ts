@@ -236,7 +236,7 @@ export async function listCfcfLedgerItems(
       date: localDateFromTimestamp(row.created_at),
       paymentType: null,
       remarks: row.remarks,
-      adjustmentCategory: row.adjustment_category,
+      adjustmentCategory: row.adjustment_category ?? null,
     })),
   ];
 
