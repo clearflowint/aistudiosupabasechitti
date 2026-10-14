@@ -273,18 +273,30 @@ export async function recordCfcfCycleBilling(
     throw new Error("Billing amount must be a whole rupee amount of zero or more.");
   }
 
-  const { error } = await supabase.rpc("cfcf_record_cycle_billing", {
-    p_tenant_id: tenantId,
-    p_fund_id: fundId,
-    p_share_id: shareId,
-    p_cycle_number: cycleNumber,
-    p_amount: amount,
-  });
+  // Individual Share-card billing deliberately uses the same atomic Cycle RPC
+  // as bulk billing. Read the saved Cycle and all of its bills, replace only
+  // the selected Share's amount, and send the complete Cycle bill set so no
+  // other Share's bill can be deleted by the bulk-save semantics.
+  const [cycles, bills] = await Promise.all([
+    listCfcfCycles(tenantId, fundId),
+    listCfcfBills(tenantId, fundId),
+  ]);
+  const cycle = cycles.find((row) => row.cycle_number === cycleNumber);
+  if (!cycle) throw new Error("Cycle not found. Add the Cycle first.");
 
-  if (error) {
-    if (error.code === "42501") throw new Error("Supabase denied this billing change. Confirm you have active owner access.");
-    throw new Error("Unable to save cycle billing: " + error.message);
-  }
+  const cycleBills = bills
+    .filter((bill) => bill.cycle_id === cycle.cycle_id && bill.share_id !== shareId)
+    .map((bill) => ({ share_id: bill.share_id, amount: bill.amount }));
+  cycleBills.push({ share_id: shareId, amount });
+
+  await saveCfcfCycleWorkspace(
+    tenantId,
+    fundId,
+    cycleNumber,
+    cycle.planned_payout_amount,
+    cycle.commission_amount,
+    cycleBills,
+  );
 }
 
 
