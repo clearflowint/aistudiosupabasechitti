@@ -39,7 +39,7 @@ export const cfcfProduct: ProductDefinition = {
   // MIX: Only the product adapter maps neutral navigation IDs to product screens.
   renderPage: (navigationItem, workspace) => {
     if (navigationItem.id === "workspace") return <WorkspacePage workspace={workspace} />;
-    if (navigationItem.id === "activity") return <ActivityLogPage workspace={workspace} onBack={() => window.location.assign("/")} />;
+    if (navigationItem.id === "activity") return <ActivityLogPage workspace={workspace} />;
     return <FeatureModulePage navigationItem={navigationItem} workspace={workspace} />;
   },
 };
