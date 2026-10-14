@@ -1539,6 +1539,41 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         </div>
       </Modal>
 
+      <Modal isOpen={plannedPayoutReview && plannedPayoutCycle !== null} title="" onClose={() => { if (!isCycleBusy) setPlannedPayoutReview(false); }}>
+        <div className="flex justify-end gap-2">
+          <button type="button" onClick={() => setPlannedPayoutReview(false)} disabled={isCycleBusy} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm disabled:opacity-50">Cancel</button>
+          <button type="submit" form="planned-payout-form" disabled={isCycleBusy} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isCycleBusy ? "Saving…" : "Confirm"}</button>
+        </div>
+      </Modal>
+
+      <Modal isOpen={cycleReview && cycleEditNumber !== null} title="" onClose={() => { if (!isSavingCycle) setCycleReview(false); }}>
+        <div className="flex justify-end gap-2">
+          <button type="button" onClick={() => setCycleReview(false)} disabled={isSavingCycle} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm disabled:opacity-50">Cancel</button>
+          <button type="submit" form="cycle-values-form" disabled={isSavingCycle} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingCycle ? "Saving…" : "Confirm"}</button>
+        </div>
+      </Modal>
+
+      <Modal isOpen={payoutReview && Boolean(payoutShare)} title="" onClose={() => { if (!isSavingPayout) setPayoutReview(false); }}>
+        <div className="flex justify-end gap-2">
+          <button type="button" onClick={() => setPayoutReview(false)} disabled={isSavingPayout} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm disabled:opacity-50">Cancel</button>
+          <button type="submit" form="share-payout-form" disabled={isSavingPayout} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingPayout ? "Saving…" : "Confirm"}</button>
+        </div>
+      </Modal>
+
+      <Modal isOpen={undrawnReview && Boolean(payoutShare)} title="" onClose={() => { if (!isSavingPayout) setUndrawnReview(false); }}>
+        <div className="flex justify-end gap-2">
+          <button type="button" onClick={() => setUndrawnReview(false)} disabled={isSavingPayout} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm disabled:opacity-50">Cancel</button>
+          <button type="button" onClick={() => void handleMarkUndrawn()} disabled={isSavingPayout} className="min-h-11 rounded-xl bg-rose-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingPayout ? "Saving…" : "Confirm"}</button>
+        </div>
+      </Modal>
+
+      <Modal isOpen={billingReview && Boolean(billingShare)} title="" onClose={() => { if (!isSavingBilling) setBillingReview(false); }}>
+        <div className="flex justify-end gap-2">
+          <button type="button" onClick={() => setBillingReview(false)} disabled={isSavingBilling} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm disabled:opacity-50">Cancel</button>
+          <button type="submit" form="share-cycle-billing-form" disabled={isSavingBilling} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingBilling ? "Saving…" : "Confirm"}</button>
+        </div>
+      </Modal>
+
       <Modal isOpen={isFundEntryModalOpen} title="Add Adjustments" description="This amount is not calculated or considered in Fund financials. These are separate Fund Other Adjustments only." onClose={() => { if (!isSavingFundEntry) setIsFundEntryModalOpen(false); }}>
         <form onSubmit={(event) => void handleRecordFundEntry(event)} className="space-y-4">
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-3"><p className="text-sm font-semibold text-amber-900">Separate ledger only</p><p className="mt-1 text-xs leading-5 text-amber-800">These entries are not calculated or considered in Fund financials, Cycle totals, Share balances, payments, or payouts.</p></div>
