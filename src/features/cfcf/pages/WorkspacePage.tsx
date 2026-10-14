@@ -1387,7 +1387,12 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         {deleteTarget && <div className="space-y-4">
           <div className="rounded-xl border border-rose-200 bg-rose-50 p-3">
             <p className="text-sm font-semibold text-rose-900">{deleteTarget.label}</p>
-            {deleteTarget.kind === "share" && <p className="mt-1 text-xs text-rose-800">Share ID: {deleteTarget.id}</p>}
+            {deleteTarget.kind === "share" && <>
+              <p className="mt-1 text-xs text-rose-800">Share ID: {deleteTarget.id}</p>
+              <p className="mt-1 text-xs text-rose-800">Fund: {selectedFund?.fund_name ?? "Selected Fund"}</p>
+              <p className="mt-1 text-xs text-rose-800">Phone: {(() => { const targetShare = shares.find((share) => share.share_id === deleteTarget.id); const targetContact = targetShare ? contactById.get(targetShare.contact_id) : undefined; return targetContact?.phone ?? "No phone saved"; })()}</p>
+              {(() => { const targetShare = shares.find((share) => share.share_id === deleteTarget.id); if (!targetShare) return null; return <p className="mt-1 text-xs text-rose-800">Payout: {targetShare.payout_status === "drawn" ? "Drawn · " + formatINR(targetShare.withdrawn_amount) + (targetShare.payout_cycle_number !== null ? " · Cycle " + targetShare.payout_cycle_number : "") : "Undrawn"}</p>; })()}
+            </>}
             <p className="mt-2 text-sm leading-5 text-rose-800">{deleteTarget.kind === "fund" ? "Fund deletion is blocked if it has any Shares, Payments, Fund adjustments, or saved Cycle payout/commission values." : "This permanently deletes this Share, its Cycle bill rows, shareholder payment ledger rows, and recorded payout data. The Fund, its Cycles, and other Shares remain."}</p>
             {deleteTarget.kind === "share" && <p className="mt-2 text-xs leading-5 text-rose-800">Audit records are retained to document the deletion. Only this Share and its related bill/payment rows are removed.</p>}
           </div>
