@@ -37,6 +37,11 @@ import {
   inspectCfcfFundFinancialSummary,
   setCfcfSharePayout,
   saveCfcfCycleValues,
+  listCfcfCycles,
+  addCfcfCycle,
+  setCfcfCyclePlannedPayout,
+  deleteHighestCfcfCycle,
+  type CfcfCycleRow,
   updateCfcfFundDetails,
   type CfcfLedgerItem,
   type CfcfFinancialReconciliation,
@@ -148,6 +153,12 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [deleteAcknowledged, setDeleteAcknowledged] = useState(false);
   const [deleteTypedId, setDeleteTypedId] = useState("");
   const [selectedCycleNumber, setSelectedCycleNumber] = useState<number | null>(null);
+  const [cycleRows, setCycleRows] = useState<CfcfCycleRow[]>([]);
+  const [cycleError, setCycleError] = useState<string | null>(null);
+  const [isCycleBusy, setIsCycleBusy] = useState(false);
+  const [plannedPayoutCycle, setPlannedPayoutCycle] = useState<number | null>(null);
+  const [plannedPayoutInput, setPlannedPayoutInput] = useState("");
+  const [plannedPayoutError, setPlannedPayoutError] = useState<string | null>(null);
   const [isFundEditOpen, setIsFundEditOpen] = useState(false);
   const [isFundReportOpen, setIsFundReportOpen] = useState(false);
   const [fundEditForm, setFundEditForm] = useState({ fundName: "", startDate: "", numberOfCycles: "" });
@@ -156,6 +167,15 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const lastTenantId = useRef(workspace.tenantId);
   const hydratedViewTenantId = useRef<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!selectedFund) { setCycleRows([]); return; }
+    listCfcfCycles(workspace.tenantId, selectedFund.fund_id)
+      .then((rows) => { if (!cancelled) { setCycleRows(rows); setCycleError(null); } })
+      .catch((error: unknown) => { if (!cancelled) setCycleError(error instanceof Error ? error.message : "Unable to load Cycles."); });
+    return () => { cancelled = true; };
+  }, [workspace.tenantId, selectedFund?.fund_id, detailReloadKey, fundReloadKey]);
 
   const selectedFund = useMemo(
     () => funds.find((fund) => fund.fund_id === selectedFundId) ?? null,
