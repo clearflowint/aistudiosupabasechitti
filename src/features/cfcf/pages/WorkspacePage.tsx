@@ -1306,7 +1306,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           } catch (error) { setPlannedPayoutError(error instanceof Error ? error.message : "Unable to save planned payout."); }
           finally { setIsCycleBusy(false); }
         }} className="space-y-4">
-          {plannedPayoutReview && <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3"><p className="font-semibold text-amber-900">Second confirmation required</p><p className="mt-1 text-sm text-amber-800">Save the planned payout for Cycle {plannedPayoutCycle}: ₹{Number(plannedPayoutInput).toLocaleString("en-IN")}. This is a planned amount only, not an actual withdrawal or payment.</p><button type="button" onClick={() => setPlannedPayoutReview(false)} className="mt-2 min-h-9 text-sm font-semibold underline">Back to edit</button></div>}
+
           <label htmlFor="planned-payout-amount" className="block text-sm font-medium text-slate-700">Planned payout (₹)<input id="planned-payout-amount" type="number" inputMode="numeric" min="0" max="2147483647" step="1" required value={plannedPayoutInput} onChange={(event) => setPlannedPayoutInput(event.target.value)} className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm"/></label>
           {plannedPayoutError && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{plannedPayoutError}</p>}
           <div className="flex justify-end gap-2 border-t border-slate-100 pt-3"><button type="button" onClick={() => setPlannedPayoutCycle(null)} disabled={isCycleBusy} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button><button type="submit" disabled={isCycleBusy} className="min-h-11 rounded-xl bg-violet-700 px-4 text-sm font-semibold text-white disabled:opacity-50">{isCycleBusy ? <><RefreshCw size={16} className="animate-spin" /> Waiting for Supabase…</> : plannedPayoutReview ? "Confirm planned payout" : "Review planned payout"}</button></div>
@@ -1374,7 +1374,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         onClose={() => { if (!isSavingCycle) { setCycleEditNumber(null); setCycleEditError(null); } }}
       >
         <form onSubmit={(event) => void handleSaveCycleValues(event)} className="space-y-4">
-          {cycleReview && <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3"><p className="font-semibold text-amber-900">Second confirmation required</p><p className="mt-1 text-sm text-amber-800">Save Cycle {cycleEditNumber} billing entries for {shares.filter((share) => share.status === "active").length} active Shares, with planned payout {cyclePayoutInput.trim() ? "₹" + Number(cyclePayoutInput).toLocaleString("en-IN") : "not set"} and commission {cycleCommissionInput.trim() ? "₹" + Number(cycleCommissionInput).toLocaleString("en-IN") : "not set"}. This changes Cycle billing data only; it creates no Payments or actual payouts.</p><button type="button" onClick={() => setCycleReview(false)} className="mt-2 min-h-9 text-sm font-semibold underline">Back to edit</button></div>}
+
           <div className="flex items-center justify-between gap-2 rounded-xl bg-violet-50 p-3"><div className="text-sm font-semibold text-violet-900">Cycle {cycleEditNumber ?? ""} · {shares.filter((share) => share.status === "active").length} active Shares</div><button type="button" onClick={() => setCycleEditEnabled((value) => !value)} disabled={cycleReview || isSavingCycle} className="min-h-9 rounded-lg border border-violet-200 bg-white px-3 text-xs font-semibold text-violet-800">{cycleEditEnabled ? "Review" : "Edit"}</button></div>
           <div className="grid grid-cols-2 gap-2">
             <div><label htmlFor="cycle-edit-payout" className="mb-1.5 block text-xs font-semibold text-slate-700">Planned payout (₹)</label><input id="cycle-edit-payout" type="number" min="0" max="2147483647" step="1" value={cyclePayoutInput} onChange={(event) => setCyclePayoutInput(event.target.value)} disabled={!cycleEditEnabled || cycleReview || isSavingCycle} placeholder="Not set" className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm disabled:bg-slate-50 disabled:text-slate-500" /></div>
@@ -1408,7 +1408,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         onClose={() => { if (!isSavingPayout) { setPayoutShare(null); setPayoutError(null); } }}
       >
         <form onSubmit={(event) => void handleSavePayout(event)} className="space-y-4">
-          {payoutReview && <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3"><p className="font-semibold text-amber-900">Second confirmation required</p><p className="mt-1 text-sm text-amber-800">Confirm payout status for Share {payoutShare?.share_id}, Cycle {payoutCycleNumber}, withdrawn amount {formatINR(Number(withdrawnAmount))}. This updates payout status only and does not create a payment.</p><button type="button" onClick={() => setPayoutReview(false)} className="mt-2 min-h-9 text-sm font-semibold underline">Back to edit</button></div>}{undrawnReview && <div role="alert" className="rounded-xl border border-rose-300 bg-rose-50 p-3"><p className="font-semibold text-rose-900">Confirm reset to Undrawn</p><p className="mt-1 text-sm text-rose-800">Share {payoutShare?.share_id} will be marked Undrawn and its payout fields reset. Existing Payment records will remain unchanged.</p><button type="button" onClick={() => setUndrawnReview(false)} className="mt-2 min-h-9 text-sm font-semibold underline">Back</button></div>}
+
           <div className={payoutReview ? "pointer-events-none opacity-60" : ""}>
             <label htmlFor="payout-cycle-number" className="mb-1.5 block text-sm font-medium text-slate-700">Payout Cycle</label>
             <select id="payout-cycle-number" value={payoutCycleNumber} onChange={(event) => {
@@ -1456,7 +1456,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         onClose={() => { if (!isSavingBilling) { setBillingShare(null); setBillingError(null); } }}
       >
         <form onSubmit={(event) => void handleSaveCycleBilling(event)} className="space-y-4">
-          {billingReview && <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3"><p className="font-semibold text-amber-900">Second confirmation required</p><p className="mt-1 text-sm text-amber-800">Save bill for Share {billingShare?.share_id}, Cycle {billingCycleNumber}, amount {formatINR(Number(billingAmount))}. This is a billing entry only; it does not create a payment or payout.</p><button type="button" onClick={() => setBillingReview(false)} className="mt-2 min-h-9 text-sm font-semibold underline">Back to edit</button></div>}
+
           <section className="space-y-2 rounded-xl border border-slate-200 p-3">
             <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">Saved bills for this Share</h4>
             {savedCycleNumbers().length === 0 ? <p className="text-sm text-slate-500">No saved Cycles yet.</p> : savedCycleNumbers().map((cycle) => {
