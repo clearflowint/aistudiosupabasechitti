@@ -788,7 +788,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           "Thank you,",
           ownerName,
         ];
-    window.open("https://wa.me/" + phone + "?text=" + encodeURIComponent(lines.join("\\n")), "_blank", "noopener,noreferrer");
+    window.open("https://wa.me/" + phone + "?text=" + encodeURIComponent(lines.join("\n")), "_blank", "noopener,noreferrer");
   }
 
   function currentBilledForShare(share: CfcfShareRow): number {
