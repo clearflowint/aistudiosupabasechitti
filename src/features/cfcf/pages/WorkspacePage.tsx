@@ -1223,6 +1223,15 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         onClose={() => { if (!isSavingBilling) { setBillingShare(null); setBillingError(null); } }}
       >
         <form onSubmit={(event) => void handleSaveCycleBilling(event)} className="space-y-4">
+          <section className="space-y-2 rounded-xl border border-slate-200 p-3">
+            <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">Saved bills for this Share</h4>
+            {savedCycleNumbers().length === 0 ? <p className="text-sm text-slate-500">No saved Cycles yet.</p> : savedCycleNumbers().map((cycle) => {
+              const savedBill = billingShare ? billForShareCycle(billingShare.share_id, cycle) : undefined;
+              return <button key={cycle} type="button" onClick={() => { if (!billingEditEnabled) { setBillingCycleNumber(String(cycle)); setBillingAmount(String(savedBill?.amount ?? 0)); } }} className={`flex min-h-10 w-full items-center justify-between gap-3 rounded-lg px-2 text-left text-sm ${Number(billingCycleNumber) === cycle ? "bg-sky-50 text-sky-800" : "bg-slate-50 text-slate-700"}`}>
+                <span>Cycle {cycle}</span><span className="font-semibold tabular-nums">₹{savedBill?.amount ?? 0}{savedBill ? "" : " · default"}</span>
+              </button>;
+            })}
+          </section>
           <div>
             <label htmlFor="cycle-billing-cycle" className="mb-1.5 block text-sm font-medium text-slate-700">Cycle</label>
             <select id="cycle-billing-cycle" value={billingCycleNumber} onChange={(event) => { setBillingCycleNumber(event.target.value); const saved = billForShareCycle(billingShare?.share_id ?? "", Number(event.target.value)); setBillingAmount(saved ? String(saved.amount) : "0"); setBillingEditEnabled(false); }} required disabled={savedCycleNumbers().length === 0 || billingEditEnabled} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 disabled:bg-slate-100">
