@@ -1,8 +1,10 @@
-// CFCF PRODUCT: Pure financial calculations for the existing CFCF schema.
+// CFCF PRODUCT: Pure financial calculations over normalized relational records.
 // SKELETON: No Supabase, React, browser, or persistence dependencies; inputs are stored rows and outputs are derived summaries.
-// MIX: RPCs remain the atomic write boundary; use these functions for preflight, reconciliation, and deterministic tests.
+// MIX: Database RPCs remain the atomic write boundary; these functions support reconciliation and deterministic tests.
 
 import type {
+  CfcfBillRow,
+  CfcfCycleRow,
   CfcfFundOtherEntryRow,
   CfcfFundRow,
   CfcfPaymentRow,
@@ -40,8 +42,6 @@ function wholeRupees(value: unknown, label: string): number {
 }
 
 function checkedTotal(values: number[], label: string): number {
-  // BigInt keeps signed ledger totals exact even if gross credits/debits exceed
-  // Number's safe range but their final net is still representable exactly.
   const total = values.reduce((sum, value) => sum + BigInt(value), 0n);
   if (total > BigInt(Number.MAX_SAFE_INTEGER) || total < BigInt(Number.MIN_SAFE_INTEGER)) {
     throw new Error(label + " exceeds JavaScript's safe integer range.");
@@ -49,37 +49,19 @@ function checkedTotal(values: number[], label: string): number {
   return Number(total);
 }
 
-function sumBillingEntries(entries: CfcfShareRow["billing_entries"], shareId: string): number {
-  if (!entries || typeof entries !== "object" || Array.isArray(entries)) {
-    throw new Error("Billing entries for Share " + shareId + " must be a JSON object.");
-  }
-  const amounts = Object.entries(entries).map(([cycleKey, value]) => {
-    if (!/^\d+$/.test(cycleKey) || Number(cycleKey) < 1) {
-      throw new Error("Invalid Cycle key in Share " + shareId + ": " + cycleKey);
-    }
-    return wholeRupees(value, "Billing for Share " + shareId + ", Cycle " + cycleKey);
-  });
-  return checkedTotal(amounts, "Share billed total");
-}
-
-function sumCycleCommissions(values: CfcfFundRow["cycle_commissions"]): number {
-  if (!Array.isArray(values)) throw new Error("Cycle commissions must be an array.");
-  return checkedTotal(
-    values.map((value, index) => value === null ? 0 : wholeRupees(value, "Commission for Cycle " + (index + 1))),
-    "Fund commission total",
-  );
-}
-
 /**
- * Rebuilds all financial summary fields from authoritative billing/payment/payout/expense rows.
+ * Rebuilds summary fields from normalized bills, cycle values, payment ledger rows,
+ * Share payout state, and Fund adjustment rows.
  *
- * Payments are signed by entry_type (credit - debit); stored net-payment fields are not
- * treated as the source of truth. Payouts are separate from payment transactions.
- * Fund other entries are tenant-level adjustments/expenses and never alter Share payment totals.
+ * Payments are never assigned to a Cycle or payout. They are an independent ledger.
+ * Total bills and net payments are compared only to derive the overall Share pending/advance
+ * balances; deleting a Cycle never deletes or edits payment rows.
  */
 export function calculateCfcfFundFinancialSummary(
   fund: CfcfFundRow,
   shares: CfcfShareRow[],
+  bills: CfcfBillRow[],
+  cycles: CfcfCycleRow[],
   payments: CfcfPaymentRow[],
   otherEntries: CfcfFundOtherEntryRow[],
 ): CfcfFundFinancialSummary {
@@ -89,6 +71,26 @@ export function calculateCfcfFundFinancialSummary(
     share.product_id === fund.product_id
   );
   const shareIds = new Set(scopedShares.map((share) => share.share_id));
+  const cycleIds = new Set(cycles.filter((cycle) =>
+    cycle.fund_id === fund.fund_id &&
+    cycle.tenant_id === fund.tenant_id &&
+    cycle.product_id === fund.product_id
+  ).map((cycle) => cycle.cycle_id));
+
+  const billsByShare = new Map<string, CfcfBillRow[]>();
+  const uniqueBillKeys = new Set<string>();
+  for (const bill of bills) {
+    if (bill.fund_id !== fund.fund_id || bill.tenant_id !== fund.tenant_id || bill.product_id !== fund.product_id) continue;
+    if (!shareIds.has(bill.share_id)) throw new Error("Bill " + bill.bill_id + " references a Share outside this Fund.");
+    if (!cycleIds.has(bill.cycle_id)) throw new Error("Bill " + bill.bill_id + " references a Cycle outside this Fund.");
+    const key = bill.cycle_id + ":" + bill.share_id;
+    if (uniqueBillKeys.has(key)) throw new Error("Duplicate bill exists for Share " + bill.share_id + " in Cycle " + bill.cycle_id + ".");
+    uniqueBillKeys.add(key);
+    wholeRupees(bill.amount, "Bill " + bill.bill_id);
+    const list = billsByShare.get(bill.share_id) ?? [];
+    list.push(bill);
+    billsByShare.set(bill.share_id, list);
+  }
 
   const paymentsByShare = new Map<string, CfcfPaymentRow[]>();
   for (const payment of payments) {
@@ -106,7 +108,11 @@ export function calculateCfcfFundFinancialSummary(
   }
 
   const shareSummaries = scopedShares.map((share): CfcfShareFinancialSummary => {
-    const billed = sumBillingEntries(share.billing_entries, share.share_id);
+    const shareBills = billsByShare.get(share.share_id) ?? [];
+    const billed = checkedTotal(
+      shareBills.map((bill) => wholeRupees(bill.amount, "Bill " + bill.bill_id)),
+      "Share billed total",
+    );
     const paymentRows = paymentsByShare.get(share.share_id) ?? [];
     const netPayments = checkedTotal(
       paymentRows.map((payment) => {
@@ -117,9 +123,7 @@ export function calculateCfcfFundFinancialSummary(
       }),
       "Share net payment total",
     );
-    if (netPayments < 0) {
-      throw new Error("Share " + share.share_id + " has net debits exceeding credits.");
-    }
+    if (netPayments < 0) throw new Error("Share " + share.share_id + " has net debits exceeding credits.");
     const pending = Math.max(billed - netPayments, 0);
     const advance = Math.max(netPayments - billed, 0);
     if (share.payout_status !== "drawn" && share.payout_status !== "undrawn") {
@@ -143,7 +147,11 @@ export function calculateCfcfFundFinancialSummary(
   const pending = checkedTotal(shareSummaries.map((share) => share.totalPending), "Fund pending total");
   const advance = checkedTotal(shareSummaries.map((share) => share.totalAdvance), "Fund advance total");
   const withdrawn = checkedTotal(shareSummaries.map((share) => share.withdrawnAmount), "Fund withdrawn total");
-  const commissions = sumCycleCommissions(fund.cycle_commissions);
+  const commissions = checkedTotal(
+    cycles.filter((cycle) => cycle.fund_id === fund.fund_id && cycle.tenant_id === fund.tenant_id && cycle.product_id === fund.product_id)
+      .map((cycle) => cycle.commission_amount === null ? 0 : wholeRupees(cycle.commission_amount, "Commission for Cycle " + cycle.cycle_number)),
+    "Fund commission total",
+  );
 
   const scopedOtherEntries = otherEntries.filter((entry) =>
     entry.fund_id === fund.fund_id &&
@@ -160,11 +168,8 @@ export function calculateCfcfFundFinancialSummary(
     "Fund other amount",
   );
 
-  // This balance is intentionally allowed to be positive or negative.
   const netBalance = billed - withdrawn - pending - commissions;
-  if (!Number.isSafeInteger(netBalance)) {
-    throw new Error("Fund net balance exceeds JavaScript's safe integer range.");
-  }
+  if (!Number.isSafeInteger(netBalance)) throw new Error("Fund net balance exceeds JavaScript's safe integer range.");
 
   return {
     fundId: fund.fund_id,
