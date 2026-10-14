@@ -156,6 +156,7 @@ export interface CfcfFundOtherEntryRow {
   entry_type: CfcfEntryType;
   amount: number;
   remarks: string | null;
+  adjustment_category: "outside_money" | "commission" | "discount" | "stationery" | "others";
   created_at: string;
   updated_at: string;
 }
