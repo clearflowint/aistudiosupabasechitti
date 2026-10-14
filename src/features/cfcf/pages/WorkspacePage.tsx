@@ -1874,7 +1874,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           <p className="break-words">{databaseResult?.message}</p>
         </div>
         <div className="mt-4 flex justify-end">
-          <button type="button" autoFocus onClick={() => { setDatabaseResult(null); setFundNotice(null); }} className="min-h-11 rounded-xl bg-slate-900 px-5 text-sm font-semibold text-white">Close</button>
+          <button type="button" autoFocus onClick={() => { setDatabaseResult(null); }} className="min-h-11 rounded-xl bg-slate-900 px-5 text-sm font-semibold text-white">Close</button>
         </div>
       </Modal>
     </div>
