@@ -12,6 +12,44 @@ import type {
 } from "../types/database.types";
 
 const MAX_CFCF_CYCLES = 100;
+export interface CfcfCycleRow {
+  cycle_id: number;
+  product_id: "CFCF";
+  tenant_id: string;
+  fund_id: string;
+  cycle_number: number;
+  planned_payout_amount: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function listCfcfCycles(tenantId: string, fundId: string): Promise<CfcfCycleRow[]> {
+  const { data, error } = await supabase.from("cfcf_cycles")
+    .select("cycle_id, product_id, tenant_id, fund_id, cycle_number, planned_payout_amount, created_at, updated_at")
+    .eq("product_id", cfcfConfig.productId).eq("tenant_id", tenantId).eq("fund_id", fundId)
+    .order("cycle_number", { ascending: true });
+  if (error) throw new Error("Unable to load Cycles: " + error.message);
+  return (data ?? []) as CfcfCycleRow[];
+}
+
+export async function addCfcfCycle(tenantId: string, fundId: string): Promise<CfcfCycleRow> {
+  const { data, error } = await supabase.rpc("cfcf_add_cycle", { p_tenant_id: tenantId, p_fund_id: fundId });
+  if (error) throw new Error("Unable to add Cycle: " + error.message);
+  return data as CfcfCycleRow;
+}
+
+export async function setCfcfCyclePlannedPayout(tenantId: string, fundId: string, cycleNumber: number, amount: number): Promise<CfcfCycleRow> {
+  if (!Number.isSafeInteger(amount) || amount < 0) throw new Error("Enter a whole-rupee payout amount of zero or more.");
+  const { data, error } = await supabase.rpc("cfcf_set_cycle_planned_payout", { p_tenant_id: tenantId, p_fund_id: fundId, p_cycle_number: cycleNumber, p_amount: amount });
+  if (error) throw new Error("Unable to save planned payout: " + error.message);
+  return data as CfcfCycleRow;
+}
+
+export async function deleteHighestCfcfCycle(tenantId: string, fundId: string, cycleNumber: number): Promise<void> {
+  const { error } = await supabase.rpc("cfcf_delete_highest_cycle", { p_tenant_id: tenantId, p_fund_id: fundId, p_cycle_number: cycleNumber });
+  if (error) throw new Error("Unable to delete Cycle: " + error.message);
+}
+
 
 function localDateFromTimestamp(value: string): string {
   const date = new Date(value);
