@@ -25,27 +25,7 @@ BEGIN
    WHERE fund_id=p_fund_id AND tenant_id=p_tenant_id AND product_id='CFCF' FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'Fund not found in this workspace'; END IF;
 
-  -- Rebuild Share billed and payment-derived balances from their independent source tables.
-  WITH bill_totals AS (
-    SELECT b.share_id, sum(b.amount::bigint) AS billed
-    FROM public.cfcf_bills b
-    WHERE b.product_id='CFCF' AND b.tenant_id=p_tenant_id AND b.fund_id=p_fund_id
-    GROUP BY b.share_id
-  ), payment_totals AS (
-    SELECT p.share_id,
-      sum(CASE WHEN p.entry_type='credit' THEN p.amount::bigint ELSE -p.amount::bigint END) AS received
-    FROM public.cfcf_payments p
-    WHERE p.product_id='CFCF' AND p.tenant_id=p_tenant_id AND p.fund_id=p_fund_id
-    GROUP BY p.share_id
-  ), derived AS (
-    SELECT s.share_id,
-      COALESCE(bt.billed,0) AS billed,
-      COALESCE(pt.received,0) AS received
-    FROM public.cfcf_shares s
-    LEFT JOIN bill_totals bt ON bt.share_id=s.share_id
-    LEFT JOIN payment_totals pt ON pt.share_id=s.share_id
-    WHERE s.product_id='CFCF' AND s.tenant_id=p_tenant_id AND s.fund_id=p_fund_id
-  )
+  -- Validate derived totals before casting into the Share's integer summary columns.
   IF EXISTS (
     WITH bill_totals AS (
       SELECT b.share_id, sum(b.amount::bigint) AS billed
@@ -74,6 +54,25 @@ BEGIN
     RAISE EXCEPTION 'A Share billing or payment summary exceeds the supported integer range' USING ERRCODE='22003';
   END IF;
 
+  -- Payments are used only for aggregate pending/advance calculations; they are not Cycle records.
+  WITH bill_totals AS (
+    SELECT b.share_id, sum(b.amount::bigint) AS billed
+    FROM public.cfcf_bills b
+    WHERE b.product_id='CFCF' AND b.tenant_id=p_tenant_id AND b.fund_id=p_fund_id
+    GROUP BY b.share_id
+  ), payment_totals AS (
+    SELECT p.share_id,
+      sum(CASE WHEN p.entry_type='credit' THEN p.amount::bigint ELSE -p.amount::bigint END) AS received
+    FROM public.cfcf_payments p
+    WHERE p.product_id='CFCF' AND p.tenant_id=p_tenant_id AND p.fund_id=p_fund_id
+    GROUP BY p.share_id
+  ), derived AS (
+    SELECT s.share_id, COALESCE(bt.billed,0) AS billed, COALESCE(pt.received,0) AS received
+    FROM public.cfcf_shares s
+    LEFT JOIN bill_totals bt ON bt.share_id=s.share_id
+    LEFT JOIN payment_totals pt ON pt.share_id=s.share_id
+    WHERE s.product_id='CFCF' AND s.tenant_id=p_tenant_id AND s.fund_id=p_fund_id
+  )
   UPDATE public.cfcf_shares s
   SET share_total_billed_amount=d.billed::integer,
       share_net_payment_received=d.received::integer,
