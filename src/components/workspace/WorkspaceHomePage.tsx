@@ -33,6 +33,7 @@ export function WorkspaceHomePage({ product, workspace, onNavigate }: WorkspaceH
   const [quickSearch, setQuickSearch] = useState("");
   const [quickLoading, setQuickLoading] = useState(false);
   const [quickSaving, setQuickSaving] = useState(false);
+  const [quickReview, setQuickReview] = useState(false);
   const [quickError, setQuickError] = useState<string | null>(null);
   const [quickSuccess, setQuickSuccess] = useState<string | null>(null);
   const quickSavingRef = useRef(false);
@@ -80,18 +81,19 @@ export function WorkspaceHomePage({ product, workspace, onNavigate }: WorkspaceH
 
   function closeQuickPayment() {
     if (quickSavingRef.current) return;
-    setQuickPaymentOpen(false); setQuickError(null); setQuickSearch(""); setQuickAmount(""); setQuickRemarks(""); setQuickContactId(""); setQuickFundId(""); setQuickShareId(""); setQuickEntryType("credit"); setQuickMode("UPI");
+    setQuickPaymentOpen(false); setQuickReview(false); setQuickError(null); setQuickSearch(""); setQuickAmount(""); setQuickRemarks(""); setQuickContactId(""); setQuickFundId(""); setQuickShareId(""); setQuickEntryType("credit"); setQuickMode("UPI");
   }
 
   async function handleQuickPaymentSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (quickSavingRef.current || !selectedFund || !selectedShare || !validAmount) return;
+    if (!quickReview) { setQuickReview(true); setQuickError(null); return; }
     quickSavingRef.current = true; setQuickSaving(true); setQuickError(null); setQuickSuccess(null);
     try {
       const now = new Date();
       const today = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
       await recordCfcfSharePayment(workspace.tenantId, selectedFund.fund_id, selectedShare.share_id, workspace.personId, quickEntryType, Number(quickAmount), today, quickMode, quickRemarks);
-      setQuickPaymentOpen(false);
+      setQuickPaymentOpen(false); setQuickReview(false);
       setQuickSuccess((quickEntryType === "credit" ? "Payment recorded" : "Debit correction recorded") + " successfully in Supabase for " + (selectedContact?.name ?? "the selected contact") + " · Share " + selectedShare.share_id + ".");
       setQuickSearch(""); setQuickAmount(""); setQuickRemarks(""); setQuickContactId(""); setQuickFundId(""); setQuickShareId("");
     } catch (error) {
@@ -161,6 +163,7 @@ export function WorkspaceHomePage({ product, workspace, onNavigate }: WorkspaceH
 
       <Modal isOpen={quickPaymentOpen} title="Record Payment (Quick)" description="Contact first → Fund → Share → amount. Payments remain independent of Cycle billing and payouts." onClose={closeQuickPayment}>
         <form onSubmit={(event) => void handleQuickPaymentSubmit(event)} className="space-y-3">
+          {quickReview && <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3"><p className="font-semibold text-amber-900">Second confirmation required</p><p className="mt-1 text-sm text-amber-800">{quickEntryType === "credit" ? "Credit payment" : "Debit correction"} · {selectedContact?.name} · {selectedFund?.fund_name} (ID {selectedFund?.fund_id}) · Share {selectedShare?.share_id} · {formatINR(Number(quickAmount))} · {quickMode}. Date is automatic. This entry is not linked to a Cycle or payout.</p><button type="button" onClick={() => setQuickReview(false)} className="mt-2 min-h-9 text-sm font-semibold underline">Back to edit</button></div>}
           {quickLoading && <div role="status" className="flex items-center gap-2 rounded-lg bg-sky-50 p-2 text-sm text-sky-800"><RefreshCw size={16} className="animate-spin" /> Loading saved contacts and Shares…</div>}
           <label className="block"><span className="mb-1 block text-sm font-medium">1. Search contact</span><input autoFocus value={quickSearch} onChange={(event) => { setQuickSearch(event.target.value); setQuickContactId(""); setQuickFundId(""); setQuickShareId(""); }} disabled={quickLoading || quickSaving} placeholder="Name or phone number" className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm" /></label>
           {quickSearch.trim() && !quickContactId && <div className="max-h-32 space-y-1 overflow-y-auto rounded-xl border border-slate-200 p-1">{filteredContacts.length ? filteredContacts.slice(0, 8).map((contact) => <button type="button" key={contact.contact_id} onClick={() => { setQuickContactId(contact.contact_id); setQuickSearch(contact.name + (contact.phone ? " · " + contact.phone : "")); setQuickFundId(""); setQuickShareId(""); }} className="flex min-h-11 w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50"><span className="min-w-0"><span className="block truncate font-medium">{contact.name}</span><span className="block truncate text-xs text-slate-500">{contact.phone || contact.email || "No contact details"}</span></span><ArrowRight size={16} className="shrink-0" /></button>) : <p className="p-2 text-sm text-slate-500">No matching contacts.</p>}</div>}
@@ -175,7 +178,7 @@ export function WorkspaceHomePage({ product, workspace, onNavigate }: WorkspaceH
             <label className="block"><span className="mb-1 block text-sm font-medium">Remarks <span className="font-normal text-slate-500">(optional)</span></span><input value={quickRemarks} maxLength={500} disabled={quickSaving} onChange={(event) => setQuickRemarks(event.target.value)} placeholder="Optional note" className="min-h-10 w-full rounded-xl border border-slate-200 px-3 text-sm" /></label>
           </div>}
           {quickError && <p role="alert" className="rounded-lg bg-rose-50 p-2 text-sm text-rose-800">{quickError}</p>}
-          <div className="flex justify-end gap-2 border-t border-slate-100 pt-3"><button type="button" disabled={quickSaving} onClick={closeQuickPayment} className="min-h-10 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button><button type="submit" disabled={quickSaving || quickLoading || !selectedFund || !selectedShare || !validAmount} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 text-sm font-semibold text-white disabled:opacity-50">{quickSaving ? <><RefreshCw size={16} className="animate-spin" /> Waiting for Supabase…</> : "Record Payment"}</button></div>
+          <div className="flex justify-end gap-2 border-t border-slate-100 pt-3"><button type="button" disabled={quickSaving} onClick={closeQuickPayment} className="min-h-10 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button><button type="submit" disabled={quickSaving || quickLoading || !selectedFund || !selectedShare || !validAmount} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 text-sm font-semibold text-white disabled:opacity-50">{quickSaving ? <><RefreshCw size={16} className="animate-spin" /> Waiting for Supabase…</> : quickReview ? "Confirm and record payment" : "Review payment"}</button></div>
         </form>
       </Modal>
 
