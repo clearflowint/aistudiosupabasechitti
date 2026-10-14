@@ -133,6 +133,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [isReconciling, setIsReconciling] = useState(false);
   const reconciliationRequestId = useRef(0);
   const [statementShare, setStatementShare] = useState<CfcfShareRow | null>(null);
+  const statementRequestId = useRef(0);
   const [isLoadingStatement, setIsLoadingStatement] = useState(false);
   const [statementError, setStatementError] = useState<string | null>(null);
   const [cycleEditNumber, setCycleEditNumber] = useState<number | null>(null);
