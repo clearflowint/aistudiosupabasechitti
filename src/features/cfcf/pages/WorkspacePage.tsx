@@ -37,7 +37,6 @@ import {
   listCfcfBills,
   inspectCfcfFundFinancialSummary,
   setCfcfSharePayout,
-  saveCfcfCycleValues,
   saveCfcfCycleWorkspace,
   listCfcfCycles,
   addCfcfCycle,
