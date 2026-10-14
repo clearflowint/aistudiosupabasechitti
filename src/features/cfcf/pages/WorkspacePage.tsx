@@ -916,34 +916,44 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                 <EmptyState icon={<UsersRound size={22} />} title={shares.length ? "No matching Shares" : "No Shares in this Fund yet"} description={shares.length ? "Clear the search or change the status filter." : "Add a Share by selecting an existing Contact in this Fund."} action={!shares.length ? <button type="button" onClick={openShareModal} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white"><Plus size={16} className="mr-1 inline" /> Add Share</button> : undefined} />
               ) : filteredShares.map((share) => {
                 const contact = contactById.get(share.contact_id);
-                const highestCycle = billedCycleNumbers([share]).at(-1) ?? 0;
-                const highestCycleBill = highestCycle ? billForShareCycle(share.share_id, highestCycle) : undefined;
-                const highestCycleBillDate = highestCycleBill?.bill_date ?? null;
-                return <article key={share.share_id} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                // Current Cycle and bill amount are selected from database-returned Fund/Bill rows; no financial totals are computed here.
+                const currentCycleBill = billForShareCycle(share.share_id, selectedFund.current_cycle);
+                return <article key={share.share_id} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
                   <div className="flex min-w-0 items-start justify-between gap-2">
-                    <div className="min-w-0"><p className="inline-block rounded-lg bg-slate-100 px-3 py-1 font-mono text-sm font-bold text-slate-700">{share.share_id}</p><h3 className="mt-2 break-words text-base font-semibold text-slate-900">{contact?.name ?? "Contact unavailable"}</h3><p className="mt-1 break-all text-sm text-slate-500">{contact?.phone ?? "No phone saved"}</p></div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="break-words text-base font-semibold leading-tight text-slate-900">{contact?.name ?? "Contact unavailable"}</h3>
+                      <p className="mt-1 text-xs text-slate-500">Share ID: <span className="font-mono">{share.share_id}</span></p>
+                      <p className="mt-0.5 break-all text-xs text-slate-500">{contact?.phone ?? "No phone saved"}</p>
+                    </div>
                     <div className="shrink-0 text-right">
-                      {share.total_pending > 0 ? <p className="text-sm font-bold text-rose-700">−{formatINR(share.total_pending)}</p> : share.total_advance > 0 ? <p className="text-sm font-bold text-emerald-700">Advance +{formatINR(share.total_advance)}</p> : <p className="text-sm font-bold text-slate-600">{formatINR(0)}</p>}
-                      <span className={["mt-2 inline-block rounded-full px-2 py-1 text-xs font-semibold",share.payout_status==="drawn"?"bg-emerald-50 text-emerald-800":"bg-amber-50 text-amber-800"].join(" ")}>{share.payout_status==="drawn"?"Drawn":"Undrawn"}</span>
+                      <div className="flex items-center justify-end gap-1">
+                        {share.total_pending > 0 && <span aria-hidden="true" className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-600 motion-reduce:animate-none" />}
+                        <span className="text-xs font-medium text-slate-500">Pending</span>
+                      </div>
+                      <p className={["mt-0.5 text-base font-bold tabular-nums",share.total_pending > 0?"text-red-600":"text-slate-700"].join(" ")}>{formatINR(share.total_pending)}</p>
+                      <span className={["mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-semibold",share.payout_status==="drawn"?"bg-emerald-50 text-emerald-800":"bg-amber-50 text-amber-800"].join(" ")}>{share.payout_status==="drawn"?"Drawn":"Undrawn"}</span>
                     </div>
                   </div>
-                  <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-3">
-                    <StoredValue label={highestCycle ? "Cycle " + highestCycle + " bill" : "Highest Cycle bill"} value={highestCycleBill === undefined ? "—" : displayStoredAmount(highestCycleBill.amount)}/>
-                    <StoredValue label="Bill added" value={highestCycleBillDate ? formatDate(highestCycleBillDate) : highestCycleBill ? "Date unavailable" : "—"}/>
-                    <StoredValue label="Total billed" value={formatINR(share.share_total_billed_amount)}/>
-                    <StoredValue label="Total paid" value={formatINR(share.share_net_payment_received)}/>
-                    <StoredValue label="Withdrawn amount" value={formatINR(share.withdrawn_amount)}/>
+                  <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 rounded-xl bg-slate-50 p-2.5">
+                    <StoredValue label={"Current Cycle (" + selectedFund.current_cycle + ") Billing"} value={currentCycleBill === undefined ? "—" : displayStoredAmount(currentCycleBill.amount)}/>
+                    <StoredValue label="Total Billed" value={formatINR(share.share_total_billed_amount)}/>
+                    <StoredValue label="Total Paid" value={formatINR(share.share_net_payment_received)}/>
+                    <StoredValue label="Advance Amount" value={formatINR(share.total_advance)}/>
+                    {share.payout_status === "drawn" && <StoredValue label={"Withdrawn · Cycle " + (share.payout_cycle_number ?? "—")} value={formatINR(share.withdrawn_amount)}/>}
                   </div>
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    <button type="button" onClick={() => setStatementShare(share)} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2 text-sm font-semibold text-slate-800"><FileText size={16}/> Statement</button>
-                    <button type="button" onClick={() => openShareWhatsApp(share,"report")} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-2 text-sm font-semibold text-emerald-800"><MessageCircle size={16}/> Report</button>
-                    <button type="button" onClick={() => openShareWhatsApp(share,"reminder")} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-2 text-sm font-semibold text-white"><MessageCircle size={16}/> Reminder</button>
-                    <button type="button" onClick={() => openPaymentModal(share)} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-sky-600 px-2 text-sm font-semibold text-white"><CreditCard size={16}/> Record Payment</button>
-                    <button type="button" onClick={() => openCycleBilling(share)} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-2 text-xs font-semibold text-violet-800 disabled:opacity-50"><CalendarDays size={14}/> Cycle billing</button>
-                    <button type="button" onClick={() => openPayoutModal(share)} disabled={billedCycleNumbers().length === 0} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-2 text-xs font-semibold text-amber-800 disabled:cursor-not-allowed disabled:opacity-50"><WalletCards size={14}/> {share.payout_status==="drawn"?"Edit payout":"Undrawn"}</button>
-                    <button type="button" onClick={() => { setSelectedShareId(share.share_id); }} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 px-2 text-xs font-semibold text-sky-800">Share ledger</button>
-                    <button type="button" onClick={() => { setDeleteStep(1); setDeleteAcknowledged(false); setDeleteTypedId(""); setDeleteTarget({ kind: "share", id: share.share_id, label: contact?.name ?? share.share_id, fundId: selectedFund.fund_id }); setDeleteError(null); }} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-2 text-xs font-semibold text-rose-800">Delete empty Share</button>
+                  <div className="mt-2 flex gap-1">
+                    <div className="grid min-w-0 flex-[65] grid-cols-2 gap-1">
+                      <button type="button" onClick={() => openPayoutModal(share)} disabled={billedCycleNumbers().length === 0} className="inline-flex min-h-9 min-w-0 items-center justify-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-1.5 text-xs font-semibold text-amber-800 disabled:cursor-not-allowed disabled:opacity-50"><WalletCards size={14} className="shrink-0"/> Payout</button>
+                      <button type="button" onClick={() => openCycleBilling(share)} className="inline-flex min-h-9 min-w-0 items-center justify-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-1.5 text-xs font-semibold text-violet-800"><CalendarDays size={14} className="shrink-0"/> Bills</button>
+                    </div>
+                    <button type="button" onClick={() => openPaymentModal(share)} className="inline-flex min-h-9 min-w-0 flex-[35] items-center justify-center gap-1 rounded-lg bg-emerald-800 px-1.5 text-xs font-semibold text-white"><CreditCard size={14} className="shrink-0"/> Record Payment</button>
                   </div>
+                  <div className="mt-1 flex gap-1">
+                    <button type="button" onClick={() => setStatementShare(share)} className="inline-flex min-h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-1.5 text-xs font-semibold text-slate-800"><FileText size={14}/> Statement</button>
+                    <button type="button" onClick={() => openShareWhatsApp(share,"report")} className="inline-flex min-h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-1.5 text-xs font-semibold text-emerald-800"><MessageCircle size={13}/> Report</button>
+                    <button type="button" onClick={() => openShareWhatsApp(share,"reminder")} className="inline-flex min-h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-1.5 text-xs font-semibold text-emerald-800"><MessageCircle size={13}/> Reminder</button>
+                  </div>
+                  <button type="button" onClick={() => { setDeleteStep(1); setDeleteAcknowledged(false); setDeleteTypedId(""); setDeleteTarget({ kind: "share", id: share.share_id, label: contact?.name ?? share.share_id, fundId: selectedFund.fund_id }); setDeleteError(null); }} className="sr-only">Delete empty Share</button>
                 </article>;
               })}
             </section>
