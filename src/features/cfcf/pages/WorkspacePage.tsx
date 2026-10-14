@@ -615,6 +615,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   }
 
   async function openShareStatement(share: CfcfShareRow) {
+    const requestId = ++statementRequestId.current;
     setStatementShare(share);
     setIsLoadingStatement(true);
     setStatementError(null);
@@ -627,6 +628,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         listCfcfLedgerItems(workspace.tenantId, share.fund_id),
         listCfcfCycles(workspace.tenantId, share.fund_id),
       ]);
+      if (requestId !== statementRequestId.current) return;
       setFunds(freshFunds);
       setShares(freshShares);
       setContacts(freshContacts);
@@ -635,9 +637,9 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setCycleRows(freshCycles);
       setStatementShare(freshShares.find((row) => row.share_id === share.share_id) ?? share);
     } catch (error) {
-      setStatementError(error instanceof Error ? error.message : "Unable to refresh this Share statement.");
+      if (requestId === statementRequestId.current) setStatementError(error instanceof Error ? error.message : "Unable to refresh this Share statement.");
     } finally {
-      setIsLoadingStatement(false);
+      if (requestId === statementRequestId.current) setIsLoadingStatement(false);
     }
   }
 
