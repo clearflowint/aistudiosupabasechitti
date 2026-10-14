@@ -441,28 +441,51 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   }
 
   async function printFullFundReport() {
-    const content = document.querySelector("[data-cfcf-full-fund-report]")?.innerHTML;
-    if (!content) { setFullFundReportError("Full Fund report content is not ready."); return; }
-    const reportHtml = "<!doctype html><html><head><meta charset=\"utf-8\"><title>ClearFlow Full Fund Report</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><style>*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#0f172a;font-size:14px;line-height:1.5;margin:0;padding:16px;max-width:1000px;margin-inline:auto;overflow-wrap:anywhere}.brand-header{text-align:center;font-size:18px;font-weight:800;letter-spacing:.35px;padding:12px 0 16px;margin-bottom:18px;border-bottom:1px solid #cbd5e1}h1{font-size:24px;margin:0 0 6px}h2{font-size:19px;margin:22px 0 10px}h3{font-size:16px;margin:12px 0 6px}.report-section{margin-bottom:18px;min-width:0}.record{border:1px solid #cbd5e1;border-radius:10px;padding:12px;margin:8px 0;min-width:0}.muted{color:#64748b}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.metric{border:1px solid #cbd5e1;border-radius:8px;padding:10px;min-width:0}.metric-label{font-size:12px;color:#64748b}.metric-value{font-size:14px;font-weight:700;margin-top:4px;overflow-wrap:anywhere;word-break:break-word}.pill{display:inline-block;border:1px solid #cbd5e1;border-radius:10px;padding:2px 8px;font-size:12px}p{margin:5px 0;overflow-wrap:anywhere;word-break:break-word}.entry-amount{font-weight:700}.entry-meta{font-size:12px;color:#64748b;overflow-wrap:anywhere;word-break:break-word}.disclaimer{border:1px solid #fcd34d;background:#fffbeb;padding:12px;border-radius:10px}.report-footer{margin-top:24px;padding-top:12px;border-top:1px solid #cbd5e1;font-size:12px;color:#475569;text-align:center}.report-actions{display:none!important}.report-actions button{border:1px solid #cbd5e1;border-radius:10px;padding:10px 14px;font-weight:700;background:#fff}.report-actions .download{background:#6d28d9;color:#fff;border-color:#6d28d9}@media(max-width:600px){body{padding:12px;font-size:14px}.grid{grid-template-columns:minmax(0,1fr)}h1{font-size:22px}h2{font-size:18px}.record,.metric{padding:10px}}@media print{.report-actions{display:none}body{padding:0}@page{size:A4;margin:12mm}}</style></head><body><div class=\"report-actions\"><button class=\"download\" onclick=\"downloadReport()\">Download report (HTML)</button><button onclick=\"window.print()\">Print / Save as PDF</button></div><script>function downloadReport(){const blob=new Blob([document.documentElement.outerHTML],{type:'text/html;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='ClearFlow-Full-Fund-Report.html';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}</script><header class=\"brand-header\">Powered by ClearFlow Automations</header>" + content + "<footer class=\"report-footer\"><strong>Powered by ClearFlow Automations</strong><br>ClearFlow · Full Fund Report · Generated " + new Date().toLocaleString("en-IN") + "</footer></body></html>";
-    const reportBlob = new Blob([reportHtml], { type: "text/html;charset=utf-8" });
-    const reportUrl = URL.createObjectURL(reportBlob);
-    const reportTab = window.open(reportUrl, "_blank");
-    if (!reportTab) { URL.revokeObjectURL(reportUrl); setFullFundReportError("Allow pop-ups for this site so the report can open in a new tab. No PDF was downloaded."); return; }
-    const pdfFrame = document.createElement("iframe");
-    pdfFrame.setAttribute("aria-hidden", "true");
-    pdfFrame.style.cssText = "position:fixed;left:-10000px;top:0;width:794px;height:1123px;border:0";
-    document.body.appendChild(pdfFrame);
+    const source = document.querySelector("[data-cfcf-full-fund-report]");
+    if (!(source instanceof HTMLElement)) {
+      setFullFundReportError("Full Fund report content is not ready. Please try again.");
+      return;
+    }
+
+    let reportRoot: HTMLDivElement | null = null;
     try {
-      const frameDocument = pdfFrame.contentDocument;
-      if (!frameDocument) throw new Error("Unable to prepare the report for PDF generation.");
-      frameDocument.open(); frameDocument.write(reportHtml); frameDocument.close();
-      await new Promise<void>((resolve, reject) => { if (frameDocument.readyState === "complete") resolve(); else { pdfFrame.onload = () => resolve(); pdfFrame.onerror = () => reject(new Error("Unable to render the report for PDF download.")); } });
-      frameDocument.querySelector(".report-actions")?.remove();
+      setFullFundReportError("");
       const pdfModule = await import("html2pdf.js");
-      await pdfModule.default().set({ margin: [10, 10, 12, 10], filename: "ClearFlow-Full-Fund-Report.pdf", image: { type: "jpeg", quality: 0.98 }, html2canvas: { scale: 2, useCORS: true, logging: false, windowWidth: 794 }, jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }, pagebreak: { mode: ["css", "legacy"] } }).from(frameDocument.body).save();
-      setFundNotice("PDF download started: ClearFlow-Full-Fund-Report.pdf. The report is also open in a separate tab.");
-    } catch (error) { reportTab.close(); setFullFundReportError(error instanceof Error ? "PDF download failed: " + error.message + ". Please try again." : "PDF download failed. Please try again."); }
-    finally { pdfFrame.remove(); setTimeout(() => URL.revokeObjectURL(reportUrl), 60000); }
+      reportRoot = document.createElement("div");
+      reportRoot.style.cssText = "position:fixed;left:-10000px;top:0;width:794px;background:#fff;color:#0f172a;font-family:Arial,sans-serif;font-size:12px;line-height:1.45;padding:28px;box-sizing:border-box;overflow-wrap:anywhere";
+      const style = document.createElement("style");
+      style.textContent = "*{box-sizing:border-box}h1{font-size:22px;margin:0 0 6px}h2{font-size:15px;margin:18px 0 8px;break-after:avoid}h3{font-size:12px;margin:10px 0 5px}.report-section{margin-bottom:16px;break-inside:auto}.record{border:1px solid #cbd5e1;border-radius:7px;padding:9px;margin:6px 0;break-inside:avoid}.muted{color:#64748b}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.metric{border:1px solid #cbd5e1;border-radius:6px;padding:8px;break-inside:avoid;min-width:0}.metric-label{font-size:9px;color:#64748b}.metric-value{font-size:12px;font-weight:700;margin-top:3px;overflow-wrap:anywhere;word-break:break-word}.pill{display:inline-block;border:1px solid #cbd5e1;border-radius:10px;padding:2px 6px;font-size:9px}p{margin:3px 0;overflow-wrap:anywhere;word-break:break-word}.entry-amount{font-weight:700}.entry-meta{font-size:9px;color:#64748b;overflow-wrap:anywhere;word-break:break-word}.disclaimer{border:1px solid #fcd34d;background:#fffbeb;padding:9px;border-radius:6px}.brand-header{text-align:center;font-size:18px;font-weight:800;letter-spacing:.35px;padding:0 0 12px;margin-bottom:14px;border-bottom:1px solid #cbd5e1}.report-footer{margin-top:20px;padding-top:8px;border-top:1px solid #cbd5e1;font-size:10px;color:#475569;text-align:center}.no-pdf{display:none!important}";
+      reportRoot.appendChild(style);
+      const header = document.createElement("header");
+      header.className = "brand-header";
+      header.textContent = "Powered by ClearFlow Automations";
+      reportRoot.appendChild(header);
+      const reportContent = source.cloneNode(true) as HTMLElement;
+      reportContent.removeAttribute("data-cfcf-full-fund-report");
+      reportRoot.appendChild(reportContent);
+      const footer = document.createElement("footer");
+      footer.className = "report-footer";
+      footer.innerHTML = "<strong>Powered by ClearFlow Automations</strong><br>ClearFlow · Full Fund Report · Generated " + new Date().toLocaleString("en-IN");
+      reportRoot.appendChild(footer);
+      document.body.appendChild(reportRoot);
+
+      await pdfModule.default().set({
+        margin: [8, 8, 10, 8],
+        filename: "ClearFlow-Full-Fund-Report.pdf",
+        image: { type: "jpeg", quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: "#ffffff", windowWidth: 794 },
+        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+        pagebreak: { mode: ["css", "legacy"], avoid: [".record", ".metric", "h2"] },
+      }).from(reportRoot).save();
+
+      setFundNotice("Downloaded ClearFlow-Full-Fund-Report.pdf.");
+    } catch (error) {
+      setFullFundReportError(error instanceof Error
+        ? "PDF download failed: " + error.message + ". Please try again."
+        : "PDF download failed. Please try again.");
+    } finally {
+      reportRoot?.remove();
+    }
   }
   function printFundReport() {
     const content = document.querySelector("[data-cfcf-fund-report]")?.innerHTML;
@@ -1641,7 +1664,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
 
       <Modal isOpen={isFullFundReportOpen} title="Full Fund Report" description="Download a report file and open the full report in a separate browser tab. The report is mobile-friendly; use its own Print / Save as PDF control only if you need a PDF." size="large" onClose={() => setIsFullFundReportOpen(false)}>
         <div className="space-y-4">
-          <div className="sticky top-0 z-10 -mx-1 flex flex-wrap gap-2 border-b border-slate-100 bg-white px-1 py-2"><button type="button" onClick={printFullFundReport} disabled={!selectedFund || isLoadingFullFundReport || !!fullFundReportError} className="min-h-11 flex-1 rounded-xl bg-violet-700 px-4 text-sm font-semibold text-white disabled:opacity-40">Download / Open Report</button><button type="button" onClick={() => setIsFullFundReportOpen(false)} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Close</button></div>
+          <div className="sticky top-0 z-10 -mx-1 flex flex-wrap gap-2 border-b border-slate-100 bg-white px-1 py-2"><button type="button" onClick={printFullFundReport} disabled={!selectedFund || isLoadingFullFundReport || !!fullFundReportError} className="min-h-11 flex-1 rounded-xl bg-violet-700 px-4 text-sm font-semibold text-white disabled:opacity-40">Download PDF</button><button type="button" onClick={() => setIsFullFundReportOpen(false)} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Close</button></div>
           {fullFundReportError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{fullFundReportError}</p>}
           {selectedFund && <div data-cfcf-full-fund-report className="space-y-4 text-slate-900">
             <section className="report-section rounded-xl border border-slate-200 bg-slate-50 p-4">
