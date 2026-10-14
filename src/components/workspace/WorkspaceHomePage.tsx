@@ -1,7 +1,7 @@
 // SKELETON: Product-neutral mobile home. Keep it focused on the two primary destinations.
 // MIX: The product provides destination metadata; navigation remains owned by the shared shell.
 
-import { ArrowRight, ShieldCheck, WalletCards } from "lucide-react";
+import { ArrowRight, History, ShieldCheck, WalletCards } from "lucide-react";
 import { ContactsPage } from "../../features/cfcf/pages/ContactsPage";
 import type { ProductDefinition } from "../../core/products/product.types";
 import type { AuthorizedWorkspace } from "../../core/workspace/workspace.types";
@@ -14,6 +14,7 @@ interface WorkspaceHomePageProps {
 
 export function WorkspaceHomePage({ product, workspace, onNavigate }: WorkspaceHomePageProps) {
   const workspacePage = product.navigation.find(({ id }) => id === "workspace");
+  const activityPage = product.navigation.find(({ id }) => id === "activity");
 
   return (
     <div className="min-w-0 space-y-4">
@@ -47,6 +48,22 @@ export function WorkspaceHomePage({ product, workspace, onNavigate }: WorkspaceH
               <p className="mt-1 break-words text-sm leading-5 text-sky-100">Open all funds, cycles, shares, and ledger entries in one place.</p>
             </div>
             <ArrowRight size={20} className="shrink-0" />
+          </button>
+        )}
+        {activityPage && (
+          <button
+            type="button"
+            onClick={() => onNavigate(activityPage.id)}
+            className="flex min-h-20 w-full min-w-0 items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left text-slate-900 shadow-sm transition hover:bg-slate-50 sm:p-4"
+          >
+            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-700">
+              <History size={22} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-base font-bold">Manager Activity Log</h3>
+              <p className="mt-1 break-words text-sm leading-5 text-slate-600">Review the latest 500 recorded actions, newest first.</p>
+            </div>
+            <ArrowRight size={20} className="shrink-0 text-slate-500" />
           </button>
         )}
       </section>
