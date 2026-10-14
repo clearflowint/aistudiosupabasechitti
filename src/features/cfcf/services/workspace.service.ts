@@ -5,6 +5,9 @@ import { supabase } from "../../../core/database/supabaseClient";
 import { cfcfConfig } from "../config/cfcf.config";
 import { calculateCfcfFundFinancialSummary } from "./financial-calculations";
 import type {
+  CfcfActivityLogRow,
+  CfcfBillRow,
+  CfcfCycleRow as CfcfCycleRowType,
   CfcfFundOtherEntryRow,
   CfcfFundRow,
   CfcfPaymentRow,
@@ -12,20 +15,11 @@ import type {
 } from "../types/database.types";
 
 const MAX_CFCF_CYCLES = 100;
-export interface CfcfCycleRow {
-  cycle_id: number;
-  product_id: "CFCF";
-  tenant_id: string;
-  fund_id: string;
-  cycle_number: number;
-  planned_payout_amount: number | null;
-  created_at: string;
-  updated_at: string;
-}
+export type CfcfCycleRow = CfcfCycleRowType;
 
 export async function listCfcfCycles(tenantId: string, fundId: string): Promise<CfcfCycleRow[]> {
   const { data, error } = await supabase.from("cfcf_cycles")
-    .select("cycle_id, product_id, tenant_id, fund_id, cycle_number, planned_payout_amount, created_at, updated_at")
+    .select("cycle_id, product_id, tenant_id, fund_id, cycle_number, planned_payout_amount, commission_amount, created_at, updated_at")
     .eq("product_id", cfcfConfig.productId).eq("tenant_id", tenantId).eq("fund_id", fundId)
     .order("cycle_number", { ascending: true });
   if (error) throw new Error("Unable to load Cycles: " + error.message);
@@ -37,6 +31,8 @@ export interface CfcfCycleSummary {
   total_billed: number;
   billed_shares: number;
   not_billed_shares: number;
+  planned_payout_amount: number | null;
+  commission_amount: number | null;
   total_paid_out: number;
   withdrawn_shares: Array<{ share_id: string; contact_id: string; contact_name: string | null; withdrawn_amount: number }>;
 }
@@ -79,7 +75,7 @@ const FUND_FIELDS =
   "fund_id, product_id, tenant_id, person_id, fund_name, start_date, number_of_cycles, number_of_shares, current_cycle, cycle_payout_amounts, cycle_commissions, fund_net_balance, fund_total_billed_amount, fund_total_pending_amount, fund_total_advance, fund_total_withdrawn, fund_total_commissions, other_amount, status, created_at, updated_at";
 
 const SHARE_FIELDS =
-  "share_id, product_id, tenant_id, fund_id, person_id, contact_id, billing_entries, billing_entry_dates, share_total_billed_amount, share_net_payment_received, total_pending, total_advance, payout_status, withdrawn_amount, payout_cycle_number, status, created_at, updated_at";
+  "share_id, product_id, tenant_id, fund_id, person_id, contact_id, share_total_billed_amount, share_net_payment_received, total_pending, total_advance, payout_status, withdrawn_amount, payout_cycle_number, status, created_at, updated_at";
 
 export async function listCfcfFunds(tenantId: string): Promise<CfcfFundRow[]> {
   const { data, error } = await supabase
@@ -131,6 +127,24 @@ export async function createCfcfFund(
 
   if (error) throw new Error("Unable to create fund: " + error.message);
   return data as CfcfFundRow;
+}
+
+export async function listCfcfBills(tenantId: string, fundId: string): Promise<CfcfBillRow[]> {
+  const { data, error } = await supabase.from("cfcf_bills")
+    .select("bill_id, product_id, tenant_id, fund_id, cycle_id, share_id, amount, bill_date, created_at, updated_at")
+    .eq("product_id", cfcfConfig.productId).eq("tenant_id", tenantId).eq("fund_id", fundId)
+    .order("created_at", { ascending: false });
+  if (error) throw new Error("Unable to load bills: " + error.message);
+  return (data ?? []) as CfcfBillRow[];
+}
+
+export async function listCfcfActivityLog(tenantId: string): Promise<CfcfActivityLogRow[]> {
+  const { data, error } = await supabase.from("cfcf_activity_log")
+    .select("action_id, product_id, tenant_id, actor_person_id, action_type, entity_type, entity_id, description, before_data, after_data, created_at")
+    .eq("product_id", cfcfConfig.productId).eq("tenant_id", tenantId)
+    .order("created_at", { ascending: false }).order("action_id", { ascending: false }).limit(500);
+  if (error) throw new Error("Unable to load manager activity: " + error.message);
+  return (data ?? []) as CfcfActivityLogRow[];
 }
 
 export async function listCfcfShares(
@@ -407,10 +421,14 @@ export async function inspectCfcfFundFinancialSummary(
   tenantId: string,
   fundId: string,
 ): Promise<CfcfFinancialReconciliation> {
-  const [fundResult, sharesResult, paymentsResult, otherEntriesResult] = await Promise.all([
+  const [fundResult, sharesResult, billsResult, cyclesResult, paymentsResult, otherEntriesResult] = await Promise.all([
     supabase.from("cfcf_funds").select("*")
       .eq("product_id", cfcfConfig.productId).eq("tenant_id", tenantId).eq("fund_id", fundId).single(),
-    supabase.from("cfcf_shares").select("*")
+    supabase.from("cfcf_shares").select(SHARE_FIELDS)
+      .eq("product_id", cfcfConfig.productId).eq("tenant_id", tenantId).eq("fund_id", fundId),
+    supabase.from("cfcf_bills").select("*")
+      .eq("product_id", cfcfConfig.productId).eq("tenant_id", tenantId).eq("fund_id", fundId),
+    supabase.from("cfcf_cycles").select("cycle_id, product_id, tenant_id, fund_id, cycle_number, planned_payout_amount, commission_amount, created_at, updated_at")
       .eq("product_id", cfcfConfig.productId).eq("tenant_id", tenantId).eq("fund_id", fundId),
     supabase.from("cfcf_payments").select("*")
       .eq("product_id", cfcfConfig.productId).eq("tenant_id", tenantId).eq("fund_id", fundId),
@@ -421,14 +439,18 @@ export async function inspectCfcfFundFinancialSummary(
     throw new Error("Unable to load Fund for financial reconciliation: " + (fundResult.error?.message ?? "Fund not found."));
   }
   if (sharesResult.error) throw new Error("Unable to load Shares for financial reconciliation: " + sharesResult.error.message);
+  if (billsResult.error) throw new Error("Unable to load Bills for financial reconciliation: " + billsResult.error.message);
+  if (cyclesResult.error) throw new Error("Unable to load Cycles for financial reconciliation: " + cyclesResult.error.message);
   if (paymentsResult.error) throw new Error("Unable to load Payments for financial reconciliation: " + paymentsResult.error.message);
   if (otherEntriesResult.error) throw new Error("Unable to load Fund adjustments for financial reconciliation: " + otherEntriesResult.error.message);
 
   const fund = fundResult.data as CfcfFundRow;
   const shares = (sharesResult.data ?? []) as CfcfShareRow[];
+  const bills = (billsResult.data ?? []) as CfcfBillRow[];
+  const cycles = (cyclesResult.data ?? []) as CfcfCycleRow[];
   const payments = (paymentsResult.data ?? []) as CfcfPaymentRow[];
   const otherEntries = (otherEntriesResult.data ?? []) as CfcfFundOtherEntryRow[];
-  const expected = calculateCfcfFundFinancialSummary(fund, shares, payments, otherEntries);
+  const expected = calculateCfcfFundFinancialSummary(fund, shares, bills, cycles, payments, otherEntries);
   const mismatches: CfcfFinancialReconciliation["mismatches"] = [];
   const compare = (
     recordType: "fund" | "share",
