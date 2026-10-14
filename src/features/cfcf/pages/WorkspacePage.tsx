@@ -618,10 +618,21 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     setIsLoadingStatement(true);
     setStatementError(null);
     try {
-      const [freshBills, freshLedger, freshCycles] = await Promise.all([listCfcfBills(workspace.tenantId, share.fund_id), listCfcfLedgerItems(workspace.tenantId, share.fund_id), listCfcfCycles(workspace.tenantId, share.fund_id)]);
+      const [freshFunds, freshShares, freshContacts, freshBills, freshLedger, freshCycles] = await Promise.all([
+        listCfcfFunds(workspace.tenantId),
+        listCfcfShares(workspace.tenantId, share.fund_id),
+        listCfcfContacts(workspace.tenantId),
+        listCfcfBills(workspace.tenantId, share.fund_id),
+        listCfcfLedgerItems(workspace.tenantId, share.fund_id),
+        listCfcfCycles(workspace.tenantId, share.fund_id),
+      ]);
+      setFunds(freshFunds);
+      setShares(freshShares);
+      setContacts(freshContacts);
       setBills(freshBills);
       setLedgerItems(freshLedger);
       setCycleRows(freshCycles);
+      setStatementShare(freshShares.find((row) => row.share_id === share.share_id) ?? share);
     } catch (error) {
       setStatementError(error instanceof Error ? error.message : "Unable to refresh this Share statement.");
     } finally {
