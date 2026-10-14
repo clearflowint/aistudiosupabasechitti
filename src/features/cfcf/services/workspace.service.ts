@@ -354,6 +354,45 @@ export async function saveCfcfCycleValues(
   }
 }
 
+// CFCF PRODUCT: Bulk-edit all current bills plus Cycle-owned planned values in one database transaction.
+export async function saveCfcfCycleWorkspace(
+  tenantId: string,
+  fundId: string,
+  cycleNumber: number,
+  plannedPayoutAmount: number | null,
+  commissionAmount: number | null,
+  bills: Array<{ share_id: string; amount: number }>,
+): Promise<void> {
+  if (!Number.isSafeInteger(cycleNumber) || cycleNumber < 1 || cycleNumber > MAX_CFCF_CYCLES) {
+    throw new Error("Cycle number must be a positive whole number.");
+  }
+  for (const [label, value] of [["Planned payout", plannedPayoutAmount], ["Commission", commissionAmount]] as const) {
+    if (value !== null && (!Number.isSafeInteger(value) || value < 0 || value > 2147483647)) {
+      throw new Error(label + " must be a whole-rupee amount or left blank.");
+    }
+  }
+  const seen = new Set<string>();
+  for (const bill of bills) {
+    if (!bill.share_id || seen.has(bill.share_id)) throw new Error("Each Share can have only one bill in a Cycle.");
+    seen.add(bill.share_id);
+    if (!Number.isSafeInteger(bill.amount) || bill.amount < 0 || bill.amount > 2147483647) {
+      throw new Error("Every bill must be a nonnegative whole-rupee amount.");
+    }
+  }
+  const { error } = await supabase.rpc("cfcf_save_cycle_workspace", {
+    p_tenant_id: tenantId,
+    p_fund_id: fundId,
+    p_cycle_number: cycleNumber,
+    p_planned_payout_amount: plannedPayoutAmount,
+    p_commission_amount: commissionAmount,
+    p_bills: bills,
+  });
+  if (error) {
+    if (error.code === "42501") throw new Error("Supabase denied this Cycle change. Confirm you have active owner access.");
+    throw new Error("Unable to save Cycle workspace: " + error.message);
+  }
+}
+
 // CFCF PRODUCT: Edit descriptive Fund setup fields only; never touch stored financial fields.
 export async function updateCfcfFundDetails(tenantId: string, fundId: string, input: { fundName: string; startDate: string | null; numberOfCycles: number | null }): Promise<void> {
   const fundName = input.fundName.trim();
