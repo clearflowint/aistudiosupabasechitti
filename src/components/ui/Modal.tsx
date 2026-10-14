@@ -27,12 +27,27 @@ export function Modal({
   useEffect(() => {
     if (!isOpen) return;
 
+    // Prevent the page behind the dialog from scrolling while a modal is active.
+    // Preserve and restore the previous inline styles so nested app layouts are unaffected.
+    const body = document.body;
+    const previousOverflow = body.style.overflow;
+    const previousOverscrollBehavior = body.style.overscrollBehavior;
+    const previousTouchAction = body.style.touchAction;
+    body.style.overflow = "hidden";
+    body.style.overscrollBehavior = "none";
+    body.style.touchAction = "none";
+
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") onClose();
     }
 
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      body.style.overflow = previousOverflow;
+      body.style.overscrollBehavior = previousOverscrollBehavior;
+      body.style.touchAction = previousTouchAction;
+    };
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
@@ -40,7 +55,7 @@ export function Modal({
   const panelWidth = size === "large" ? "max-w-2xl" : "max-w-lg";
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto px-3 py-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:items-center sm:p-6">
+    <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto overscroll-contain px-3 py-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:items-center sm:p-6">
       <button
         type="button"
         aria-label="Close dialog"
