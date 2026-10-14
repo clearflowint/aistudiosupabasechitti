@@ -4,8 +4,10 @@ import type { User } from "@supabase/supabase-js";
 
 export const authService = {
   async getCurrentUser(): Promise<User | null> {
-    const { data, error } = await supabase.auth.getUser();
-    return error ? null : data.user;
+    // Read the locally persisted session first. A network-backed getUser() can lag on Safari
+    // during reload and briefly make a valid session look like a signed-out user.
+    const { data, error } = await supabase.auth.getSession();
+    return error ? null : data.session?.user ?? null;
   },
 
   async signInWithGoogle(): Promise<void> {
