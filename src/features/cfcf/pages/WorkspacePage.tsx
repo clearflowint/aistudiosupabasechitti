@@ -1868,8 +1868,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         isOpen={databaseResult !== null}
         closeOnOverlayClick={false}
         closeOnEscape={false}
-        title={databaseResult?.status === "error" ? "Operation failed" : "Database acknowledgement"}
-        description={databaseResult?.status === "error" ? "The operation was not confirmed as successful. Review the message below." : "The operation completed and the acknowledgement was received."}
+        title={databaseResult?.status === "error" ? "Operation failed" : "Operation result"}
+        description={databaseResult?.status === "error" ? "The operation could not be completed or confirmed. Review the message below." : "Review the result below."}
         onClose={() => { setDatabaseResult(null); }}
       >
         <div role={databaseResult?.status === "error" ? "alert" : "status"} aria-live="assertive" className={databaseResult?.status === "error" ? "rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm leading-6 text-rose-900" : "rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-900"}>
