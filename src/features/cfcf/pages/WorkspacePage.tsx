@@ -172,11 +172,9 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [isSavingFund, setIsSavingFund] = useState(false);
   const [fundForm, setFundForm] = useState(emptyFundForm);
   const [fundFormError, setFundFormError] = useState<string | null>(null);
-  const [fundNotice, setFundNotice] = useState<string | null>(null);
   const [databaseResult, setDatabaseResult] = useState<{ status: "success" | "error"; message: string } | null>(null);
 
   function showDatabaseResult(message: string, status: "success" | "error" = "success"): void {
-    setFundNotice(message);
     setDatabaseResult({ status, message });
   }
   const [deleteTarget, setDeleteTarget] = useState<{ kind: "share" | "fund"; id: string; label: string; fundId?: string } | null>(null);
@@ -977,7 +975,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   function openFundModal() {
     setFundForm(emptyFundForm);
     setFundFormError(null);
-    setFundNotice(null); setDatabaseResult(null);
+    setDatabaseResult(null);
     setIsFundModalOpen(true);
   }
 
@@ -1870,7 +1868,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         isOpen={databaseResult !== null}
         title={databaseResult?.status === "error" ? "Operation failed" : "Database acknowledgement"}
         description={databaseResult?.status === "error" ? "The operation was not confirmed as successful. Review the message below." : "The operation completed and the acknowledgement was received."}
-        onClose={() => { setDatabaseResult(null); setFundNotice(null); }}
+        onClose={() => { setDatabaseResult(null); }}
       >
         <div role={databaseResult?.status === "error" ? "alert" : "status"} aria-live="assertive" className={databaseResult?.status === "error" ? "rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm leading-6 text-rose-900" : "rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-900"}>
           <p className="break-words">{databaseResult?.message}</p>
