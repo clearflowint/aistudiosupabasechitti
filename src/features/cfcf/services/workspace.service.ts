@@ -26,7 +26,7 @@ const FUND_FIELDS =
   "fund_id, product_id, tenant_id, person_id, fund_name, start_date, number_of_cycles, number_of_shares, current_cycle, cycle_payout_amounts, cycle_commissions, fund_net_balance, fund_total_billed_amount, fund_total_pending_amount, fund_total_advance, fund_total_withdrawn, fund_total_commissions, other_amount, status, created_at, updated_at";
 
 const SHARE_FIELDS =
-  "share_id, product_id, tenant_id, fund_id, person_id, contact_id, billing_entries, share_total_billed_amount, share_net_payment_received, total_pending, total_advance, payout_status, withdrawn_amount, payout_cycle_number, status, created_at, updated_at";
+  "share_id, product_id, tenant_id, fund_id, person_id, contact_id, billing_entries, billing_entry_dates, share_total_billed_amount, share_net_payment_received, total_pending, total_advance, payout_status, withdrawn_amount, payout_cycle_number, status, created_at, updated_at";
 
 export async function listCfcfFunds(tenantId: string): Promise<CfcfFundRow[]> {
   const { data, error } = await supabase
