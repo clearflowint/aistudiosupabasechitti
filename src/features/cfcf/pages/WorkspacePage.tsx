@@ -136,6 +136,17 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [reconciliationError, setReconciliationError] = useState<string | null>(null);
   const [isReconciling, setIsReconciling] = useState(false);
   const reconciliationRequestId = useRef(0);
+  const inFlightActions = useRef(new Set<string>());
+
+  function beginAction(action: string): boolean {
+    if (inFlightActions.current.has(action)) return false;
+    inFlightActions.current.add(action);
+    return true;
+  }
+
+  function endAction(action: string): void {
+    inFlightActions.current.delete(action);
+  }
   const [statementShare, setStatementShare] = useState<CfcfShareRow | null>(null);
   const statementRequestId = useRef(0);
   const [isLoadingStatement, setIsLoadingStatement] = useState(false);
@@ -555,6 +566,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setPayoutError("Enter a whole-rupee withdrawn amount.");
       return;
     }
+    if (!beginAction("share-payout")) return;
     setIsSavingPayout(true);
     setPayoutError(null);
     try {
@@ -566,6 +578,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     } catch (error) {
       setPayoutError(error instanceof Error ? error.message : "Unable to update payout status.");
     } finally {
+      endAction("share-payout");
       setIsSavingPayout(false);
     }
   }
@@ -613,6 +626,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setBillingError("Enter a whole-rupee billing amount of zero or more.");
       return;
     }
+    if (!beginAction("cycle-billing")) return;
     setIsSavingBilling(true);
     setBillingError(null);
     try {
@@ -625,6 +639,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     } catch (error) {
       setBillingError(error instanceof Error ? error.message : "Unable to save cycle billing.");
     } finally {
+      endAction("cycle-billing");
       setIsSavingBilling(false);
     }
   }
@@ -812,6 +827,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     event.preventDefault();
     if (!selectedFund || isSavingShare) return;
     if (!newShareContactId) { setShareFormError("Choose a Contact."); return; }
+    if (!beginAction("create-share")) return;
     setIsSavingShare(true);
     setShareFormError(null);
     try {
@@ -822,7 +838,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setFundReloadKey((n) => n + 1);
     } catch (error) {
       setShareFormError(error instanceof Error ? error.message : "Unable to add Share.");
-    } finally { setIsSavingShare(false); }
+    } finally { endAction("create-share"); setIsSavingShare(false); }
   }
 
   function openPaymentModal(share: CfcfShareRow) {
@@ -842,6 +858,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     if (!paymentAmount.trim() || !Number.isSafeInteger(amount) || amount <= 0 || amount > 2147483647) {
       setPaymentError("Enter a positive whole-rupee amount."); return;
     }
+    if (!beginAction("record-payment")) return;
     setIsSavingPayment(true); setPaymentError(null);
     try {
       await recordCfcfSharePayment(workspace.tenantId, selectedFund.fund_id, paymentShare.share_id, workspace.personId, paymentEntryType, amount, paymentDate, paymentMode, paymentRemarks);
@@ -849,7 +866,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setFundNotice(paymentEntryType === "credit" ? "Payment recorded." : "Debit correction recorded.");
       setDetailReloadKey((n) => n + 1); setFundReloadKey((n) => n + 1);
     } catch (error) { setPaymentError(error instanceof Error ? error.message : "Unable to record transaction."); }
-    finally { setIsSavingPayment(false); }
+    finally { endAction("record-payment"); setIsSavingPayment(false); }
   }
 
   async function handleReconcileFinancialSummary() {
@@ -887,6 +904,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       return;
     }
     if (!fundEntryCategory) { setFundEntryError("Choose an adjustment category."); return; }
+    if (!beginAction("fund-other-adjustment")) return;
     setIsSavingFundEntry(true);
     setFundEntryError(null);
     try {
@@ -900,6 +918,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     } catch (error) {
       setFundEntryError(error instanceof Error ? error.message : "Unable to record Fund adjustment.");
     } finally {
+      endAction("fund-other-adjustment");
       setIsSavingFundEntry(false);
     }
   }
@@ -980,7 +999,9 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setFundFormError("Cycle count must be a whole number from 1 to 100.");
       return;
     }
-     setIsSavingFund(true);
+     if (!fundForm.fundName.trim()) { setFundFormError("Enter a Fund name."); return; }
+    if (!beginAction("create-fund")) return;
+    setIsSavingFund(true);
     try {
       const created = await createCfcfFund(workspace.tenantId, workspace.personId, {
         fundName: fundForm.fundName,
@@ -997,6 +1018,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     } catch (error) {
       setFundFormError(error instanceof Error ? error.message : "Unable to create fund.");
     } finally {
+      endAction("create-fund");
       setIsSavingFund(false);
     }
   }
@@ -1526,7 +1548,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           <label className="block"><span className="mb-1.5 block text-sm font-medium">Contact</span><select required value={newShareContactId} onChange={(event) => setNewShareContactId(event.target.value)} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"><option value="">Choose Contact</option>{contacts.map((contact) => <option key={contact.contact_id} value={contact.contact_id}>{contact.name} · {contact.phone}</option>)}</select></label>
           {!contacts.length && <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">No Contacts are available. Add a Contact first.</p>}
           {shareFormError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{shareFormError}</p>}
-          <div className="flex justify-end gap-2 border-t border-slate-100 pt-4"><button type="button" onClick={() => setIsShareModalOpen(false)} disabled={isSavingShare} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button><button type="submit" disabled={isSavingShare || !contacts.length} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingShare ? "Adding…" : "Add Share"}</button></div>
+          <div className="flex justify-end gap-2 border-t border-slate-100 pt-4"><button type="button" onClick={() => setIsShareModalOpen(false)} disabled={isSavingShare} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button><button type="submit" disabled={isSavingShare || !selectedFund || !newShareContactId || !contacts.length} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingShare ? "Adding…" : "Add Share"}</button></div>
         </form>
       </Modal>
 
@@ -1539,7 +1561,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           <label className="block"><span className="mb-1.5 block text-sm font-medium">Payment / Adjustment mode</span><select value={paymentMode} onChange={(event) => setPaymentMode(event.target.value as "UPI"|"Cash"|"Other")} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"><option value="UPI">UPI / Google Pay / PhonePe</option><option value="Cash">Cash</option><option value="Other">Other</option></select></label>
           <label className="block"><span className="mb-1.5 block text-sm font-medium">Remarks (optional)</span><textarea rows={2} value={paymentRemarks} onChange={(event) => setPaymentRemarks(event.target.value)} maxLength={500} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="Reference or correction reason"/></label>
           {paymentError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{paymentError}</p>}
-          <div className="flex justify-end gap-2 border-t border-slate-100 pt-4"><button type="button" onClick={() => setPaymentShare(null)} disabled={isSavingPayment} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button><button type="submit" disabled={isSavingPayment} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white">{isSavingPayment ? "Saving…" : paymentEntryType==="credit" ? "Confirm Payment" : "Confirm Correction"}</button></div>
+          <div className="flex justify-end gap-2 border-t border-slate-100 pt-4"><button type="button" onClick={() => setPaymentShare(null)} disabled={isSavingPayment} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button><button type="submit" disabled={isSavingPayment || !paymentShare || !selectedFund || !paymentAmount.trim() || !Number.isSafeInteger(Number(paymentAmount)) || Number(paymentAmount) <= 0 || Number(paymentAmount) > 2147483647} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white">{isSavingPayment ? "Saving…" : paymentEntryType==="credit" ? "Confirm Payment" : "Confirm Correction"}</button></div>
         </form>
       </Modal>
 
@@ -1555,7 +1577,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           <label className="block"><span className="mb-1.5 block text-sm font-medium">Amount (₹) *</span><input type="number" min="1" max="2147483647" step="1" required value={fundEntryAmount} onChange={(event) => setFundEntryAmount(event.target.value)} className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm" placeholder="Enter amount"/></label>
           <label className="block"><span className="mb-1.5 block text-sm font-medium">Remarks (optional)</span><textarea rows={2} maxLength={500} value={fundEntryRemarks} onChange={(event) => setFundEntryRemarks(event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="Optional note"/></label>
           {fundEntryError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{fundEntryError}</p>}
-          <div className="flex justify-end gap-2 border-t border-slate-100 pt-4"><button type="button" onClick={() => setIsFundEntryModalOpen(false)} disabled={isSavingFundEntry} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button><button type="submit" disabled={isSavingFundEntry || !selectedFund || !fundEntryCategory} className="min-h-11 rounded-xl bg-emerald-700 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingFundEntry ? "Saving…" : "Add adjustment"}</button></div>
+          <div className="flex justify-end gap-2 border-t border-slate-100 pt-4"><button type="button" onClick={() => setIsFundEntryModalOpen(false)} disabled={isSavingFundEntry} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button><button type="submit" disabled={isSavingFundEntry || !selectedFund || !fundEntryCategory || !fundEntryAmount.trim() || !Number.isSafeInteger(Number(fundEntryAmount)) || Number(fundEntryAmount) <= 0 || Number(fundEntryAmount) > 2147483647} className="min-h-11 rounded-xl bg-emerald-700 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingFundEntry ? "Saving…" : "Add adjustment"}</button></div>
         </form>
       </Modal>
 
