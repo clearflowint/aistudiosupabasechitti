@@ -2,6 +2,10 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
 
+// Shared lock avoids stale scroll styles when one modal replaces another in the same render.
+let activeModalLocks = 0;
+let originalBodyStyles: { overflow: string; overscrollBehavior: string } | null = null;
+
 interface ModalProps {
   isOpen: boolean;
   title: string;
@@ -33,11 +37,16 @@ export function Modal({
   useEffect(() => {
     if (!isOpen) return;
 
-    // Prevent the page behind the dialog from scrolling while a modal is active.
-    // Preserve and restore the previous inline styles so nested app layouts are unaffected.
+    // Lock body scrolling while any modal is open. A shared counter is important
+    // when a result modal replaces a form modal in one React render.
     const body = document.body;
-    const previousOverflow = body.style.overflow;
-    const previousOverscrollBehavior = body.style.overscrollBehavior;
+    if (activeModalLocks === 0) {
+      originalBodyStyles = {
+        overflow: body.style.overflow,
+        overscrollBehavior: body.style.overscrollBehavior,
+      };
+    }
+    activeModalLocks += 1;
     body.style.overflow = "hidden";
     body.style.overscrollBehavior = "none";
 
@@ -48,8 +57,12 @@ export function Modal({
     window.addEventListener("keydown", handleKeyDown);
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
-      body.style.overflow = previousOverflow;
-      body.style.overscrollBehavior = previousOverscrollBehavior;
+      activeModalLocks = Math.max(0, activeModalLocks - 1);
+      if (activeModalLocks === 0 && originalBodyStyles) {
+        body.style.overflow = originalBodyStyles.overflow;
+        body.style.overscrollBehavior = originalBodyStyles.overscrollBehavior;
+        originalBodyStyles = null;
+      }
     };
   }, [isOpen, closeOnEscape]);
 
