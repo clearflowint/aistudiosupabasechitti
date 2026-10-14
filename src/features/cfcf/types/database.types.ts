@@ -81,6 +81,7 @@ export interface CfcfShareRow {
   person_id: string;
   contact_id: string;
   billing_entries: Record<string, unknown>;
+  billing_entry_dates: Record<string, string>;
   share_total_billed_amount: number;
   share_net_payment_received: number;
   total_pending: number;
