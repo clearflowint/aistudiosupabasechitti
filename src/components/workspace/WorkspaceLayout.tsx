@@ -40,7 +40,9 @@ export function WorkspaceLayout({
     <div className="min-h-screen overflow-x-hidden bg-slate-100 text-slate-900">
       <header className="relative z-30 border-b border-slate-200 bg-white">
         <div className="mx-auto flex min-h-16 max-w-3xl items-center gap-2 px-3 py-3 sm:gap-3 sm:px-5">
-          <div className="min-w-0 flex-1" aria-hidden="true" />
+          <button type="button" onClick={() => onNavigate(activePage.isHome ? (product.navigation.find((item) => item.id === "workspace")?.id ?? product.navigation.find((item) => !item.isHome)?.id ?? activePage.id) : (product.navigation.find((item) => item.isHome)?.id ?? activePage.id))} className="inline-flex min-h-10 max-w-[34%] shrink-0 items-center justify-center gap-1 rounded-xl bg-sky-50 px-2 text-xs font-semibold text-sky-800 transition hover:bg-sky-100 sm:max-w-none sm:px-3 sm:text-sm">
+            {activePage.isHome ? <><span className="hidden sm:inline">Go to </span>Workspace</> : <><span className="hidden sm:inline">Go to </span>Home / Contacts</>}
+          </button>
           <button type="button" onClick={() => setIsNotificationsOpen((open) => !open)} aria-label={isNotificationsOpen ? "Close notifications" : "Open notifications"} aria-expanded={isNotificationsOpen} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800">
             <Bell size={19} />
           </button>
@@ -60,7 +62,7 @@ export function WorkspaceLayout({
             onClick={onSignOut}
             disabled={isSigningOut}
             aria-label={isSigningOut ? "Signing out" : `Sign out ${workspace.displayName || workspace.email}`}
-            className="inline-flex min-h-10 max-w-[48%] shrink-0 items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-600 px-2.5 text-xs font-semibold text-white transition hover:bg-rose-700 disabled:opacity-50 sm:px-3"
+            className="inline-flex min-h-10 max-w-[35%] shrink-0 items-center justify-center gap-1 rounded-xl border border-rose-200 bg-rose-600 px-2 text-[11px] font-semibold text-white transition hover:bg-rose-700 disabled:opacity-50 sm:max-w-[48%] sm:gap-1.5 sm:px-3 sm:text-xs"
           >
             <LogOut size={15} className="shrink-0" />
             <span className="truncate">{isSigningOut ? "Signing out…" : `Sign out · ${workspace.displayName || workspace.email}`}</span>
@@ -94,35 +96,6 @@ export function WorkspaceLayout({
           </div>
         )}
       </header>
-
-      <nav
-        aria-label="Main navigation"
-        className="border-b border-slate-200 bg-white"
-      >
-        <div className="mx-auto grid min-h-14 max-w-3xl grid-cols-2 gap-1 px-3 py-1.5 sm:px-5">
-          {product.navigation.map((item) => {
-            const isSelected = activePage.id === item.id;
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => onNavigate(item.id)}
-                aria-current={isSelected ? "page" : undefined}
-                className={[
-                  "flex min-h-11 min-w-0 flex-row items-center justify-center gap-2 rounded-xl px-2 text-xs font-semibold transition",
-                  isSelected
-                    ? "bg-sky-50 text-sky-800"
-                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-900",
-                ].join(" ")}
-              >
-                <Icon size={19} />
-                <span className="max-w-full truncate">{item.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </nav>
 
       <main className="mx-auto min-h-[calc(100dvh-8rem)] w-full max-w-3xl min-w-0 px-3 pb-8 pt-4 sm:px-5 sm:pt-6">
         {!activePage.isHome && (
