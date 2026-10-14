@@ -10,6 +10,8 @@ interface ModalProps {
   children: ReactNode;
   footer?: ReactNode;
   size?: "medium" | "large";
+  closeOnOverlayClick?: boolean;
+  closeOnEscape?: boolean;
 }
 
 export function Modal({
@@ -20,6 +22,8 @@ export function Modal({
   children,
   footer,
   size = "medium",
+  closeOnOverlayClick = true,
+  closeOnEscape = true,
 }: ModalProps) {
   const titleId = useId();
   const descriptionId = useId();
@@ -38,7 +42,7 @@ export function Modal({
     body.style.overscrollBehavior = "none";
 
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onCloseRef.current();
+      if (closeOnEscape && event.key === "Escape") onCloseRef.current();
     }
 
     window.addEventListener("keydown", handleKeyDown);
@@ -47,7 +51,7 @@ export function Modal({
       body.style.overflow = previousOverflow;
       body.style.overscrollBehavior = previousOverscrollBehavior;
     };
-  }, [isOpen]);
+  }, [isOpen, closeOnEscape]);
 
   if (!isOpen) return null;
 
@@ -60,6 +64,7 @@ export function Modal({
         aria-label="Close dialog"
         tabIndex={-1}
         onClick={onClose}
+        disabled={!closeOnOverlayClick}
         className="fixed inset-0 cursor-default bg-slate-950/60 backdrop-blur-sm"
       />
       <section
