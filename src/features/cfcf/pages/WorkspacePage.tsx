@@ -171,6 +171,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [payoutError, setPayoutError] = useState<string | null>(null);
   const [isSavingPayout, setIsSavingPayout] = useState(false);
   const [payoutReview, setPayoutReview] = useState(false);
+  const [undrawnReview, setUndrawnReview] = useState(false);
   const [isSavingFund, setIsSavingFund] = useState(false);
   const [fundForm, setFundForm] = useState(emptyFundForm);
   const [fundFormError, setFundFormError] = useState<string | null>(null);
@@ -551,6 +552,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     );
     setPayoutError(null);
     setPayoutReview(false);
+    setUndrawnReview(false);
   }
 
   async function handleSavePayout(event: FormEvent<HTMLFormElement>) {
@@ -590,6 +592,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
 
   async function handleMarkUndrawn() {
     if (!payoutShare || !selectedFund || isSavingPayout || payoutShare.payout_status !== "drawn") return;
+    if (!undrawnReview) { setUndrawnReview(true); setPayoutReview(false); return; }
+    if (!beginAction("share-payout")) return;
     setIsSavingPayout(true);
     setPayoutError(null);
     try {
@@ -601,6 +605,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     } catch (error) {
       setPayoutError(error instanceof Error ? error.message : "Unable to reset payout status.");
     } finally {
+      endAction("share-payout");
       setIsSavingPayout(false);
     }
   }
@@ -1468,7 +1473,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         onClose={() => { if (!isSavingPayout) { setPayoutShare(null); setPayoutError(null); } }}
       >
         <form onSubmit={(event) => void handleSavePayout(event)} className="space-y-4">
-          {payoutReview && <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3"><p className="font-semibold text-amber-900">Second confirmation required</p><p className="mt-1 text-sm text-amber-800">Confirm payout status for Share {payoutShare?.share_id}, Cycle {payoutCycleNumber}, withdrawn amount {formatINR(Number(withdrawnAmount))}. This updates payout status only and does not create a payment.</p><button type="button" onClick={() => setPayoutReview(false)} className="mt-2 min-h-9 text-sm font-semibold underline">Back to edit</button></div>}
+          {payoutReview && <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3"><p className="font-semibold text-amber-900">Second confirmation required</p><p className="mt-1 text-sm text-amber-800">Confirm payout status for Share {payoutShare?.share_id}, Cycle {payoutCycleNumber}, withdrawn amount {formatINR(Number(withdrawnAmount))}. This updates payout status only and does not create a payment.</p><button type="button" onClick={() => setPayoutReview(false)} className="mt-2 min-h-9 text-sm font-semibold underline">Back to edit</button></div>}{undrawnReview && <div role="alert" className="rounded-xl border border-rose-300 bg-rose-50 p-3"><p className="font-semibold text-rose-900">Confirm reset to Undrawn</p><p className="mt-1 text-sm text-rose-800">Share {payoutShare?.share_id} will be marked Undrawn and its payout fields reset. Existing Payment records will remain unchanged.</p><button type="button" onClick={() => setUndrawnReview(false)} className="mt-2 min-h-9 text-sm font-semibold underline">Back</button></div>}
           <div className={payoutReview ? "pointer-events-none opacity-60" : ""}>
             <label htmlFor="payout-cycle-number" className="mb-1.5 block text-sm font-medium text-slate-700">Payout Cycle</label>
             <select id="payout-cycle-number" value={payoutCycleNumber} onChange={(event) => {
@@ -1499,7 +1504,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           {payoutError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-800">{payoutError}</div>}
           <div className="flex flex-wrap justify-between gap-2 border-t border-slate-100 pt-4">
             {payoutShare?.payout_status === "drawn" ? (
-              <button type="button" onClick={() => void handleMarkUndrawn()} disabled={isSavingPayout} className="min-h-11 rounded-xl border border-rose-200 bg-rose-50 px-3 text-sm font-semibold text-rose-800 disabled:opacity-50">{isSavingPayout ? "Saving…" : "Mark Undrawn"}</button>
+              <button type="button" onClick={() => void handleMarkUndrawn()} disabled={isSavingPayout} className="min-h-11 rounded-xl border border-rose-200 bg-rose-50 px-3 text-sm font-semibold text-rose-800 disabled:opacity-50">{isSavingPayout ? <><RefreshCw size={16} className="animate-spin" /> Waiting for Supabase…</> : undrawnReview ? "Confirm Undrawn" : "Review Undrawn"}</button>
             ) : <span />}
             <div className="flex gap-2">
               <button type="button" onClick={() => setPayoutShare(null)} disabled={isSavingPayout} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button>
