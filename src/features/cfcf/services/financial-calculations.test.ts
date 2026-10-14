@@ -19,7 +19,7 @@ const fund: CfcfFundRow = {
 function share(overrides: Partial<CfcfShareRow> = {}): CfcfShareRow {
   return {
     share_id: "share-1", product_id: "CFCF", tenant_id: "tenant-1", fund_id: "fund-1",
-    person_id: "owner-1", contact_id: "contact-1", billing_entries: { "1": 1000, "2": 500 },
+    person_id: "owner-1", contact_id: "contact-1", billing_entries: { "1": 1000, "2": 500 }, billing_entry_dates: {},
     share_total_billed_amount: 1500, share_net_payment_received: 0, total_pending: 1500,
     total_advance: 0, payout_status: "undrawn", withdrawn_amount: 0, payout_cycle_number: null,
     status: "active", created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z",
