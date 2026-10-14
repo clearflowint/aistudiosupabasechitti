@@ -1013,7 +1013,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                         {share.total_pending > 0 && <span aria-hidden="true" className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-600 motion-reduce:animate-none" />}
                         <span className="text-xs font-medium text-slate-500">Pending</span>
                       </div>
-                      <p className={["mt-0.5 text-base font-bold tabular-nums",share.total_pending > 0?"text-red-600":"text-slate-700"].join(" ")}>{formatINR(share.total_pending)}</p>
+                      <p className={["mt-0.5 text-[1.1rem] font-bold tabular-nums",share.total_pending > 0?"text-red-600":"text-slate-700"].join(" ")}>{formatINR(share.total_pending)}</p>
                       <span className={["mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-semibold",share.payout_status==="drawn"?"bg-emerald-50 text-emerald-800":"bg-amber-50 text-amber-800"].join(" ")}>{share.payout_status==="drawn"?"Drawn":"Undrawn"}</span>
                     </div>
                   </div>
@@ -1032,7 +1032,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                     <button type="button" onClick={() => openPaymentModal(share)} className="inline-flex min-h-9 min-w-0 flex-[35] items-center justify-center gap-1 rounded-lg bg-emerald-800 px-1.5 text-xs font-semibold text-white"><CreditCard size={14} className="shrink-0"/> Record Payment</button>
                   </div>
                   <div className="mt-1 flex gap-1">
-                    <button type="button" onClick={() => void openShareStatement(share)} className="inline-flex min-h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-1.5 text-xs font-semibold text-slate-800"><FileText size={14}/> Statement</button>
+                    <button type="button" onClick={() => void openShareStatement(share)} className="inline-flex min-h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-1.5 text-xs font-semibold text-sky-800"><FileText size={14}/> Statement &amp; Ledger</button>
                     <button type="button" aria-label={"Delete Share " + share.share_id} title="Delete Share and its related bills/payments" onClick={() => void openShareDelete(share)} className="inline-flex min-h-8 w-9 shrink-0 items-center justify-center rounded-lg border border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100"><Trash2 size={14}/></button>
                     <button type="button" onClick={() => openShareWhatsApp(share,"report")} className="inline-flex min-h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-1.5 text-xs font-semibold text-emerald-800"><MessageCircle size={13}/> Report</button>
                     <button type="button" onClick={() => openShareWhatsApp(share,"reminder")} disabled={share.total_pending <= 0} title={share.total_pending <= 0 ? "No outstanding amount" : "Open WhatsApp reminder"} className="inline-flex min-h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-1.5 text-xs font-semibold text-emerald-800 disabled:cursor-not-allowed disabled:opacity-40"><MessageCircle size={13}/> Reminder</button>
