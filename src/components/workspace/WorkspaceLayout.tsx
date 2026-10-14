@@ -96,7 +96,7 @@ export function WorkspaceLayout({
       </header>
 
       <main className="mx-auto min-h-[calc(100dvh-8rem)] w-full max-w-3xl min-w-0 px-3 pb-8 pt-4 sm:px-5 sm:pt-6">
-        {!activePage.isHome && (
+        {!activePage.isHome && activePage.id !== "workspace" && (
           <div className="mb-4 flex min-w-0 items-center gap-2">
             <ActiveIcon size={17} className="shrink-0 text-sky-700" />
             <div className="min-w-0">
