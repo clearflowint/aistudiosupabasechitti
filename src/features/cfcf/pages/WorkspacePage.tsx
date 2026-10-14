@@ -729,8 +729,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               Your funds
             </div>
             <h2 className="mt-1 break-words text-xl font-semibold tracking-tight text-slate-900">Workspace</h2>
-            <p className="mt-1 text-sm leading-5 text-slate-500">Manage funds, shares and ledger records.</p>
-            <p className="mt-2 inline-flex items-center gap-2 rounded-lg bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-600"><CalendarDays size={14} className="text-sky-700" />{new Date().toLocaleDateString("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</p>
+                        <p className="mt-2 inline-flex items-center gap-2 rounded-lg bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-600"><CalendarDays size={14} className="text-sky-700" />{new Date().toLocaleDateString("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <button
@@ -778,8 +777,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       ) : !fundsError && funds.length === 0 ? (
         <EmptyState
           icon={<WalletCards size={22} />}
-          title="Your fund workspace is ready"
-          description="Create your first Fund. Planned Cycle count is optional; actual Share count comes from saved Shares, and financial totals are stored in Supabase."
+          title="No funds yet"
+          description="Create a Fund to get started."
           action={
             <button
               type="button"
@@ -797,14 +796,13 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               {funds.map((fund) => <button key={fund.fund_id} type="button" onClick={() => { setSelectedFundId(fund.fund_id); setSelectedShareId(null); setSelectedCycleNumber(null); }} aria-pressed={selectedFundId === fund.fund_id} className={["min-h-12 min-w-0 rounded-xl border px-2 py-2 text-sm font-semibold leading-4", selectedFundId === fund.fund_id ? "border-sky-600 bg-sky-600 text-white" : "border-slate-200 bg-white text-slate-700"].join(" ")}><span className="line-clamp-2 break-words">{fund.fund_name}</span></button>)}
             </div>
             <article className="rounded-2xl border border-sky-100 bg-white p-4 shadow-sm">
-              <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-wide text-sky-700">Fund information & ledger summary</p><h3 className="mt-1 break-words text-lg font-semibold text-slate-900">{selectedFund.fund_name}</h3><p className="mt-1 break-all text-xs text-slate-400">Fund ID · {selectedFund.fund_id}</p><p className="mt-1 text-sm text-slate-500">Start date · {selectedFund.start_date ? formatDate(selectedFund.start_date) : "Not set"} · Planned Cycles · {selectedFund.number_of_cycles ?? "Not set"}</p></div>
+              <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-wide text-sky-700">Fund details</p><h3 className="mt-1 break-words text-lg font-semibold text-slate-900">{selectedFund.fund_name}</h3><p className="mt-1 break-all text-xs text-slate-400">Fund ID · {selectedFund.fund_id}</p><p className="mt-1 text-sm text-slate-500">Start date · {selectedFund.start_date ? formatDate(selectedFund.start_date) : "Not set"} · Planned Cycles · {selectedFund.number_of_cycles ?? "Not set"}</p></div>
                 <button type="button" onClick={() => { setFundEditForm({ fundName: selectedFund.fund_name ?? "", startDate: selectedFund.start_date ?? "", numberOfCycles: selectedFund.number_of_cycles == null ? "" : String(selectedFund.number_of_cycles) }); setFundEditError(null); setIsFundEditOpen(true); }} className="inline-flex min-h-10 shrink-0 items-center gap-1 rounded-lg border border-slate-200 px-3 text-sm font-semibold text-slate-700"><Pencil size={15}/> Edit</button></div>
-              <div className="mt-3 grid grid-cols-2 gap-2"><StoredValue label="Net balance (stored)" value={formatINR(selectedFund.fund_net_balance ?? 0)}/><StoredValue label="Total billed (stored)" value={formatINR(selectedFund.fund_total_billed_amount ?? 0)}/><StoredValue label="Pending (stored)" value={formatINR(selectedFund.fund_total_pending_amount ?? 0)}/><StoredValue label="Advance (stored)" value={formatINR(selectedFund.fund_total_advance ?? 0)}/><StoredValue label="Withdrawn (stored)" value={formatINR(selectedFund.fund_total_withdrawn ?? 0)}/><StoredValue label="Commission (stored)" value={formatINR(selectedFund.fund_total_commissions ?? 0)}/></div>
-              <button type="button" onClick={() => setIsFundReportOpen(true)} className="mt-3 min-h-11 w-full rounded-xl border border-sky-200 bg-sky-50 px-3 text-sm font-semibold text-sky-800">Fund Report · Print / Save</button>
+                            <button type="button" onClick={() => setIsFundReportOpen(true)} className="mt-3 min-h-11 w-full rounded-xl border border-sky-200 bg-sky-50 px-3 text-sm font-semibold text-sky-800">Fund Report · Print / Save</button>
             </article>
             {(() => { const availableCycles = billedCycleNumbers(); const currentCycle = selectedCycleNumber !== null && availableCycles.includes(selectedCycleNumber) ? selectedCycleNumber : (availableCycles.at(-1) ?? null); const payout = currentCycle === null ? undefined : selectedFund.cycle_payout_amounts?.[currentCycle - 1]; const commission = currentCycle === null ? undefined : selectedFund.cycle_commissions?.[currentCycle - 1]; return <article className="rounded-2xl border border-violet-200 bg-violet-50 p-4 shadow-sm">
               <div className="flex items-center justify-between gap-2"><div><p className="text-xs font-semibold uppercase tracking-wide text-violet-700">Cycle ledger</p><h3 className="mt-1 text-lg font-semibold text-slate-900">{currentCycle === null ? "No billed Cycles yet" : "Cycle " + currentCycle}</h3></div><div className="flex items-center gap-1"><button type="button" aria-label="Previous billed Cycle" disabled={currentCycle === null || availableCycles.indexOf(currentCycle) <= 0} onClick={() => { if (currentCycle !== null) setSelectedCycleNumber(availableCycles[availableCycles.indexOf(currentCycle) - 1]); }} className="grid h-10 w-10 place-items-center rounded-lg border border-violet-200 bg-white disabled:opacity-40"><ChevronLeft size={18}/></button><button type="button" aria-label="Go to latest billed Cycle" disabled={currentCycle === null || currentCycle === availableCycles.at(-1)} onClick={() => setSelectedCycleNumber(availableCycles.at(-1) ?? null)} className="grid h-10 w-10 place-items-center rounded-lg border border-violet-200 bg-white disabled:opacity-40"><RotateCcw size={17}/></button></div></div>
-              {currentCycle === null ? <p className="mt-2 text-sm leading-5 text-slate-600">A Cycle appears only after billing is saved for a Share. Planned Cycles are not shown as if they were real.</p> : <><div className="mt-3 grid grid-cols-2 gap-2"><StoredValue label="Stored payout" value={displayStoredAmount(payout)}/><StoredValue label="Stored commission" value={displayStoredAmount(commission)}/></div><div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={() => openCycleEditor(currentCycle)} className="min-h-11 rounded-xl bg-violet-700 px-3 text-sm font-semibold text-white">Edit Cycle values</button><button type="button" onClick={() => document.getElementById("cfcf-shares")?.scrollIntoView({ behavior: "smooth", block: "start" })} className="min-h-11 rounded-xl border border-violet-200 bg-white px-3 text-sm font-semibold text-violet-800">View Shares</button></div></>}
+              {currentCycle === null ? <p className="mt-2 text-sm text-slate-600">No billing saved yet.</p> : <><div className="mt-3 grid grid-cols-2 gap-2"><StoredValue label="Stored payout" value={displayStoredAmount(payout)}/><StoredValue label="Stored commission" value={displayStoredAmount(commission)}/></div><div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={() => openCycleEditor(currentCycle)} className="min-h-11 rounded-xl bg-violet-700 px-3 text-sm font-semibold text-white">Edit Cycle values</button><button type="button" onClick={() => document.getElementById("cfcf-shares")?.scrollIntoView({ behavior: "smooth", block: "start" })} className="min-h-11 rounded-xl border border-violet-200 bg-white px-3 text-sm font-semibold text-violet-800">View Shares</button></div></>}
             </article>; })()}
           </section>
 
@@ -1170,7 +1168,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       <Modal
         isOpen={isFundModalOpen}
         title="Create a fund"
-        description="Enter the setup details that should be stored for this fund. You can review cycles and shares inside the workspace."
+        description="Add the basic details for this Fund."
         onClose={closeFundModal}
       >
         <form onSubmit={(event) => void handleCreateFund(event)} className="space-y-4">
@@ -1216,9 +1214,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               />
             </div>
           </div>
-          <p className="rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-500">
-            These fields are saved as entered. ClearFlow does not calculate payout amounts, commissions, or balances when creating a fund.
-          </p>
           {fundFormError && (
             <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm leading-5 text-rose-800">
               {fundFormError}
