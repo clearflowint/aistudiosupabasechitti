@@ -3,7 +3,7 @@
 
 import { useState, useSyncExternalStore, type ReactNode } from "react";
 import { getActiveRequestCount, subscribeToRequestActivity } from "../../core/async/requestActivity";
-import { Bell, Database, Layers3, LogOut } from "lucide-react";
+import { Bell, Database, LogOut, Smartphone, X } from "lucide-react";
 import type { ProductDefinition, WorkspaceNavigationItem } from "../../core/products/product.types";
 import type { AuthorizedWorkspace } from "../../core/workspace/workspace.types";
 import type { ConnectionStatus } from "../../core/database/connection.service";
@@ -33,19 +33,14 @@ export function WorkspaceLayout({
 }: WorkspaceLayoutProps) {
   const ActiveIcon = activePage.icon;
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [isInstallHelpOpen, setIsInstallHelpOpen] = useState(false);
   const activeRequestCount = useSyncExternalStore(subscribeToRequestActivity, getActiveRequestCount, () => 0);
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-slate-100 text-slate-900">
       <header className="relative z-30 border-b border-slate-200 bg-white">
         <div className="mx-auto flex min-h-16 max-w-3xl items-center gap-2 px-3 py-3 sm:gap-3 sm:px-5">
-          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-950 text-sky-300">
-            <Layers3 size={20} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-bold tracking-tight text-slate-950">ClearFlow</div>
-            <div className="truncate text-xs text-slate-500">{activePage.label} · {product.name}</div>
-          </div>
+          <div className="min-w-0 flex-1" aria-hidden="true" />
           <button type="button" onClick={() => setIsNotificationsOpen((open) => !open)} aria-label={isNotificationsOpen ? "Close notifications" : "Open notifications"} aria-expanded={isNotificationsOpen} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800">
             <Bell size={19} />
           </button>
@@ -57,15 +52,18 @@ export function WorkspaceLayout({
             </div>
           )}
           <DatabaseStatus status={databaseStatus} onRetry={onRetryConnection} />
+          <button type="button" onClick={() => setIsInstallHelpOpen(true)} aria-label="How to install ClearFlow on this phone" title="Add ClearFlow to your phone" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800">
+            <Smartphone size={19} />
+          </button>
           <button
             type="button"
             onClick={onSignOut}
             disabled={isSigningOut}
-            aria-label={isSigningOut ? "Signing out" : "Sign out"}
-            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+            aria-label={isSigningOut ? "Signing out" : `Sign out ${workspace.displayName || workspace.email}`}
+            className="inline-flex min-h-10 max-w-[48%] shrink-0 items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-600 px-2.5 text-xs font-semibold text-white transition hover:bg-rose-700 disabled:opacity-50 sm:px-3"
           >
-            <LogOut size={16} />
-            <span className="hidden sm:inline">{isSigningOut ? "Signing out…" : "Sign out"}</span>
+            <LogOut size={15} className="shrink-0" />
+            <span className="truncate">{isSigningOut ? "Signing out…" : `Sign out · ${workspace.displayName || workspace.email}`}</span>
           </button>
         </div>
         {isNotificationsOpen && (
@@ -141,7 +139,48 @@ export function WorkspaceLayout({
         {children}
       </main>
 
+      <footer className="mx-auto max-w-3xl px-3 pb-5 pt-3 text-center sm:px-5">
+        <p className="text-xs text-slate-400">Powered by ClearFlow Automation</p>
+      </footer>
 
+      {isInstallHelpOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-3 sm:items-center" onClick={() => setIsInstallHelpOpen(false)}>
+          <section role="dialog" aria-modal="true" aria-labelledby="install-help-title" className="max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-5 shadow-xl" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="grid h-11 w-11 place-items-center rounded-xl bg-sky-50 text-sky-700"><Smartphone size={22} /></div>
+                <div>
+                  <h2 id="install-help-title" className="text-lg font-semibold text-slate-950">Add ClearFlow to your phone</h2>
+                  <p className="mt-0.5 text-sm text-slate-500">Open it like a regular app.</p>
+                </div>
+              </div>
+              <button type="button" onClick={() => setIsInstallHelpOpen(false)} aria-label="Close installation instructions" className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-slate-500 hover:bg-slate-100"><X size={19} /></button>
+            </div>
+            <div className="mt-5 space-y-4">
+              <section className="rounded-xl border border-slate-200 p-3">
+                <h3 className="font-semibold text-slate-900">iPhone or iPad · Safari</h3>
+                <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-sm leading-5 text-slate-600">
+                  <li>Open ClearFlow in Safari.</li>
+                  <li>Tap the <strong>Share</strong> button (square with an upward arrow).</li>
+                  <li>Scroll and tap <strong>Add to Home Screen</strong>.</li>
+                  <li>Tap <strong>Add</strong>.</li>
+                </ol>
+              </section>
+              <section className="rounded-xl border border-slate-200 p-3">
+                <h3 className="font-semibold text-slate-900">Android · Chrome</h3>
+                <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-sm leading-5 text-slate-600">
+                  <li>Open ClearFlow in Chrome.</li>
+                  <li>Tap the <strong>⋮</strong> menu.</li>
+                  <li>Tap <strong>Install app</strong> or <strong>Add to Home screen</strong>.</li>
+                  <li>Confirm <strong>Install</strong> or <strong>Add</strong>.</li>
+                </ol>
+              </section>
+              <p className="text-xs leading-5 text-slate-500">If the option is missing, open the site in Safari on iPhone or Chrome on Android, then check the browser menu again.</p>
+            </div>
+            <button type="button" onClick={() => setIsInstallHelpOpen(false)} className="mt-5 min-h-11 w-full rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white hover:bg-sky-700">Got it</button>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
