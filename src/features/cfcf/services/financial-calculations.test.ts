@@ -82,7 +82,11 @@ test("derives pending from all Cycle bills less independent net shareholder paym
 });
 
 test("editing a bill changes billed/pending values without editing payment rows", () => {
-  const result = calculate([share()], [bill({ amount: 400 })], [payment()]);
+  const result = calculate(
+    [share()],
+    [bill({ amount: 400 }), bill({ bill_id: 502, cycle_id: 2, amount: 500, bill_date: "2026-02-01" })],
+    [payment()],
+  );
   assert.equal(result.shares[0].shareTotalBilledAmount, 900);
   assert.equal(result.shares[0].totalPending, 200);
   assert.equal(result.shares[0].totalAdvance, 0);
