@@ -94,8 +94,8 @@ export function WorkspaceHomePage({ product, workspace, onNavigate }: WorkspaceH
       const now = new Date();
       const today = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
       const savedPayment = await recordCfcfSharePayment(workspace.tenantId, selectedFund.fund_id, selectedShare.share_id, workspace.personId, quickEntryType, Number(quickAmount), today, quickMode, quickRemarks, quickPaymentRequestRef.current ?? crypto.randomUUID());
-      setQuickPaymentOpen(false); setQuickReview(false);
-      setQuickSuccess((quickEntryType === "credit" ? "Payment recorded" : "Debit correction recorded") + " successfully in Supabase for " + (selectedContact?.name ?? "the selected contact") + " · Share " + selectedShare.share_id + ".");
+      setQuickPaymentOpen(false); setQuickReview(false); quickPaymentRequestRef.current = null;
+      setQuickSuccess((savedPayment.duplicate ? "Payment already saved" : (quickEntryType === "credit" ? "Payment recorded" : "Debit correction recorded")) + " successfully in Supabase for " + (selectedContact?.name ?? "the selected contact") + " · Share " + selectedShare.share_id + " · Payment ID " + savedPayment.payment_id + (savedPayment.duplicate ? " (no duplicate created)." : "."));
       setQuickSearch(""); setQuickAmount(""); setQuickRemarks(""); setQuickContactId(""); setQuickFundId(""); setQuickShareId("");
     } catch (error) {
       setQuickError(error instanceof Error ? error.message : "Supabase did not confirm the payment. Check the Payments ledger before retrying.");
