@@ -38,6 +38,7 @@ import {
   inspectCfcfFundFinancialSummary,
   setCfcfSharePayout,
   saveCfcfCycleValues,
+  saveCfcfCycleWorkspace,
   listCfcfCycles,
   addCfcfCycle,
   setCfcfCyclePlannedPayout,
@@ -530,23 +531,43 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     }
     const payout = cyclePayoutInput.trim() === "" ? null : Number(cyclePayoutInput);
     const commission = cycleCommissionInput.trim() === "" ? null : Number(cycleCommissionInput);
-    for (const [label, value] of [["Payout", payout], ["Commission", commission]] as const) {
+    for (const [label, value] of [["Planned payout", payout], ["Commission", commission]] as const) {
       if (value !== null && (!Number.isSafeInteger(value) || value < 0 || value > 2147483647)) {
         setCycleEditError(label + " must be a whole rupee amount or left blank.");
         return;
       }
     }
+    const cycleNumber = cycleEditNumber;
+    const billPayload = shares
+      .filter((share) => share.status === "active")
+      .flatMap((share) => {
+        const raw = cycleBillInputs[share.share_id] ?? "";
+        if (raw.trim() === "") return [];
+        const amount = Number(raw);
+        if (!Number.isSafeInteger(amount) || amount < 0 || amount > 2147483647) {
+          return [{ share_id: share.share_id, amount: Number.NaN }];
+        }
+        return [{ share_id: share.share_id, amount }];
+      });
+    if (billPayload.some((bill) => !Number.isSafeInteger(bill.amount) || bill.amount < 0)) {
+      setCycleEditError("Every entered Share bill must be a nonnegative whole-rupee amount. Leave a field blank for no bill.");
+      return;
+    }
     setIsSavingCycle(true);
     setCycleEditError(null);
     try {
-      await saveCfcfCycleValues(workspace.tenantId, selectedFund.fund_id, cycleEditNumber, payout, commission);
-      setCycleRows((rows) => rows.map((row) => row.cycle_number === cycleEditNumber ? { ...row, planned_payout_amount: payout, commission_amount: commission } : row));
+      await saveCfcfCycleWorkspace(workspace.tenantId, selectedFund.fund_id, cycleNumber, payout, commission, billPayload);
+      const freshBills = await listCfcfBills(workspace.tenantId, selectedFund.fund_id);
+      const freshCycles = await listCfcfCycles(workspace.tenantId, selectedFund.fund_id);
+      setBills(freshBills);
+      setCycleRows(freshCycles);
+      setSelectedCycleNumber(cycleNumber);
       setCycleEditNumber(null);
-      setFundNotice("Cycle values saved.");
+      setFundNotice("Cycle " + cycleNumber + " saved. Shareholder payments were not changed.");
       setFundReloadKey((n) => n + 1);
       setDetailReloadKey((n) => n + 1);
     } catch (error) {
-      setCycleEditError(error instanceof Error ? error.message : "Unable to save Cycle values.");
+      setCycleEditError(error instanceof Error ? error.message : "Unable to save Cycle workspace.");
     } finally {
       setIsSavingCycle(false);
     }
