@@ -661,6 +661,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
 
   async function handleConfirmDeleteCycle() {
     if (!selectedFund || cycleDeleteTarget === null || isCycleBusy) return;
+    if (!beginAction("delete-cycle")) return;
     setIsCycleBusy(true);
     setCycleDeleteError(null);
     try {
@@ -675,6 +676,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     } catch (error) {
       setCycleDeleteError(error instanceof Error ? error.message : "Unable to delete Cycle.");
     } finally {
+      endAction("delete-cycle");
       setIsCycleBusy(false);
     }
   }
@@ -709,6 +711,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setCycleEditError("Every Share must have a nonnegative whole-rupee bill. Blank amounts are saved as ₹0.");
       return;
     }
+    if (!beginAction("save-cycle-workspace")) return;
     setIsSavingCycle(true);
     setCycleEditError(null);
     try {
@@ -727,6 +730,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     } catch (error) {
       setCycleEditError(error instanceof Error ? error.message : "Unable to save Cycle workspace.");
     } finally {
+      endAction("save-cycle-workspace");
       setIsSavingCycle(false);
     }
   }
@@ -740,6 +744,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setFundEditError("Planned Cycle count must be between 0 and 100.");
       return;
     }
+    if (!beginAction("edit-fund")) return;
     setIsSavingFundEdit(true);
     setFundEditError(null);
     try {
@@ -750,6 +755,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     } catch (error) {
       setFundEditError(error instanceof Error ? error.message : "Unable to save Fund details.");
     } finally {
+      endAction("edit-fund");
       setIsSavingFundEdit(false);
     }
   }
@@ -802,6 +808,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   }
   async function handleConfirmDelete() {
     if (!deleteTarget || isDeleting || deleteStep !== 3 || !deleteAcknowledged || deleteTypedId.trim().toLowerCase() !== workspace.email.trim().toLowerCase()) return;
+    if (!beginAction("delete-record")) return;
     setIsDeleting(true); setDeleteError(null);
     try {
       if (deleteTarget.kind === "share") {
@@ -814,7 +821,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         setFundReloadKey((n) => n + 1); setDetailReloadKey((n) => n + 1);
       }
     } catch (error) { setDeleteError(error instanceof Error ? error.message : "Unable to delete this record."); }
-    finally { setIsDeleting(false); }
+    finally { endAction("delete-record"); setIsDeleting(false); }
   }
 
   function openShareModal() {
