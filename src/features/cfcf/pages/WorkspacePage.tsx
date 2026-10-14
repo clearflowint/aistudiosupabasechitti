@@ -774,12 +774,13 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         />
       ) : selectedFund ? (
         <>
-          <section aria-label="Selected Fund workspace" className="space-y-3 border-t-2 border-slate-300 pt-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Selected Fund · {selectedFund.fund_name}</p>
+          <section aria-label="Selected Fund workspace" className="space-y-3">
             <div className="grid grid-cols-3 gap-2">
               {funds.map((fund) => <button key={fund.fund_id} type="button" onClick={() => { setSelectedFundId(fund.fund_id); setSelectedShareId(null); setSelectedCycleNumber(null); }} aria-pressed={selectedFundId === fund.fund_id} className={["min-h-12 min-w-0 rounded-xl border px-2 py-2 text-sm font-semibold leading-4", selectedFundId === fund.fund_id ? "border-emerald-500 bg-emerald-100 text-emerald-950 ring-2 ring-emerald-200 shadow-sm" : "border-slate-200 bg-white text-slate-700"].join(" ")}><span className="line-clamp-2 break-words">{fund.fund_name}</span></button>)}
             </div>
-            <article className="rounded-2xl border border-sky-100 bg-white p-4 shadow-sm">
+            <div className="border-t-2 border-slate-300 pt-4">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Selected Fund · {selectedFund.fund_name}</p>
+              <article className="rounded-2xl border border-sky-100 bg-white p-4 shadow-sm">
               <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-wide text-sky-700">Fund details</p><h3 className="mt-1 break-words text-lg font-semibold text-slate-900">{selectedFund.fund_name}</h3><p className="mt-1 break-all text-xs text-slate-400">Fund ID · {selectedFund.fund_id}</p><div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500"><span>Start · {selectedFund.start_date ? formatDate(selectedFund.start_date) : "Not set"}</span><span>Planned Cycles · {selectedFund.number_of_cycles ?? "Not set"}</span></div></div>
                 <button type="button" onClick={() => { setFundEditForm({ fundName: selectedFund.fund_name ?? "", startDate: selectedFund.start_date ?? "", numberOfCycles: selectedFund.number_of_cycles == null ? "" : String(selectedFund.number_of_cycles) }); setFundEditError(null); setIsFundEditOpen(true); }} className="inline-flex min-h-10 shrink-0 items-center gap-1 rounded-lg border border-slate-200 px-3 text-sm font-semibold text-slate-700"><Pencil size={15}/> Edit</button></div>
                             <button type="button" onClick={() => setIsFundReportOpen(true)} className="mt-3 min-h-11 w-full rounded-xl border border-sky-200 bg-sky-50 px-3 text-sm font-semibold text-sky-800">Fund Report · Print / Save</button>
@@ -789,6 +790,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               {currentCycle === null ? <p className="mt-2 text-sm text-slate-600">No billing saved yet.</p> : <><div className="mt-3 grid grid-cols-2 gap-2"><StoredValue label="Stored payout" value={displayStoredAmount(payout)}/><StoredValue label="Stored commission" value={displayStoredAmount(commission)}/></div><div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={() => openCycleEditor(currentCycle)} className="min-h-11 rounded-xl bg-violet-700 px-3 text-sm font-semibold text-white">Edit Cycle values</button><button type="button" onClick={() => document.getElementById("cfcf-shares")?.scrollIntoView({ behavior: "smooth", block: "start" })} className="min-h-11 rounded-xl border border-violet-200 bg-white px-3 text-sm font-semibold text-violet-800">View Shares</button></div></>}
             </article>; })()}
             <div className="grid grid-cols-2 gap-2"><div className="rounded-xl border border-slate-200 bg-white px-3 py-3"><p className="text-xs text-slate-500">Cycle progress</p><p className="mt-1 text-lg font-bold text-slate-900">{billedCycleNumbers().at(-1) ?? 0} / {selectedFund.number_of_cycles ?? "Not set"}</p></div><div className="rounded-xl border border-slate-200 bg-white px-3 py-3"><p className="text-xs text-slate-500">Total Shares</p><p className="mt-1 text-lg font-bold text-slate-900">{shares.length}</p></div></div>
+            </div>
           </section>
 
           {true && (
