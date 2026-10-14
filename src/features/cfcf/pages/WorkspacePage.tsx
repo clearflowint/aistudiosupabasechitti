@@ -432,7 +432,9 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setFullFundReportAdjustmentsSummary(adjustmentsSummary);
       setIsFullFundReportOpen(true);
     } catch (error) {
-      setFullFundReportError(error instanceof Error ? error.message : "Unable to load the complete Fund report.");
+      const message = error instanceof Error ? error.message : "Unable to load the complete Fund report.";
+      setFullFundReportError(message);
+      setFundNotice(message);
     } finally {
       setIsLoadingFullFundReport(false);
     }
@@ -1641,7 +1643,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               <div className="grid grid-cols-2 gap-2">
                 <StoredValue label="Fund Net Balance (stored)" value={formatINR(selectedFund.fund_net_balance ?? 0)}/>
                 <StoredValue label="Total billed (stored)" value={formatINR(selectedFund.fund_total_billed_amount ?? 0)}/>
-                <StoredValue label="Total paid / net payments (stored share figures)" value={formatINR(selectedFund.fund_total_billed_amount == null ? 0 : shares.reduce((sum, share) => sum + (share.share_net_payment_received ?? 0), 0))}/>
+                
                 <StoredValue label="Pending (stored)" value={formatINR(selectedFund.fund_total_pending_amount ?? 0)}/>
                 <StoredValue label="Advance (stored)" value={formatINR(selectedFund.fund_total_advance ?? 0)}/>
                 <StoredValue label="Withdrawn (stored)" value={formatINR(selectedFund.fund_total_withdrawn ?? 0)}/>
