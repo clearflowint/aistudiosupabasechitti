@@ -763,10 +763,10 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setFundEntryError("Enter a positive whole-rupee amount.");
       return;
     }
+    if (!fundEntryCategory) { setFundEntryError("Choose an adjustment category."); return; }
     setIsSavingFundEntry(true);
     setFundEntryError(null);
     try {
-      if (!fundEntryCategory) { setFundEntryError("Choose an adjustment category."); return; }
       await recordCfcfFundOtherEntry(workspace.tenantId, selectedFund.fund_id, workspace.personId, fundEntryType, amount, fundEntryRemarks, fundEntryCategory);
       setIsFundEntryModalOpen(false);
       setFundEntryAmount("");
