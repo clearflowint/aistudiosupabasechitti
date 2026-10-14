@@ -43,6 +43,7 @@ import {
 } from "../services/workspace.service";
 import type { CfcfContactRow, CfcfFundRow, CfcfShareRow } from "../types/database.types";
 
+type WorkspaceTab = "shares" | "ledger";
 type ShareFilter = "all" | "pending" | "drawn" | "undrawn";
 
 interface WorkspacePageProps {
