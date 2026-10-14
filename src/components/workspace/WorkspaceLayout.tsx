@@ -31,7 +31,6 @@ export function WorkspaceLayout({
   onRetryConnection,
   isSigningOut,
 }: WorkspaceLayoutProps) {
-  const ActiveIcon = activePage.icon;
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isInstallHelpOpen, setIsInstallHelpOpen] = useState(false);
   const activeRequestCount = useSyncExternalStore(subscribeToRequestActivity, getActiveRequestCount, () => 0);
