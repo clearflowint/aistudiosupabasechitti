@@ -1133,6 +1133,16 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             </div>
           </section>
 
+          <section aria-label="Fund share count" className="rounded-2xl border border-violet-100 bg-violet-50 px-4 py-3 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-slate-900">Total Shares</p>
+                <p className="mt-0.5 text-xs text-slate-600">Shares added to this Fund</p>
+              </div>
+              <p className="shrink-0 text-2xl font-bold tabular-nums text-violet-800">{shares.length}</p>
+            </div>
+          </section>
+
           {true && (
             <section className="space-y-3">
               <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
@@ -1144,8 +1154,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                   <button type="button" onClick={() => setDetailReloadKey((n) => n + 1)} aria-label="Refresh Shares" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-200 text-sky-700"><RefreshCw size={17} /></button>
                 </div>
                 <button type="button" onClick={openShareModal} className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white"><Plus size={16} /> Add Share to this Fund</button>
-                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {shareFilterOptions.map((option) => <button key={option.id} type="button" aria-pressed={shareFilter === option.id} onClick={() => setShareFilter(option.id)} className={["min-h-10 rounded-xl border px-2 text-xs font-semibold",shareFilter===option.id?"border-slate-900 bg-slate-900 text-white":"border-slate-200 bg-white text-slate-600"].join(" ")}>{option.label} ({option.count})</button>)}
+                <div className="mt-3 grid grid-cols-4 gap-1.5">
+                  {shareFilterOptions.map((option) => <button key={option.id} type="button" aria-pressed={shareFilter === option.id} onClick={() => setShareFilter(option.id)} className={["min-h-10 min-w-0 whitespace-nowrap rounded-xl border px-1 text-[10px] font-semibold leading-tight sm:px-2 sm:text-xs",shareFilter===option.id?"border-slate-900 bg-slate-900 text-white":"border-slate-200 bg-white text-slate-600"].join(" ")}>{option.label} ({option.count})</button>)}
                 </div>
               </section>
               {isLoadingDetails ? <LoadingCard message="Loading Shares…" /> : detailsError ? <ErrorCard message={detailsError} onRetry={() => setDetailReloadKey((n) => n + 1)} /> : filteredShares.length === 0 ? (
@@ -1170,7 +1180,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                       <span className={["mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-semibold",share.payout_status==="drawn"?"bg-emerald-50 text-emerald-800":"bg-amber-50 text-amber-800"].join(" ")}>{share.payout_status==="drawn"?"Drawn":"Undrawn"}</span>
                     </div>
                   </div>
-                  <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 rounded-xl bg-slate-50 p-2.5">
+                  <div className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1.5 rounded-xl bg-slate-50 p-2">
                     <StoredValue label={"Current Cycle (" + selectedFund.current_cycle + ") Billing"} value={currentCycleBill === undefined ? "—" : displayStoredAmount(currentCycleBill.amount)}/>
                     <StoredValue label="Total Billed" value={formatINR(share.share_total_billed_amount)}/>
                     <StoredValue label="Total Paid" value={formatINR(share.share_net_payment_received)}/>
