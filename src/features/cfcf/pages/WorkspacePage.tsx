@@ -440,21 +440,29 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     }
   }
 
-  function printFullFundReport() {
+  async function printFullFundReport() {
     const content = document.querySelector("[data-cfcf-full-fund-report]")?.innerHTML;
     if (!content) { setFullFundReportError("Full Fund report content is not ready."); return; }
     const reportHtml = "<!doctype html><html><head><meta charset=\"utf-8\"><title>ClearFlow Full Fund Report</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><style>*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#0f172a;font-size:14px;line-height:1.5;margin:0;padding:16px;max-width:1000px;margin-inline:auto;overflow-wrap:anywhere}.brand-header{text-align:center;font-size:18px;font-weight:800;letter-spacing:.35px;padding:12px 0 16px;margin-bottom:18px;border-bottom:1px solid #cbd5e1}h1{font-size:24px;margin:0 0 6px}h2{font-size:19px;margin:22px 0 10px}h3{font-size:16px;margin:12px 0 6px}.report-section{margin-bottom:18px;min-width:0}.record{border:1px solid #cbd5e1;border-radius:10px;padding:12px;margin:8px 0;min-width:0}.muted{color:#64748b}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.metric{border:1px solid #cbd5e1;border-radius:8px;padding:10px;min-width:0}.metric-label{font-size:12px;color:#64748b}.metric-value{font-size:14px;font-weight:700;margin-top:4px;overflow-wrap:anywhere;word-break:break-word}.pill{display:inline-block;border:1px solid #cbd5e1;border-radius:10px;padding:2px 8px;font-size:12px}p{margin:5px 0;overflow-wrap:anywhere;word-break:break-word}.entry-amount{font-weight:700}.entry-meta{font-size:12px;color:#64748b;overflow-wrap:anywhere;word-break:break-word}.disclaimer{border:1px solid #fcd34d;background:#fffbeb;padding:12px;border-radius:10px}.report-footer{margin-top:24px;padding-top:12px;border-top:1px solid #cbd5e1;font-size:12px;color:#475569;text-align:center}.report-actions{display:flex;gap:10px;flex-wrap:wrap;position:sticky;top:0;background:white;padding:10px 0;border-bottom:1px solid #e2e8f0}.report-actions button{border:1px solid #cbd5e1;border-radius:10px;padding:10px 14px;font-weight:700;background:#fff}.report-actions .download{background:#6d28d9;color:#fff;border-color:#6d28d9}@media(max-width:600px){body{padding:12px;font-size:14px}.grid{grid-template-columns:minmax(0,1fr)}h1{font-size:22px}h2{font-size:18px}.record,.metric{padding:10px}}@media print{.report-actions{display:none}body{padding:0}@page{size:A4;margin:12mm}}</style></head><body><div class=\"report-actions\"><button class=\"download\" onclick=\"downloadReport()\">Download report (HTML)</button><button onclick=\"window.print()\">Print / Save as PDF</button></div><script>function downloadReport(){const blob=new Blob([document.documentElement.outerHTML],{type:'text/html;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='ClearFlow-Full-Fund-Report.html';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}</script><header class=\"brand-header\">Powered by ClearFlow Automations</header>" + content + "<footer class=\"report-footer\"><strong>Powered by ClearFlow Automations</strong><br>ClearFlow · Full Fund Report · Generated " + new Date().toLocaleString("en-IN") + "</footer></body></html>";
     const reportBlob = new Blob([reportHtml], { type: "text/html;charset=utf-8" });
     const reportUrl = URL.createObjectURL(reportBlob);
     const reportTab = window.open(reportUrl, "_blank");
-    if (!reportTab) { URL.revokeObjectURL(reportUrl); setFullFundReportError("Allow pop-ups for this site so the report can open in a new tab."); return; }
-    const downloadLink = document.createElement("a");
-    downloadLink.href = reportUrl;
-    downloadLink.download = "ClearFlow-Full-Fund-Report.html";
-    document.body.appendChild(downloadLink);
-    downloadLink.click();
-    downloadLink.remove();
-    setTimeout(() => URL.revokeObjectURL(reportUrl), 60_000);
+    if (!reportTab) { URL.revokeObjectURL(reportUrl); setFullFundReportError("Allow pop-ups for this site so the report can open in a new tab. No PDF was downloaded."); return; }
+    const pdfFrame = document.createElement("iframe");
+    pdfFrame.setAttribute("aria-hidden", "true");
+    pdfFrame.style.cssText = "position:fixed;left:-10000px;top:0;width:794px;height:1123px;border:0";
+    document.body.appendChild(pdfFrame);
+    try {
+      const frameDocument = pdfFrame.contentDocument;
+      if (!frameDocument) throw new Error("Unable to prepare the report for PDF generation.");
+      frameDocument.open(); frameDocument.write(reportHtml); frameDocument.close();
+      await new Promise<void>((resolve, reject) => { if (frameDocument.readyState === "complete") resolve(); else { pdfFrame.onload = () => resolve(); pdfFrame.onerror = () => reject(new Error("Unable to render the report for PDF download.")); } });
+      frameDocument.querySelector(".report-actions")?.remove();
+      const pdfModule = await import("html2pdf.js");
+      await pdfModule.default().set({ margin: [10, 10, 12, 10], filename: "ClearFlow-Full-Fund-Report.pdf", image: { type: "jpeg", quality: 0.98 }, html2canvas: { scale: 2, useCORS: true, logging: false, windowWidth: 794 }, jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }, pagebreak: { mode: ["css", "legacy"] } }).from(frameDocument.body).save();
+      setFundNotice("PDF download started: ClearFlow-Full-Fund-Report.pdf. The report is also open in a separate tab.");
+    } catch (error) { reportTab.close(); setFullFundReportError(error instanceof Error ? "PDF download failed: " + error.message + ". Please try again." : "PDF download failed. Please try again."); }
+    finally { pdfFrame.remove(); setTimeout(() => URL.revokeObjectURL(reportUrl), 60000); }
   }
   function printFundReport() {
     const content = document.querySelector("[data-cfcf-fund-report]")?.innerHTML;
