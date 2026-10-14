@@ -832,6 +832,9 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                 <EmptyState icon={<UsersRound size={22} />} title={shares.length ? "No matching Shares" : "No Shares in this Fund yet"} description={shares.length ? "Clear the search or change the status filter." : "Add a Share by selecting an existing Contact in this Fund."} action={!shares.length ? <button type="button" onClick={openShareModal} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white"><Plus size={16} className="mr-1 inline" /> Add Share</button> : undefined} />
               ) : filteredShares.map((share) => {
                 const contact = contactById.get(share.contact_id);
+                const highestCycle = billedCycleNumbers([share]).at(-1) ?? 0;
+                const highestCycleBill = highestCycle ? share.billing_entries?.[String(highestCycle)] : null;
+                const highestCycleBillDate = highestCycle ? share.billing_entry_dates?.[String(highestCycle)] : null;
                 return <article key={share.share_id} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                   <div className="flex min-w-0 items-start justify-between gap-2">
                     <div className="min-w-0"><p className="inline-block rounded-lg bg-slate-100 px-3 py-1 font-mono text-sm font-bold text-slate-700">{share.share_id}</p><h3 className="mt-2 break-words text-base font-semibold text-slate-900">{contact?.name ?? "Contact unavailable"}</h3><p className="mt-1 break-all text-sm text-slate-500">{contact?.phone ?? "No phone saved"}</p></div>
@@ -839,6 +842,13 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                       {share.total_pending > 0 ? <p className="text-sm font-bold text-rose-700">−{formatINR(share.total_pending)}</p> : share.total_advance > 0 ? <p className="text-sm font-bold text-emerald-700">Advance +{formatINR(share.total_advance)}</p> : <p className="text-sm font-bold text-slate-600">{formatINR(0)}</p>}
                       <span className={["mt-2 inline-block rounded-full px-2 py-1 text-xs font-semibold",share.payout_status==="drawn"?"bg-emerald-50 text-emerald-800":"bg-amber-50 text-amber-800"].join(" ")}>{share.payout_status==="drawn"?"Drawn":"Undrawn"}</span>
                     </div>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-3">
+                    <StoredValue label={highestCycle ? "Cycle " + highestCycle + " bill" : "Highest Cycle bill"} value={highestCycleBill === null || highestCycleBill === undefined ? "—" : displayStoredAmount(highestCycleBill)}/>
+                    <StoredValue label="Bill added" value={highestCycleBillDate ? formatDate(highestCycleBillDate) : highestCycle ? "Date unavailable (older bill)" : "—"}/>
+                    <StoredValue label="Total billed" value={formatINR(share.share_total_billed_amount)}/>
+                    <StoredValue label="Total paid" value={formatINR(share.share_net_payment_received)}/>
+                    <StoredValue label="Withdrawn amount" value={formatINR(share.withdrawn_amount)}/>
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     <button type="button" onClick={() => setStatementShare(share)} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2 text-sm font-semibold text-slate-800"><FileText size={16}/> Statement</button>
