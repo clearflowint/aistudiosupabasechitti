@@ -159,6 +159,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [deleteTypedId, setDeleteTypedId] = useState("");
   const [selectedCycleNumber, setSelectedCycleNumber] = useState<number | null>(null);
   const [cycleRows, setCycleRows] = useState<CfcfCycleRow[]>([]);
+  const [cycleBillInputs, setCycleBillInputs] = useState<Record<string, string>>({});
   const [cycleError, setCycleError] = useState<string | null>(null);
   const [isCycleBusy, setIsCycleBusy] = useState(false);
   const [cycleDeleteTarget, setCycleDeleteTarget] = useState<number | null>(null);
@@ -499,6 +500,12 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     const cycle = cycleRows.find((row) => row.cycle_number === cycleNumber);
     setCyclePayoutInput(cycle?.planned_payout_amount == null ? "" : String(cycle.planned_payout_amount));
     setCycleCommissionInput(cycle?.commission_amount == null ? "" : String(cycle.commission_amount));
+    const nextInputs: Record<string, string> = {};
+    for (const share of shares) {
+      const bill = billForShareCycle(share.share_id, cycleNumber);
+      nextInputs[share.share_id] = bill ? String(bill.amount) : "";
+    }
+    setCycleBillInputs(nextInputs);
     setCycleEditError(null);
   }
 
@@ -1088,20 +1095,29 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
 
       <Modal
         isOpen={cycleEditNumber !== null}
-        title={cycleEditNumber !== null && cycleEditNumber > highestCycleNumber(selectedFund) ? "Create Cycle " + cycleEditNumber : "Edit Cycle " + cycleEditNumber}
-        description="Enter the payout and commission values to store for this Cycle. These are manual values, not payment transactions."
+        title={"Edit Cycle " + cycleEditNumber}
+        description="Bulk bill posting for every active Share. Blank means no bill for that Share. Shareholder Payments are independent and will not be changed."
         onClose={() => { if (!isSavingCycle) { setCycleEditNumber(null); setCycleEditError(null); } }}
       >
         <form onSubmit={(event) => void handleSaveCycleValues(event)} className="space-y-4">
-          <div className="rounded-xl bg-slate-50 p-3 text-sm font-semibold text-slate-700">Cycle {cycleEditNumber ?? ""}</div>
-          <div>
-            <label htmlFor="cycle-edit-payout" className="mb-1.5 block text-sm font-medium text-slate-700">Payout amount (₹)</label>
-            <input id="cycle-edit-payout" type="number" min="0" max="2147483647" step="1" value={cyclePayoutInput} onChange={(event) => setCyclePayoutInput(event.target.value)} placeholder="Leave blank if not entered" className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm" />
+          <div className="rounded-xl bg-violet-50 p-3 text-sm font-semibold text-violet-900">Cycle {cycleEditNumber ?? ""} · {shares.filter((share) => share.status === "active").length} active Shares</div>
+          <div className="grid grid-cols-2 gap-2">
+            <div><label htmlFor="cycle-edit-payout" className="mb-1.5 block text-xs font-semibold text-slate-700">Planned payout (₹)</label><input id="cycle-edit-payout" type="number" min="0" max="2147483647" step="1" value={cyclePayoutInput} onChange={(event) => setCyclePayoutInput(event.target.value)} placeholder="Not set" className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm" /></div>
+            <div><label htmlFor="cycle-edit-commission" className="mb-1.5 block text-xs font-semibold text-slate-700">Commission (₹)</label><input id="cycle-edit-commission" type="number" min="0" max="2147483647" step="1" value={cycleCommissionInput} onChange={(event) => setCycleCommissionInput(event.target.value)} placeholder="Not set" className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm" /></div>
           </div>
-          <div>
-            <label htmlFor="cycle-edit-commission" className="mb-1.5 block text-sm font-medium text-slate-700">Commission (₹)</label>
-            <input id="cycle-edit-commission" type="number" min="0" max="2147483647" step="1" value={cycleCommissionInput} onChange={(event) => setCycleCommissionInput(event.target.value)} placeholder="Leave blank if not entered" className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm" />
-          </div>
+          {(["withdrawn", "undrawn"] as const).map((section) => {
+            const group = shares.filter((share) => share.status === "active" && (share.payout_status === "drawn" ? "withdrawn" : "undrawn") === section);
+            return <section key={section} className="space-y-2">
+              <h4 className="text-sm font-bold text-slate-800">{section === "withdrawn" ? "Withdrawn Shares" : "Undrawn Shares"} <span className="font-normal text-slate-500">({group.length})</span></h4>
+              {group.length === 0 ? <p className="rounded-lg bg-slate-50 p-3 text-xs text-slate-500">No {section} Shares.</p> : group.map((share) => {
+                const contact = contactById.get(share.contact_id);
+                return <div key={share.share_id} className="grid grid-cols-[minmax(0,1fr)_112px] items-center gap-2 rounded-xl border border-slate-200 p-2.5">
+                  <div className="min-w-0"><p className="break-words text-sm font-semibold text-slate-900">{contact?.name || "Contact unavailable"}</p><p className="text-xs text-slate-500">Share {share.share_id}{share.payout_status === "drawn" ? " · Drawn in Cycle " + (share.payout_cycle_number ?? "unknown") : " · Undrawn"}</p></div>
+                  <div><label htmlFor={"cycle-bill-" + share.share_id} className="mb-1 block text-[11px] text-slate-500">Bill (₹)</label><input id={"cycle-bill-" + share.share_id} type="number" inputMode="numeric" min="0" max="2147483647" step="1" value={cycleBillInputs[share.share_id] ?? ""} onChange={(event) => setCycleBillInputs((current) => ({ ...current, [share.share_id]: event.target.value }))} placeholder="No bill" className="min-h-10 w-full rounded-lg border border-slate-200 px-2 text-sm" /></div>
+                </div>;
+              })}
+            </section>;
+          })}
           {cycleEditError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{cycleEditError}</div>}
           <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
             <button type="button" onClick={() => setCycleEditNumber(null)} disabled={isSavingCycle} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button>
