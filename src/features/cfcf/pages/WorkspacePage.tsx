@@ -623,6 +623,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setFundNotice("Cycle " + cycleNumber + " saved. Shareholder payments were not changed.");
       setFundReloadKey((n) => n + 1);
       setDetailReloadKey((n) => n + 1);
+      if (isAdjustmentsLedgerOpen) void openAdjustmentsLedger();
     } catch (error) {
       setCycleEditError(error instanceof Error ? error.message : "Unable to save Cycle workspace.");
     } finally {
@@ -1557,18 +1558,14 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             </section>}
             <section>
               <h4 className="font-semibold">Dated entries</h4>
-              {adjustmentsLedgerRows.length ? <div className="mt-2 overflow-x-auto">
-                <table className="w-full min-w-[600px] border-collapse text-left text-xs">
-                  <thead><tr className="bg-slate-100"><th className="border border-slate-200 p-2">Date</th><th className="border border-slate-200 p-2">Category</th><th className="border border-slate-200 p-2">Type</th><th className="border border-slate-200 p-2">Amount</th><th className="border border-slate-200 p-2">Remarks</th><th className="border border-slate-200 p-2">Entry ID</th></tr></thead>
-                  <tbody>{adjustmentsLedgerRows.slice().sort((a,b) => b.date.localeCompare(a.date)).map((item) => <tr key={item.id}>
-                    <td className="border border-slate-200 p-2 whitespace-nowrap">{formatDate(item.date)}</td>
-                    <td className="border border-slate-200 p-2">{adjustmentCategoryLabel(item.adjustmentCategory)}</td>
-                    <td className={["border border-slate-200 p-2 font-semibold", item.entryType === "credit" ? "text-emerald-700" : "text-rose-700"].join(" ")}>{item.entryType === "credit" ? "Credit (+)" : "Debit (−)"}</td>
-                    <td className="border border-slate-200 p-2 whitespace-nowrap">{item.entryType === "debit" ? "−" : "+"}{formatINR(item.amount)}</td>
-                    <td className="border border-slate-200 p-2">{item.remarks || "—"}</td>
-                    <td className="border border-slate-200 p-2 break-all">{item.id}</td>
-                  </tr>)}</tbody>
-                </table>
+              {adjustmentsLedgerRows.length ? <div className="mt-2 space-y-2">
+                {adjustmentsLedgerRows.slice().sort((a,b) => b.date.localeCompare(a.date)).map((item) => <article key={item.id} className="rounded-xl border border-slate-200 p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0"><p className="text-xs text-slate-500">{formatDate(item.date)} · {adjustmentCategoryLabel(item.adjustmentCategory)}</p><p className="mt-1 break-words text-sm font-semibold text-slate-800">{item.remarks || "No remarks"}</p></div>
+                    <div className="shrink-0 text-right"><p className={["text-xs font-semibold", item.entryType === "credit" ? "text-emerald-700" : "text-rose-700"].join(" ")}>{item.entryType === "credit" ? "Credit (+)" : "Debit (−)"}</p><p className={["mt-1 text-sm font-bold tabular-nums", item.entryType === "credit" ? "text-emerald-700" : "text-rose-700"].join(" ")}>{item.entryType === "debit" ? "−" : "+"}{formatINR(item.amount)}</p></div>
+                  </div>
+                  <p className="mt-2 break-all text-[10px] text-slate-400">Entry ID · {item.id}</p>
+                </article>)}
               </div> : <p className="mt-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-500">{isLoadingAdjustmentsLedger ? "Loading entries…" : "No Other Adjustments have been recorded for this Fund."}</p>}
             </section>
           </div>
