@@ -242,12 +242,18 @@ export async function listCfcfLedgerItems(
 
 
 
-/** CFCF PRODUCT: Deletion is intentionally limited to records with no financial history. */
-export async function deleteCfcfShareIfEmpty(tenantId: string, fundId: string, shareId: string): Promise<void> {
-  const { error } = await supabase.rpc("cfcf_delete_share_if_empty", {
+/** CFCF PRODUCT: Explicitly confirmed atomic deletion of one Share and its own bill/payment rows. */
+export interface CfcfShareDeletionResult {
+  share_id: string;
+  deleted_payments: number;
+  deleted_bills: number;
+}
+export async function deleteCfcfShareWithHistory(tenantId: string, fundId: string, shareId: string): Promise<CfcfShareDeletionResult> {
+  const { data, error } = await supabase.rpc("cfcf_delete_share_with_history", {
     p_tenant_id: tenantId, p_fund_id: fundId, p_share_id: shareId,
   });
-  if (error) throw new Error("Unable to delete Share: " + error.message);
+  if (error) throw new Error("Unable to delete Share and its history: " + error.message);
+  return data as CfcfShareDeletionResult;
 }
 
 export async function deleteCfcfFundIfEmpty(tenantId: string, fundId: string): Promise<void> {
