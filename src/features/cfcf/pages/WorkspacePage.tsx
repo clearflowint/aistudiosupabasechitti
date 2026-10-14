@@ -133,6 +133,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [isReconciling, setIsReconciling] = useState(false);
   const reconciliationRequestId = useRef(0);
   const [statementShare, setStatementShare] = useState<CfcfShareRow | null>(null);
+  const [isLoadingStatement, setIsLoadingStatement] = useState(false);
+  const [statementError, setStatementError] = useState<string | null>(null);
   const [cycleEditNumber, setCycleEditNumber] = useState<number | null>(null);
   const [cyclePayoutInput, setCyclePayoutInput] = useState("");
   const [cycleCommissionInput, setCycleCommissionInput] = useState("");
@@ -611,6 +613,22 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     }
   }
 
+  async function openShareStatement(share: CfcfShareRow) {
+    setStatementShare(share);
+    setIsLoadingStatement(true);
+    setStatementError(null);
+    try {
+      const [freshBills, freshLedger, freshCycles] = await Promise.all([listCfcfBills(workspace.tenantId, share.fund_id), listCfcfLedgerItems(workspace.tenantId, share.fund_id), listCfcfCycles(workspace.tenantId, share.fund_id)]);
+      setBills(freshBills);
+      setLedgerItems(freshLedger);
+      setCycleRows(freshCycles);
+    } catch (error) {
+      setStatementError(error instanceof Error ? error.message : "Unable to refresh this Share statement.");
+    } finally {
+      setIsLoadingStatement(false);
+    }
+  }
+
   async function openShareDelete(share: CfcfShareRow) {
     setDeleteStep(1);
     setDeleteAcknowledged(false);
@@ -1003,7 +1021,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                     <button type="button" onClick={() => openPaymentModal(share)} className="inline-flex min-h-9 min-w-0 flex-[35] items-center justify-center gap-1 rounded-lg bg-emerald-800 px-1.5 text-xs font-semibold text-white"><CreditCard size={14} className="shrink-0"/> Record Payment</button>
                   </div>
                   <div className="mt-1 flex gap-1">
-                    <button type="button" onClick={() => setStatementShare(share)} className="inline-flex min-h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-1.5 text-xs font-semibold text-slate-800"><FileText size={14}/> Statement</button>
+                    <button type="button" onClick={() => void openShareStatement(share)} className="inline-flex min-h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-1.5 text-xs font-semibold text-slate-800"><FileText size={14}/> Statement</button>
                     <button type="button" aria-label={"Delete Share " + share.share_id} title="Delete Share and its related bills/payments" onClick={() => void openShareDelete(share)} className="inline-flex min-h-8 w-9 shrink-0 items-center justify-center rounded-lg border border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100"><Trash2 size={14}/></button>
                     <button type="button" onClick={() => openShareWhatsApp(share,"report")} className="inline-flex min-h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-1.5 text-xs font-semibold text-emerald-800"><MessageCircle size={13}/> Report</button>
                     <button type="button" onClick={() => openShareWhatsApp(share,"reminder")} disabled={share.total_pending <= 0} title={share.total_pending <= 0 ? "No outstanding amount" : "Open WhatsApp reminder"} className="inline-flex min-h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-1.5 text-xs font-semibold text-emerald-800 disabled:cursor-not-allowed disabled:opacity-40"><MessageCircle size={13}/> Reminder</button>
@@ -1367,19 +1385,19 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         </form>
       </Modal>
 
-      <Modal isOpen={Boolean(statementShare)} title="Official Share Account Statement" description="Share billing, payout status and previous transactions. Use Print / Save to export." size="large" onClose={() => setStatementShare(null)}>
+      <Modal isOpen={Boolean(statementShare)} title="Share Statement" description="Database-backed billing, payout and payment ledger. Refreshes when opened." size="large" onClose={() => { setStatementShare(null); setStatementError(null); }}>
         {statementShare && (() => {
           const contact = contactById.get(statementShare.contact_id);
           const history = ledgerItems.filter((item) => item.kind === "payment" && item.shareId === statementShare.share_id).sort((a,b) => b.date.localeCompare(a.date));
-          const cycles = bills.filter((bill) => bill.share_id === statementShare.share_id)
-            .map((bill) => ({ ...bill, cycle_number: cycleRows.find((row) => row.cycle_id === bill.cycle_id)?.cycle_number ?? null }))
-            .filter((bill) => bill.cycle_number !== null)
-            .sort((a,b) => (a.cycle_number ?? 0) - (b.cycle_number ?? 0));
+          const shareBills = bills.filter((bill) => bill.share_id === statementShare.share_id).map((bill) => ({ ...bill, cycle_number: cycleRows.find((row) => row.cycle_id === bill.cycle_id)?.cycle_number ?? null })).filter((bill) => bill.cycle_number !== null).sort((a,b) => (a.cycle_number ?? 0) - (b.cycle_number ?? 0));
+          const currentBill = bills.find((bill) => bill.share_id === statementShare.share_id && cycleRows.find((cycle) => cycle.cycle_id === bill.cycle_id)?.cycle_number === (selectedFund?.current_cycle ?? -1));
           return <div className="space-y-4 text-slate-900">
-            <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4"><div><p className="text-xs font-bold uppercase tracking-wide text-slate-500">ClearFlow · Share Statement</p><h3 className="mt-1 text-lg font-bold">{selectedFund?.fund_name}</h3><p className="mt-1 text-sm">{contact?.name} · {contact?.phone}</p><p className="mt-1 break-all text-xs text-slate-500">Share ID: {statementShare.share_id}</p></div><button type="button" onClick={printShareStatement} className="min-h-10 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white">Print / Save</button></div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4"><StoredValue label="Current billed" value={formatINR(currentBilledForShare(statementShare))}/><StoredValue label="Total billed" value={formatINR(statementShare.share_total_billed_amount)}/><StoredValue label="Total paid (net)" value={formatINR(statementShare.share_net_payment_received)}/><StoredValue label="Pending due" value={formatINR(statementShare.total_pending)}/><StoredValue label="Advance" value={formatINR(statementShare.total_advance)}/><StoredValue label="Cycle progress" value={cycles.length+" billed cycles"}/><StoredValue label="Payout status" value={statementShare.payout_status}/><StoredValue label="Withdrawn amount" value={formatINR(statementShare.withdrawn_amount)}/></div>
-            <section><h4 className="font-semibold">Cycle billing history</h4>{cycles.length ? <div className="mt-2 divide-y divide-slate-200 rounded-xl border border-slate-200">{cycles.map((bill)=><div key={bill.bill_id} className="flex justify-between gap-3 p-3 text-sm"><span>Cycle {bill.cycle_number}{bill.bill_date ? " · "+formatDate(bill.bill_date) : " · Date unavailable"}</span><strong>{formatINR(bill.amount)}</strong></div>)}</div> : <p className="mt-2 text-sm text-slate-500">No cycle billing recorded.</p>}</section>
-            <section><h4 className="font-semibold">Previous transactions</h4>{history.length ? <div className="mt-2 divide-y divide-slate-200 rounded-xl border border-slate-200">{history.map((item)=><div key={item.id} className="flex justify-between gap-3 p-3 text-sm"><div><p className="font-semibold capitalize">{item.entryType} · {formatDate(item.date)}</p><p className="text-xs text-slate-500">{item.paymentType ?? "—"}{item.remarks ? " · "+item.remarks : ""}</p></div><strong>{formatINR(item.amount)}</strong></div>)}</div> : <p className="mt-2 text-sm text-slate-500">No previous transactions loaded. Open Ledger once to load transaction history.</p>}</section>
+            {(isLoadingStatement || statementError) && <div role={statementError ? "alert" : "status"} className={["rounded-xl p-3 text-sm",statementError ? "bg-rose-50 text-rose-800" : "bg-slate-100 text-slate-600"].join(" ")}>{statementError ?? "Refreshing statement from the database…"}</div>}
+            <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4"><div><p className="text-xs font-bold uppercase tracking-wide text-slate-500">ClearFlow · Share Statement</p><h3 className="mt-1 text-lg font-bold">{selectedFund?.fund_name}</h3><p className="mt-1 text-sm">{contact?.name} · {contact?.phone ?? "No phone saved"}</p><p className="mt-1 break-all text-xs text-slate-500">Share ID: {statementShare.share_id}</p></div><button type="button" disabled={isLoadingStatement} onClick={() => void openShareStatement(statementShare)} className="min-h-10 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white disabled:opacity-50">Refresh</button></div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4"><StoredValue label="Current Cycle bill" value={currentBill ? formatINR(currentBill.amount) : "Not billed"}/><StoredValue label="Total billed" value={formatINR(statementShare.share_total_billed_amount)}/><StoredValue label="Total paid (net)" value={formatINR(statementShare.share_net_payment_received)}/><StoredValue label="Pending due" value={formatINR(statementShare.total_pending)}/><StoredValue label="Advance" value={formatINR(statementShare.total_advance)}/><StoredValue label="Cycle progress" value={(selectedFund?.current_cycle ?? 0) + " of " + (selectedFund?.number_of_cycles ?? "—")}/><StoredValue label="Payout status" value={statementShare.payout_status === "drawn" ? "Drawn" : "Undrawn"}/>{statementShare.payout_status === "drawn" ? <StoredValue label={"Amount withdrawn" + (statementShare.payout_cycle_number !== null ? " · Cycle " + statementShare.payout_cycle_number : "")} value={formatINR(statementShare.withdrawn_amount)}/> : <StoredValue label="Withdrawal" value="Not drawn yet"/>}</div>
+            <section><h4 className="font-semibold">Cycle billing history</h4>{shareBills.length ? <div className="mt-2 divide-y divide-slate-200 rounded-xl border border-slate-200">{shareBills.map((bill)=><div key={bill.bill_id} className="flex justify-between gap-3 p-3 text-sm"><span>Cycle {bill.cycle_number}{bill.bill_date ? " · "+formatDate(bill.bill_date) : " · Date unavailable"}</span><strong>{formatINR(bill.amount)}</strong></div>)}</div> : <p className="mt-2 text-sm text-slate-500">No cycle billing recorded.</p>}</section>
+            <section><h4 className="font-semibold">Payment ledger · Credits and debits</h4>{history.length ? <div className="mt-2 divide-y divide-slate-200 rounded-xl border border-slate-200">{history.map((item)=><div key={item.id} className="flex justify-between gap-3 p-3 text-sm"><div><p className="font-semibold capitalize">{item.entryType} · {item.date ? formatDate(item.date) : "Date unavailable"}</p><p className="text-xs text-slate-500">{item.paymentType ?? "—"}{item.remarks ? " · "+item.remarks : ""}</p></div><strong className={item.entryType === "credit" ? "text-emerald-700" : "text-rose-700"}>{item.entryType === "credit" ? "+" : "−"}{formatINR(item.amount)}</strong></div>)}</div> : <p className="mt-2 text-sm text-slate-500">No payment ledger entries recorded for this Share.</p>}</section>
+            <button type="button" onClick={printShareStatement} className="min-h-11 w-full rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white">Print / Save Statement</button>
           </div>;
         })()}
       </Modal>
