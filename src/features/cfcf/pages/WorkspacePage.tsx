@@ -173,6 +173,12 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [fundForm, setFundForm] = useState(emptyFundForm);
   const [fundFormError, setFundFormError] = useState<string | null>(null);
   const [fundNotice, setFundNotice] = useState<string | null>(null);
+  const [databaseResult, setDatabaseResult] = useState<{ status: "success" | "error"; message: string } | null>(null);
+
+  function showDatabaseResult(message: string, status: "success" | "error" = "success"): void {
+    showDatabaseResult(message, "error");
+    setDatabaseResult({ status, message });
+  }
   const [deleteTarget, setDeleteTarget] = useState<{ kind: "share" | "fund"; id: string; label: string; fundId?: string } | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteStep, setDeleteStep] = useState(1);
@@ -370,15 +376,15 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     let current = true;
     void listCfcfLedgerItems(workspace.tenantId, selectedFundId)
       .then((items) => { if (current) setLedgerItems(items); })
-      .catch((error: unknown) => { if (current) setFundNotice(error instanceof Error ? error.message : "Unable to load statement transactions."); });
+      .catch((error: unknown) => { if (current) showDatabaseResult(error instanceof Error ? error.message : "Unable to load statement transactions.", "error"); });
     return () => { current = false; };
   }, [statementShare?.share_id, selectedFundId, workspace.tenantId, detailReloadKey]);
 
   function printShareStatement() {
     const content = document.querySelector("[data-cfcf-share-statement]")?.innerHTML;
-    if (!content) { setFundNotice("Statement content is not ready to print."); return; }
+    if (!content) { showDatabaseResult("Statement content is not ready to print."); return; }
     const printWindow = window.open("", "_blank", "width=900,height=700");
-    if (!printWindow) { setFundNotice("Allow pop-ups to print or save the Share statement."); return; }
+    if (!printWindow) { showDatabaseResult("Allow pop-ups to print or save the Share statement."); return; }
     printWindow.document.write("<!doctype html><html><head><title>ClearFlow Share Statement</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><style>body{font-family:Arial,sans-serif;color:#0f172a;padding:24px;max-width:900px;margin:auto}button{display:none!important}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}article,section{break-inside:avoid}p,h3,h4{margin-top:8px;margin-bottom:8px}.border{border:1px solid #cbd5e1}.rounded-xl{border-radius:12px}.p-3,.p-4{padding:12px}.bg-slate-50{background:#f8fafc}.text-xs{font-size:12px}.text-sm{font-size:14px}.font-bold,.font-semibold{font-weight:700}</style></head><body>" + content + "</body></html>");
     printWindow.document.close();
     printWindow.focus();
@@ -443,7 +449,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to load the complete Fund report.";
       setFullFundReportError(message);
-      setFundNotice(message);
+      showDatabaseResult(message, "error");
     } finally {
       setIsLoadingFullFundReport(false);
     }
@@ -487,7 +493,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         pagebreak: { mode: ["css", "legacy"], avoid: [".record", ".metric", "h2"] },
       }).from(reportRoot).save();
 
-      setFundNotice("Downloaded ClearFlow-Full-Fund-Report.pdf.");
+      showDatabaseResult("Downloaded ClearFlow-Full-Fund-Report.pdf.");
     } catch (error) {
       setFullFundReportError(error instanceof Error
         ? "PDF download failed: " + error.message + ". Please try again."
@@ -498,9 +504,9 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   }
   function printFundReport() {
     const content = document.querySelector("[data-cfcf-fund-report]")?.innerHTML;
-    if (!content) { setFundNotice("Fund report content is not ready to print."); return; }
+    if (!content) { showDatabaseResult("Fund report content is not ready to print."); return; }
     const printWindow = window.open("", "_blank", "width=900,height=700");
-    if (!printWindow) { setFundNotice("Allow pop-ups to print or save the Fund report."); return; }
+    if (!printWindow) { showDatabaseResult("Allow pop-ups to print or save the Fund report."); return; }
     printWindow.document.write("<!doctype html><html><head><title>ClearFlow Fund Summary</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><style>body{font-family:Arial,sans-serif;color:#0f172a;padding:24px;max-width:900px;margin:auto}.brand-header{text-align:center;font-size:13px;font-weight:700;letter-spacing:.3px;padding-bottom:10px;margin-bottom:16px;border-bottom:1px solid #cbd5e1}.brand-footer{text-align:center;margin-top:24px;padding-top:10px;border-top:1px solid #cbd5e1;font-size:10px;font-weight:700;color:#475569}button{display:none!important}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}section,article{break-inside:avoid}p,h3,h4{margin-top:8px;margin-bottom:8px}.border{border:1px solid #cbd5e1}.rounded-xl{border-radius:12px}.p-3,.p-4{padding:12px}.bg-slate-50{background:#f8fafc}.text-xs{font-size:12px}.text-sm{font-size:14px}.font-bold,.font-semibold{font-weight:700}</style></head><body><header class=\"brand-header\">Powered by ClearFlow Automations</header>" + content + "<footer class=\"brand-footer\">Powered by ClearFlow Automations</footer></body></html>");
     printWindow.document.close(); printWindow.focus(); printWindow.print();
   }
@@ -573,11 +579,11 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     try {
       await setCfcfSharePayout(workspace.tenantId, selectedFund.fund_id, payoutShare.share_id, "drawn", cycle, amount);
       setPayoutShare(null);
-      setFundNotice("Share marked drawn. No payment transaction was created.");
+      showDatabaseResult("Share marked drawn. No payment transaction was created.");
       setDetailReloadKey((current) => current + 1);
       setFundReloadKey((current) => current + 1);
     } catch (error) {
-      setPayoutError(error instanceof Error ? error.message : "Unable to update payout status.");
+      setPayoutError(error instanceof Error ? error.message : "Unable to update payout status."); showDatabaseResult(error instanceof Error ? error.message : "Unable to update payout status.", "error");
     } finally {
       endAction("share-payout");
       setIsSavingPayout(false);
@@ -593,11 +599,11 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     try {
       await setCfcfSharePayout(workspace.tenantId, selectedFund.fund_id, payoutShare.share_id, "undrawn", null, 0);
       setPayoutShare(null);
-      setFundNotice("Share marked undrawn. The payout status was reset; existing Payment records were not changed.");
+      showDatabaseResult("Share marked undrawn. The payout status was reset; existing Payment records were not changed.");
       setDetailReloadKey((current) => current + 1);
       setFundReloadKey((current) => current + 1);
     } catch (error) {
-      setPayoutError(error instanceof Error ? error.message : "Unable to reset payout status.");
+      setPayoutError(error instanceof Error ? error.message : "Unable to reset payout status."); showDatabaseResult(error instanceof Error ? error.message : "Unable to reset payout status.", "error");
     } finally {
       endAction("share-payout");
       setIsSavingPayout(false);
@@ -639,11 +645,11 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       await recordCfcfCycleBilling(workspace.tenantId, selectedFund.fund_id, billingShare.share_id, cycleNumber, amount);
       setBillingShare(null);
       setBillingEditEnabled(false);
-      setFundNotice("Cycle bill saved. No payment, credit, debit, or withdrawal was created.");
+      showDatabaseResult("Cycle bill saved. No payment, credit, debit, or withdrawal was created.");
       setDetailReloadKey((current) => current + 1);
       setFundReloadKey((current) => current + 1);
     } catch (error) {
-      setBillingError(error instanceof Error ? error.message : "Unable to save cycle billing.");
+      setBillingError(error instanceof Error ? error.message : "Unable to save cycle billing."); showDatabaseResult(error instanceof Error ? error.message : "Unable to save cycle billing.", "error");
     } finally {
       endAction("cycle-billing");
       setIsSavingBilling(false);
@@ -677,11 +683,11 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setCycleRows(remaining);
       setSelectedCycleNumber(remaining.at(-1)?.cycle_number ?? null);
       setCycleDeleteTarget(null);
-      setFundNotice("Cycle deleted. Its bills, planned payout and commission were removed; withdrawals assigned to it were reset to Undrawn. Shareholder payment records were not changed.");
+      showDatabaseResult("Cycle deleted. Its bills, planned payout and commission were removed; withdrawals assigned to it were reset to Undrawn. Shareholder payment records were not changed.");
       setDetailReloadKey((value) => value + 1);
       setFundReloadKey((value) => value + 1);
     } catch (error) {
-      setCycleDeleteError(error instanceof Error ? error.message : "Unable to delete Cycle.");
+      setCycleDeleteError(error instanceof Error ? error.message : "Unable to delete Cycle."); showDatabaseResult(error instanceof Error ? error.message : "Unable to delete Cycle.", "error");
     } finally {
       endAction("delete-cycle");
       setIsCycleBusy(false);
@@ -732,12 +738,12 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setCycleEditNumber(null);
       setCycleEditEnabled(false);
       setCycleReview(false);
-      setFundNotice("Cycle " + cycleNumber + " saved. Shareholder payments were not changed.");
+      showDatabaseResult("Cycle " + cycleNumber + " saved. Shareholder payments were not changed.");
       setFundReloadKey((n) => n + 1);
       setDetailReloadKey((n) => n + 1);
       if (isAdjustmentsLedgerOpen) void openAdjustmentsLedger();
     } catch (error) {
-      setCycleEditError(error instanceof Error ? error.message : "Unable to save Cycle workspace.");
+      setCycleEditError(error instanceof Error ? error.message : "Unable to save Cycle workspace."); showDatabaseResult(error instanceof Error ? error.message : "Unable to save Cycle workspace.", "error"); showDatabaseResult(error instanceof Error ? error.message : "Unable to save Cycle workspace.", "error");
     } finally {
       endAction("save-cycle-workspace");
       setIsSavingCycle(false);
@@ -759,10 +765,10 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     try {
       await updateCfcfFundDetails(workspace.tenantId, selectedFund.fund_id, { fundName: fundEditForm.fundName, startDate: fundEditForm.startDate || null, numberOfCycles: count });
       setIsFundEditOpen(false);
-      setFundNotice("Fund details saved. Stored financial values were not changed.");
+      showDatabaseResult("Fund details saved. Stored financial values were not changed.");
       setFundReloadKey((n) => n + 1);
     } catch (error) {
-      setFundEditError(error instanceof Error ? error.message : "Unable to save Fund details.");
+      setFundEditError(error instanceof Error ? error.message : "Unable to save Fund details."); showDatabaseResult(error instanceof Error ? error.message : "Unable to save Fund details.", "error");
     } finally {
       endAction("edit-fund");
       setIsSavingFundEdit(false);
@@ -822,14 +828,14 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     try {
       if (deleteTarget.kind === "share") {
         const result = await deleteCfcfShareWithHistory(workspace.tenantId, deleteTarget.fundId ?? selectedFundId, deleteTarget.id);
-        setFundNotice("Share " + result.share_id + " deleted with " + result.deleted_bills + " bill record(s) and " + result.deleted_payments + " payment record(s). Fund totals refreshed.");
+        showDatabaseResult("Share " + result.share_id + " deleted with " + result.deleted_bills + " bill record(s) and " + result.deleted_payments + " payment record(s). Fund totals refreshed.");
         setDeleteTarget(null); setDeleteStep(1); setDeleteAcknowledged(false); setDeleteTypedId(""); setDetailReloadKey((n) => n + 1); setFundReloadKey((n) => n + 1);
       } else {
         await deleteCfcfFundIfEmpty(workspace.tenantId, deleteTarget.id);
-        setFundNotice("Empty Fund deleted."); setDeleteTarget(null); setDeleteStep(1); setDeleteAcknowledged(false); setDeleteTypedId(""); setSelectedFundId("");
+        showDatabaseResult("Empty Fund deleted."); setDeleteTarget(null); setDeleteStep(1); setDeleteAcknowledged(false); setDeleteTypedId(""); setSelectedFundId("");
         setFundReloadKey((n) => n + 1); setDetailReloadKey((n) => n + 1);
       }
-    } catch (error) { setDeleteError(error instanceof Error ? error.message : "Unable to delete this record."); }
+    } catch (error) { setDeleteError(error instanceof Error ? error.message : "Unable to delete this record."); showDatabaseResult(error instanceof Error ? error.message : "Unable to delete this record.", "error"); }
     finally { endAction("delete-record"); setIsDeleting(false); }
   }
 
@@ -849,11 +855,11 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     try {
       await createCfcfShare(workspace.tenantId, selectedFund.fund_id, workspace.personId, newShareContactId);
       setIsShareModalOpen(false);
-      setFundNotice("Share added to " + selectedFund.fund_name + ".");
+      showDatabaseResult("Share added to " + selectedFund.fund_name + ".");
       setDetailReloadKey((n) => n + 1);
       setFundReloadKey((n) => n + 1);
     } catch (error) {
-      setShareFormError(error instanceof Error ? error.message : "Unable to add Share.");
+      setShareFormError(error instanceof Error ? error.message : "Unable to add Share."); showDatabaseResult(error instanceof Error ? error.message : "Unable to add Share.", "error");
     } finally { endAction("create-share"); setIsSavingShare(false); }
   }
 
@@ -883,9 +889,9 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       const savedPayment = await recordCfcfSharePayment(workspace.tenantId, selectedFund.fund_id, paymentShare.share_id, workspace.personId, paymentEntryType, amount, paymentDate, paymentMode, paymentRemarks, paymentRequestRef.current ?? crypto.randomUUID());
       setPaymentShare(null);
       paymentRequestRef.current = null;
-      setFundNotice((savedPayment.duplicate ? "Payment was already saved" : paymentEntryType === "credit" ? "Payment recorded" : "Debit correction recorded") + " successfully in Supabase. Payment ID: " + savedPayment.payment_id + (savedPayment.duplicate ? ". No duplicate was created." : "."));
+      showDatabaseResult((savedPayment.duplicate ? "Payment was already saved" : paymentEntryType === "credit" ? "Payment recorded" : "Debit correction recorded") + " successfully in Supabase. Payment ID: " + savedPayment.payment_id + (savedPayment.duplicate ? ". No duplicate was created." : "."));
       setDetailReloadKey((n) => n + 1); setFundReloadKey((n) => n + 1);
-    } catch (error) { setPaymentError(error instanceof Error ? error.message : "Unable to record transaction."); }
+    } catch (error) { setPaymentError(error instanceof Error ? error.message : "Unable to record transaction."); showDatabaseResult(error instanceof Error ? error.message : "Unable to record transaction.", "error"); }
     finally { endAction("record-payment"); setIsSavingPayment(false); }
   }
 
@@ -907,10 +913,10 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setFundEntryAmount("");
       setFundEntryRemarks("");
       setFundEntryCategory("");
-      setFundNotice(fundEntryType === "credit" ? "Other adjustment credit recorded. Fund financials were not changed." : "Other adjustment debit recorded. Fund financials were not changed.");
+      showDatabaseResult(fundEntryType === "credit" ? "Other adjustment credit recorded. Fund financials were not changed." : "Other adjustment debit recorded. Fund financials were not changed.");
       setDetailReloadKey((n) => n + 1);
     } catch (error) {
-      setFundEntryError(error instanceof Error ? error.message : "Unable to record Fund adjustment.");
+      setFundEntryError(error instanceof Error ? error.message : "Unable to record Fund adjustment."); showDatabaseResult(error instanceof Error ? error.message : "Unable to record Fund adjustment.", "error");
     } finally {
       endAction("fund-other-adjustment");
       setIsSavingFundEntry(false);
@@ -919,15 +925,15 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
 
   function openShareWhatsApp(share: CfcfShareRow, mode: "reminder" | "report") {
     const contact = contactById.get(share.contact_id);
-    if (!contact?.phone) { setFundNotice("This Contact has no saved phone number."); return; }
-    if (!selectedFund) { setFundNotice("Select a Fund before opening WhatsApp."); return; }
+    if (!contact?.phone) { showDatabaseResult("This Contact has no saved phone number."); return; }
+    if (!selectedFund) { showDatabaseResult("Select a Fund before opening WhatsApp."); return; }
     if (mode === "reminder" && share.total_pending <= 0) {
-      setFundNotice("This Share has no outstanding amount to remind about.");
+      showDatabaseResult("This Share has no outstanding amount to remind about.");
       return;
     }
     const rawPhone = contact.phone.replace(/\D/g, "");
     const phone = rawPhone.length === 10 ? "91" + rawPhone : rawPhone.length === 11 && rawPhone.startsWith("0") ? "91" + rawPhone.slice(1) : rawPhone;
-    if (phone.length < 10) { setFundNotice("The selected Contact's phone number is invalid."); return; }
+    if (phone.length < 10) { showDatabaseResult("The selected Contact's phone number is invalid."); return; }
     const ownerName = workspace.displayName.trim() || workspace.email;
     const currentCycle = selectedFund.current_cycle;
     const currentBill = billForShareCycle(share.share_id, currentCycle);
@@ -971,7 +977,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   function openFundModal() {
     setFundForm(emptyFundForm);
     setFundFormError(null);
-    setFundNotice(null);
+    setFundNotice(null); setDatabaseResult(null);
     setIsFundModalOpen(true);
   }
 
@@ -1006,11 +1012,11 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setFunds((current) => [created, ...current].sort((a, b) => b.created_at.localeCompare(a.created_at)));
       setSelectedFundId(created.fund_id);
       setActiveTab("shares");
-      setFundNotice("Fund created successfully. Its stored details are shown below.");
+      showDatabaseResult("Fund created successfully. Its stored details are shown below.");
       setIsFundModalOpen(false);
       setFundForm(emptyFundForm);
     } catch (error) {
-      setFundFormError(error instanceof Error ? error.message : "Unable to create fund.");
+      setFundFormError(error instanceof Error ? error.message : "Unable to create fund."); showDatabaseResult(error instanceof Error ? error.message : "Unable to create fund.", "error");
     } finally {
       endAction("create-fund");
       setIsSavingFund(false);
@@ -1066,12 +1072,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         </div>
       </section>
 
-      {fundNotice && (
-        <div role="status" className="flex items-start justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-          <p className="min-w-0 break-words">{fundNotice}</p>
-          <button type="button" onClick={() => setFundNotice(null)} aria-label="Dismiss message" className="shrink-0 rounded-md px-2 py-1 font-semibold text-emerald-900 hover:bg-emerald-100">×</button>
-        </div>
-      )}
 
       {fundsError && (
         <section role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
@@ -1303,8 +1303,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           try {
             const updated = await setCfcfCyclePlannedPayout(workspace.tenantId, selectedFund.fund_id, plannedPayoutCycle, amount);
             setCycleRows((rows) => rows.map((row) => row.cycle_number === plannedPayoutCycle ? { ...row, planned_payout_amount: updated.planned_payout_amount } : row));
-            setPlannedPayoutCycle(null); setPlannedPayoutReview(false); setFundNotice("Planned payout saved. No payment or withdrawal was recorded."); setDetailReloadKey((v) => v + 1);
-          } catch (error) { setPlannedPayoutError(error instanceof Error ? error.message : "Unable to save planned payout."); }
+            setPlannedPayoutCycle(null); setPlannedPayoutReview(false); showDatabaseResult("Planned payout saved. No payment or withdrawal was recorded."); setDetailReloadKey((v) => v + 1);
+          } catch (error) { setPlannedPayoutError(error instanceof Error ? error.message : "Unable to save planned payout."); showDatabaseResult(error instanceof Error ? error.message : "Unable to save planned payout.", "error"); }
           finally { endAction("planned-payout"); setIsCycleBusy(false); }
         }} className="space-y-4">
 
@@ -1864,6 +1864,20 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             </button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        isOpen={databaseResult !== null}
+        title={databaseResult?.status === "error" ? "Operation failed" : "Database acknowledgement"}
+        description={databaseResult?.status === "error" ? "The operation was not confirmed as successful. Review the message below." : "The operation completed and the acknowledgement was received."}
+        onClose={() => { setDatabaseResult(null); setFundNotice(null); }}
+      >
+        <div role={databaseResult?.status === "error" ? "alert" : "status"} aria-live="assertive" className={databaseResult?.status === "error" ? "rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm leading-6 text-rose-900" : "rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-900"}>
+          <p className="break-words">{databaseResult?.message}</p>
+        </div>
+        <div className="mt-4 flex justify-end">
+          <button type="button" autoFocus onClick={() => { setDatabaseResult(null); setFundNotice(null); }} className="min-h-11 rounded-xl bg-slate-900 px-5 text-sm font-semibold text-white">Close</button>
+        </div>
       </Modal>
     </div>
   );
