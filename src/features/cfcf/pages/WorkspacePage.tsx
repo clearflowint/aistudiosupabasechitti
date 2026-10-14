@@ -8,6 +8,7 @@ import {
   ArrowUpRight,
   CalendarDays,
   ChevronLeft,
+  ChevronDown,
   RotateCcw,
   Pencil,
   CreditCard,
@@ -1148,17 +1149,18 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             </div>
           </section>
 
-          <section aria-label="Fund share count" className="rounded-2xl border border-violet-100 bg-violet-50 px-4 py-3 shadow-sm">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-slate-900">Total Shares</p>
-                <p className="mt-0.5 text-xs text-slate-600">Shares added to this Fund</p>
+          <section aria-label="Shares section" className="space-y-3">
+            <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <div className="flex min-w-0 items-center gap-2">
+                <h2 className="text-base font-bold text-slate-900">Shares</h2>
+                <ChevronDown size={16} className="shrink-0 text-slate-500" aria-hidden="true" />
               </div>
-              <p className="shrink-0 text-2xl font-bold tabular-nums text-violet-800">{shares.length}</p>
+              <div className="flex shrink-0 items-center gap-2 rounded-full bg-sky-50 px-3 py-1.5 text-sky-800">
+                <span className="text-xs font-semibold">Total Shares</span>
+                <span className="text-base font-bold tabular-nums">{shares.length}</span>
+              </div>
             </div>
-          </section>
 
-          {true && (
             <section className="space-y-3">
               <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
                 <div className="flex items-center gap-2">
@@ -1218,7 +1220,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                 </article>;
               })}
             </section>
-          )}
+          </section>
 
           {true && (
             <section id="cfcf-shares" className="space-y-3">
