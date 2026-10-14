@@ -136,11 +136,13 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [cyclePayoutInput, setCyclePayoutInput] = useState("");
   const [cycleCommissionInput, setCycleCommissionInput] = useState("");
   const [cycleEditError, setCycleEditError] = useState<string | null>(null);
+  const [cycleEditEnabled, setCycleEditEnabled] = useState(false);
   const [isSavingCycle, setIsSavingCycle] = useState(false);
   const [billingShare, setBillingShare] = useState<CfcfShareRow | null>(null);
   const [billingCycleNumber, setBillingCycleNumber] = useState("1");
   const [billingAmount, setBillingAmount] = useState("");
   const [billingError, setBillingError] = useState<string | null>(null);
+  const [billingEditEnabled, setBillingEditEnabled] = useState(false);
   const [isSavingBilling, setIsSavingBilling] = useState(false);
   const [payoutShare, setPayoutShare] = useState<CfcfShareRow | null>(null);
   const [payoutCycleNumber, setPayoutCycleNumber] = useState("1");
@@ -460,6 +462,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       ? selectedCycleNumber
       : highestCycleNumber(selectedFund);
     setBillingShare(share);
+    setBillingEditEnabled(false);
     setBillingCycleNumber(String(cycle || 1));
     const existing = cycle ? billForShareCycle(share.share_id, cycle) : undefined;
     setBillingAmount(existing ? String(existing.amount) : "");
@@ -475,6 +478,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setBillingError("Choose a Cycle number from 1 to 100.");
       return;
     }
+    if (!billingEditEnabled) { setBillingError("Choose Edit before changing this bill."); return; }
     if (billingAmount.trim() === "" || !Number.isSafeInteger(amount) || amount < 0 || amount > 2147483647) {
       setBillingError("Enter a whole-rupee billing amount of zero or more.");
       return;
@@ -484,7 +488,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     try {
       await recordCfcfCycleBilling(workspace.tenantId, selectedFund.fund_id, billingShare.share_id, cycleNumber, amount);
       setBillingShare(null);
-      setFundNotice("Cycle billing saved. Share and Fund summaries were updated by Supabase.");
+      setBillingEditEnabled(false);
+      setFundNotice("Cycle bill saved. No payment, credit, debit, or withdrawal was created.");
       setDetailReloadKey((current) => current + 1);
       setFundReloadKey((current) => current + 1);
     } catch (error) {
@@ -496,6 +501,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
 
   function openCycleEditor(cycleNumber: number) {
     setCycleEditNumber(cycleNumber);
+    setCycleEditEnabled(false);
     const cycle = cycleRows.find((row) => row.cycle_number === cycleNumber);
     setCyclePayoutInput(cycle?.planned_payout_amount == null ? "" : String(cycle.planned_payout_amount));
     setCycleCommissionInput(cycle?.commission_amount == null ? "" : String(cycle.commission_amount));
@@ -548,15 +554,14 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       .filter((share) => share.status === "active")
       .flatMap((share) => {
         const raw = cycleBillInputs[share.share_id] ?? "";
-        if (raw.trim() === "") return [];
-        const amount = Number(raw);
+        const amount = raw.trim() === "" ? 0 : Number(raw);
         if (!Number.isSafeInteger(amount) || amount < 0 || amount > 2147483647) {
           return [{ share_id: share.share_id, amount: Number.NaN }];
         }
         return [{ share_id: share.share_id, amount }];
       });
     if (billPayload.some((bill) => !Number.isSafeInteger(bill.amount) || bill.amount < 0)) {
-      setCycleEditError("Every entered Share bill must be a nonnegative whole-rupee amount. Leave a field blank for no bill.");
+      setCycleEditError("Every Share must have a nonnegative whole-rupee bill. Blank amounts are saved as ₹0.");
       return;
     }
     setIsSavingCycle(true);
@@ -569,6 +574,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setCycleRows(freshCycles);
       setSelectedCycleNumber(cycleNumber);
       setCycleEditNumber(null);
+      setCycleEditEnabled(false);
       setFundNotice("Cycle " + cycleNumber + " saved. Shareholder payments were not changed.");
       setFundReloadKey((n) => n + 1);
       setDetailReloadKey((n) => n + 1);
@@ -1133,14 +1139,14 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       <Modal
         isOpen={cycleEditNumber !== null}
         title={"Edit Cycle " + cycleEditNumber}
-        description="Bulk bill posting for every active Share. Blank means no bill for that Share. Shareholder Payments are independent and will not be changed."
+        description="Review every saved Share bill for this Cycle. Choose Edit to change bill amounts. Blank amounts are saved as ₹0; billing never creates payment transactions."
         onClose={() => { if (!isSavingCycle) { setCycleEditNumber(null); setCycleEditError(null); } }}
       >
         <form onSubmit={(event) => void handleSaveCycleValues(event)} className="space-y-4">
-          <div className="rounded-xl bg-violet-50 p-3 text-sm font-semibold text-violet-900">Cycle {cycleEditNumber ?? ""} · {shares.filter((share) => share.status === "active").length} active Shares</div>
+          <div className="flex items-center justify-between gap-2 rounded-xl bg-violet-50 p-3"><div className="text-sm font-semibold text-violet-900">Cycle {cycleEditNumber ?? ""} · {shares.filter((share) => share.status === "active").length} active Shares</div><button type="button" onClick={() => setCycleEditEnabled((value) => !value)} className="min-h-9 rounded-lg border border-violet-200 bg-white px-3 text-xs font-semibold text-violet-800">{cycleEditEnabled ? "Review" : "Edit"}</button></div>
           <div className="grid grid-cols-2 gap-2">
-            <div><label htmlFor="cycle-edit-payout" className="mb-1.5 block text-xs font-semibold text-slate-700">Planned payout (₹)</label><input id="cycle-edit-payout" type="number" min="0" max="2147483647" step="1" value={cyclePayoutInput} onChange={(event) => setCyclePayoutInput(event.target.value)} placeholder="Not set" className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm" /></div>
-            <div><label htmlFor="cycle-edit-commission" className="mb-1.5 block text-xs font-semibold text-slate-700">Commission (₹)</label><input id="cycle-edit-commission" type="number" min="0" max="2147483647" step="1" value={cycleCommissionInput} onChange={(event) => setCycleCommissionInput(event.target.value)} placeholder="Not set" className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm" /></div>
+            <div><label htmlFor="cycle-edit-payout" className="mb-1.5 block text-xs font-semibold text-slate-700">Planned payout (₹)</label><input id="cycle-edit-payout" type="number" min="0" max="2147483647" step="1" value={cyclePayoutInput} onChange={(event) => setCyclePayoutInput(event.target.value)} disabled={!cycleEditEnabled} placeholder="Not set" className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm disabled:bg-slate-50 disabled:text-slate-500" /></div>
+            <div><label htmlFor="cycle-edit-commission" className="mb-1.5 block text-xs font-semibold text-slate-700">Commission (₹)</label><input id="cycle-edit-commission" type="number" min="0" max="2147483647" step="1" value={cycleCommissionInput} onChange={(event) => setCycleCommissionInput(event.target.value)} disabled={!cycleEditEnabled} placeholder="Not set" className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm disabled:bg-slate-50 disabled:text-slate-500" /></div>
           </div>
           {(["withdrawn", "undrawn"] as const).map((section) => {
             const group = shares.filter((share) => share.status === "active" && (share.payout_status === "drawn" ? "withdrawn" : "undrawn") === section);
@@ -1150,7 +1156,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                 const contact = contactById.get(share.contact_id);
                 return <div key={share.share_id} className="grid grid-cols-[minmax(0,1fr)_112px] items-center gap-2 rounded-xl border border-slate-200 p-2.5">
                   <div className="min-w-0"><p className="break-words text-sm font-semibold text-slate-900">{contact?.name || "Contact unavailable"}</p><p className="text-xs text-slate-500">Share {share.share_id}{share.payout_status === "drawn" ? " · Drawn in Cycle " + (share.payout_cycle_number ?? "unknown") : " · Undrawn"}</p></div>
-                  <div><label htmlFor={"cycle-bill-" + share.share_id} className="mb-1 block text-[11px] text-slate-500">Bill (₹)</label><input id={"cycle-bill-" + share.share_id} type="number" inputMode="numeric" min="0" max="2147483647" step="1" value={cycleBillInputs[share.share_id] ?? ""} onChange={(event) => setCycleBillInputs((current) => ({ ...current, [share.share_id]: event.target.value }))} placeholder="No bill" className="min-h-10 w-full rounded-lg border border-slate-200 px-2 text-sm" /></div>
+                  <div><label htmlFor={"cycle-bill-" + share.share_id} className="mb-1 block text-[11px] text-slate-500">Bill (₹)</label><input id={"cycle-bill-" + share.share_id} type="number" inputMode="numeric" min="0" max="2147483647" step="1" value={cycleBillInputs[share.share_id] ?? "0"} onChange={(event) => setCycleBillInputs((current) => ({ ...current, [share.share_id]: event.target.value }))} disabled={!cycleEditEnabled} placeholder="0" className="min-h-10 w-full rounded-lg border border-slate-200 px-2 text-sm disabled:bg-slate-50 disabled:text-slate-600" /></div>
                 </div>;
               })}
             </section>;
@@ -1212,14 +1218,14 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
 
       <Modal
         isOpen={Boolean(billingShare)}
-        title="Enter cycle billing"
-        description={billingShare ? "Save the manual billing amount for " + (contactById.get(billingShare.contact_id)?.name || "this Share") + ". Supabase will store the cycle entry and update the saved Share/Fund summaries atomically." : "Enter cycle billing."}
+        title="Share bill · Existing Cycle"
+        description={billingShare ? "Review this Share’s saved bill for an existing Cycle. Choose Edit to change it. This never creates a Cycle or a payment transaction." : "Review a saved Share bill."}
         onClose={() => { if (!isSavingBilling) { setBillingShare(null); setBillingError(null); } }}
       >
         <form onSubmit={(event) => void handleSaveCycleBilling(event)} className="space-y-4">
           <div>
             <label htmlFor="cycle-billing-cycle" className="mb-1.5 block text-sm font-medium text-slate-700">Cycle</label>
-            <select id="cycle-billing-cycle" value={billingCycleNumber} onChange={(event) => { setBillingCycleNumber(event.target.value); const saved = billForShareCycle(billingShare?.share_id ?? "", Number(event.target.value)); setBillingAmount(saved ? String(saved.amount) : ""); }} required disabled={savedCycleNumbers().length === 0} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 disabled:bg-slate-100">
+            <select id="cycle-billing-cycle" value={billingCycleNumber} onChange={(event) => { setBillingCycleNumber(event.target.value); const saved = billForShareCycle(billingShare?.share_id ?? "", Number(event.target.value)); setBillingAmount(saved ? String(saved.amount) : "0"); setBillingEditEnabled(false); }} required disabled={savedCycleNumbers().length === 0 || billingEditEnabled} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 disabled:bg-slate-100">
               {savedCycleNumbers().length === 0 ? <option value="">Add a Cycle first</option> : savedCycleNumbers().map((cycle) => <option key={cycle} value={String(cycle)}>Cycle {cycle}</option>)}
             </select>
             <p className="mt-1 text-xs text-slate-500">One current bill per Share per saved Cycle. Selecting an existing Cycle loads its current bill for editing.</p>
@@ -1236,10 +1242,11 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               required
               value={billingAmount}
               onChange={(event) => setBillingAmount(event.target.value)}
-              placeholder="Enter amount manually"
-              className="min-h-11 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+              disabled={!billingEditEnabled}
+              placeholder="0"
+              className="min-h-11 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 disabled:bg-slate-50 disabled:text-slate-600"
             />
-            <p className="mt-1.5 text-xs leading-5 text-slate-500">This is a manual entry for the selected Share and Cycle. Saving an existing cycle amount replaces that cycle's previous billing entry.</p>
+            <p className="mt-1.5 text-xs leading-5 text-slate-500">₹0 is a saved bill amount. Changing a bill does not create a credit, debit, payment, or withdrawal.</p>
           </div>
           {billingError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm leading-5 text-rose-800">{billingError}</div>}
           <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
