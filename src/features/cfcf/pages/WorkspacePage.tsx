@@ -721,42 +721,25 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
 
   return (
     <div className="min-w-0 space-y-4 pb-2">
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 text-sm text-slate-500">
-              <WalletCards size={16} className="shrink-0 text-sky-700" />
-              Your funds
-            </div>
-            <h2 className="mt-1 break-words text-xl font-semibold tracking-tight text-slate-900">Workspace</h2>
-                        <p className="mt-2 inline-flex items-center gap-2 rounded-lg bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-600"><CalendarDays size={14} className="text-sky-700" />{new Date().toLocaleDateString("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <button
-              type="button"
-              onClick={openFundModal}
-              className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-sky-600 px-3 text-sm font-semibold text-white transition hover:bg-sky-700"
-            >
-              <Plus size={16} /> New fund
-            </button>
-            <button
-              type="button"
-              onClick={() => setFundReloadKey((current) => current + 1)}
-              disabled={isLoadingFunds}
-              aria-label="Refresh funds"
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-200 text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
-            >
-              <RefreshCw size={17} className={isLoadingFunds ? "animate-spin" : ""} />
-            </button>
-          </div>
+      <section aria-label="Fund actions" className="flex min-w-0 items-center justify-between gap-2">
+        <p className="inline-flex min-w-0 items-center gap-1.5 text-sm font-medium text-slate-500">
+          <CalendarDays size={16} className="shrink-0 text-sky-700" />
+          {new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+        </p>
+        <div className="flex shrink-0 items-center gap-2">
+          <button type="button" onClick={openFundModal} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-sky-600 px-3 text-sm font-semibold text-white transition hover:bg-sky-700">
+            <Plus size={16} /> New Fund
+          </button>
+          <button type="button" onClick={() => setFundReloadKey((current) => current + 1)} disabled={isLoadingFunds} aria-label="Refresh funds" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:opacity-50">
+            <RefreshCw size={17} className={isLoadingFunds ? "animate-spin" : ""} />
+          </button>
         </div>
-
-
       </section>
 
       {fundNotice && (
-        <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          {fundNotice}
+        <div role="status" className="flex items-start justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          <p className="min-w-0 break-words">{fundNotice}</p>
+          <button type="button" onClick={() => setFundNotice(null)} aria-label="Dismiss message" className="shrink-0 rounded-md px-2 py-1 font-semibold text-emerald-900 hover:bg-emerald-100">×</button>
         </div>
       )}
 
