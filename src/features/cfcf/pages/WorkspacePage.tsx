@@ -19,6 +19,7 @@ import {
   Search,
   UsersRound,
   WalletCards,
+  IndianRupee,
   Trash2,
 } from "lucide-react";
 import type { AuthorizedWorkspace } from "../../../core/workspace/workspace.types";
@@ -126,6 +127,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [fundEntryType, setFundEntryType] = useState<"credit" | "debit">("debit");
   const [fundEntryAmount, setFundEntryAmount] = useState("");
   const [fundEntryRemarks, setFundEntryRemarks] = useState("");
+  const [fundEntryCategory, setFundEntryCategory] = useState<"" | "outside_money" | "commission" | "discount" | "stationery" | "others">("");
   const [fundEntryError, setFundEntryError] = useState<string | null>(null);
   const [isSavingFundEntry, setIsSavingFundEntry] = useState(false);
   const [financialReconciliation, setFinancialReconciliation] = useState<CfcfFinancialReconciliation | null>(null);
@@ -764,13 +766,14 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     setIsSavingFundEntry(true);
     setFundEntryError(null);
     try {
-      await recordCfcfFundOtherEntry(workspace.tenantId, selectedFund.fund_id, workspace.personId, fundEntryType, amount, fundEntryRemarks);
+      if (!fundEntryCategory) { setFundEntryError("Choose an adjustment category."); return; }
+      await recordCfcfFundOtherEntry(workspace.tenantId, selectedFund.fund_id, workspace.personId, fundEntryType, amount, fundEntryRemarks, fundEntryCategory);
       setIsFundEntryModalOpen(false);
       setFundEntryAmount("");
       setFundEntryRemarks("");
-      setFundNotice(fundEntryType === "credit" ? "Fund credit recorded." : "Fund debit recorded.");
+      setFundEntryCategory("");
+      setFundNotice(fundEntryType === "credit" ? "Other adjustment credit recorded. Fund financials were not changed." : "Other adjustment debit recorded. Fund financials were not changed.");
       setDetailReloadKey((n) => n + 1);
-      setFundReloadKey((n) => n + 1);
     } catch (error) {
       setFundEntryError(error instanceof Error ? error.message : "Unable to record Fund adjustment.");
     } finally {
@@ -968,10 +971,33 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             </div>
             <div className="border-t-2 border-slate-300 pt-4">
               <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Selected Fund · {selectedFund.fund_name}</p>
-              <article className="rounded-2xl border border-sky-100 bg-white p-4 shadow-sm">
-              <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-wide text-sky-700">Fund details</p><h3 className="mt-1 break-words text-lg font-semibold text-slate-900">{selectedFund.fund_name}</h3><p className="mt-1 break-all text-xs text-slate-400">Fund ID · {selectedFund.fund_id}</p><div className="mt-2 grid grid-cols-2 gap-x-3 text-sm text-slate-500"><span className="min-w-0">Start · {selectedFund.start_date ? formatDate(selectedFund.start_date) : "Not set"}</span><span className="min-w-0">Planned Cycles · {selectedFund.number_of_cycles ?? "Not set"}</span></div><div className="mt-3 grid grid-cols-2 gap-2"><div className="rounded-xl bg-slate-50 px-3 py-2"><p className="text-xs text-slate-500">Cycle progress</p><p className="mt-1 text-base font-bold text-slate-900">{savedCycleNumbers().at(-1) ?? 0} / {selectedFund.number_of_cycles ?? "Not set"}</p></div><div className="rounded-xl bg-slate-50 px-3 py-2"><p className="text-xs text-slate-500">Total Shares</p><p className="mt-1 text-base font-bold text-slate-900">{shares.length}</p></div></div></div>
-                <div className="flex shrink-0 items-center gap-2"><button type="button" onClick={() => setIsFundReportOpen(true)} className="inline-flex min-h-10 items-center justify-center rounded-xl border border-sky-200 bg-sky-50 px-3 text-sm font-semibold text-sky-800">Fund Report</button><button type="button" onClick={() => { setFundEditForm({ fundName: selectedFund.fund_name ?? "", startDate: selectedFund.start_date ?? "", numberOfCycles: selectedFund.number_of_cycles == null ? "" : String(selectedFund.number_of_cycles) }); setFundEditError(null); setIsFundEditOpen(true); }} className="inline-flex min-h-10 shrink-0 items-center gap-1 rounded-lg border border-slate-200 px-3 text-sm font-semibold text-slate-700"><Pencil size={15}/> Edit</button></div></div>
-            </article>
+              <article className="rounded-2xl border border-sky-100 bg-white p-3 shadow-sm">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="break-words text-base font-bold text-slate-900">{selectedFund.fund_name}</h3>
+                    <p className="mt-1 break-all text-xs text-slate-500">Fund ID · {selectedFund.fund_id} <span className="px-1">·</span> Start · {selectedFund.start_date ? formatDate(selectedFund.start_date) : "Not set"}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-xs font-medium text-slate-500">Pending</p>
+                    <p className="text-[1.1rem] font-bold leading-tight tabular-nums text-rose-600">{formatINR(selectedFund.fund_total_pending_amount ?? 0)}</p>
+                  </div>
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-2 text-xs text-slate-600">
+                  <span>Planned cycles: {selectedFund.number_of_cycles ?? "Not set"}</span>
+                  <span>Cycle progress: {savedCycleNumbers().at(-1) ?? 0} / {selectedFund.number_of_cycles ?? "Not set"}</span>
+                </div>
+                <div className="mt-2 grid grid-cols-3 gap-2">
+                  <div className="rounded-lg bg-slate-50 px-2 py-2"><p className="text-[11px] text-slate-500">Advance</p><p className="mt-1 text-sm font-bold tabular-nums text-slate-900">{formatINR(selectedFund.fund_total_advance ?? 0)}</p></div>
+                  <div className="rounded-lg bg-slate-50 px-2 py-2"><p className="text-[11px] text-slate-500">Withdrawn</p><p className="mt-1 text-sm font-bold tabular-nums text-slate-900">{formatINR(selectedFund.fund_total_withdrawn ?? 0)}</p></div>
+                  <div className="rounded-lg bg-slate-50 px-2 py-2"><p className="text-[11px] text-slate-500">Net balance</p><p className={["mt-1 text-sm font-bold tabular-nums", (selectedFund.fund_net_balance ?? 0) < 0 ? "text-rose-600" : (selectedFund.fund_net_balance ?? 0) > 0 ? "text-emerald-700" : "text-slate-900"].join(" ")}>{(selectedFund.fund_net_balance ?? 0) > 0 ? "+" : (selectedFund.fund_net_balance ?? 0) < 0 ? "−" : ""}{formatINR(Math.abs(selectedFund.fund_net_balance ?? 0))}</p></div>
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-2 text-xs text-slate-600"><span>Total Commission: {formatINR(selectedFund.fund_total_commissions ?? 0)}</span><span>Shares: {shares.length}</span></div>
+                <div className="mt-3 grid grid-cols-3 gap-2 border-t border-slate-100 pt-3">
+                  <button type="button" onClick={() => setIsFundReportOpen(true)} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-1 text-xs font-semibold text-sky-800"><FileText size={14}/> Fund Report</button>
+                  <button type="button" onClick={() => { setFundEntryType("debit"); setFundEntryAmount(""); setFundEntryRemarks(""); setFundEntryCategory(""); setFundEntryError(null); setIsFundEntryModalOpen(true); }} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-1 text-xs font-semibold text-emerald-800"><IndianRupee size={14}/> Adjustments</button>
+                  <button type="button" onClick={() => { setFundEditForm({ fundName: selectedFund.fund_name ?? "", startDate: selectedFund.start_date ?? "", numberOfCycles: selectedFund.number_of_cycles == null ? "" : String(selectedFund.number_of_cycles) }); setFundEditError(null); setIsFundEditOpen(true); }} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-slate-200 px-1 text-xs font-semibold text-slate-700"><Pencil size={14}/> Edit Fund</button>
+                </div>
+              </article>
             {(() => { const cycleNumbers = savedCycleNumbers(); const currentCycle = selectedCycleNumber !== null && cycleNumbers.includes(selectedCycleNumber) ? selectedCycleNumber : (cycleNumbers.at(-1) ?? null); const row = cycleRows.find((item) => item.cycle_number === currentCycle); const payout = row?.planned_payout_amount; const commission = row?.commission_amount; return <article className="rounded-2xl border border-violet-200 bg-violet-50 p-3 shadow-sm">
               <div className="flex items-start justify-between gap-2"><div className="min-w-0"><h3 className="text-base font-bold text-slate-950">{currentCycle === null ? "No Cycles yet" : `Cycle ${currentCycle} / ${selectedFund.number_of_cycles ?? "Not set"}`}</h3><p className="mt-1 text-xs text-slate-600">{row ? `Created ${formatDate(row.created_at)}` : "Existing billing record"}</p></div><div className="flex shrink-0 items-center gap-1"><button type="button" aria-label="Previous Cycle" disabled={currentCycle === null || cycleNumbers.indexOf(currentCycle) <= 0} onClick={() => { if (currentCycle !== null) setSelectedCycleNumber(cycleNumbers[cycleNumbers.indexOf(currentCycle)-1]); }} className="grid h-9 w-9 place-items-center rounded-lg border border-violet-200 bg-white disabled:opacity-40"><ChevronLeft size={17}/></button><button type="button" aria-label="Latest Cycle" disabled={currentCycle === null || currentCycle === cycleNumbers.at(-1)} onClick={() => setSelectedCycleNumber(cycleNumbers.at(-1) ?? null)} className="grid h-9 w-9 place-items-center rounded-lg border border-violet-200 bg-white disabled:opacity-40"><RotateCcw size={16}/></button></div></div>
               <div className="mt-3 grid grid-cols-2 gap-2"><StoredValue label="Total billed" value={cycleSummary ? formatINR(cycleSummary.total_billed) : "—"}/><StoredValue label="Planned payout" value={displayStoredAmount(payout)}/><StoredValue label="Billed shares" value={cycleSummary ? String(cycleSummary.billed_shares) : "—"}/><StoredValue label="Not billed" value={cycleSummary ? String(cycleSummary.not_billed_shares) : "—"}/><StoredValue label="Total paid out" value={cycleSummary ? formatINR(cycleSummary.total_paid_out) : "—"}/><StoredValue label="Commission" value={displayStoredAmount(commission)}/></div>
@@ -1056,9 +1082,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                   <button type="button" onClick={() => void handleReconcileFinancialSummary()} disabled={!selectedFund || isReconciling} className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 disabled:opacity-50">
                     {isReconciling ? "Checking…" : "Reconcile totals"}
                   </button>
-                  <button type="button" onClick={() => { setFundEntryType("debit"); setFundEntryAmount(""); setFundEntryRemarks(""); setFundEntryError(null); setIsFundEntryModalOpen(true); }} disabled={!selectedFund} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">
-                    Add Fund Adjustment
-                  </button>
+
                 </div>
               </div>
               <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -1385,17 +1409,19 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         </form>
       </Modal>
 
-      <Modal isOpen={isFundEntryModalOpen} title="Record Fund Adjustment" description="Record a Fund-level credit or debit, such as stationery, discount, or expense. This is not a Share Payment." onClose={() => { if (!isSavingFundEntry) setIsFundEntryModalOpen(false); }}>
+      <Modal isOpen={isFundEntryModalOpen} title="Add Adjustments" description="This amount is not calculated or considered in Fund financials. These are separate Fund Other Adjustments only." onClose={() => { if (!isSavingFundEntry) setIsFundEntryModalOpen(false); }}>
         <form onSubmit={(event) => void handleRecordFundEntry(event)} className="space-y-4">
-          <div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">Fund</p><p className="font-semibold">{selectedFund?.fund_name ?? "No Fund selected"}</p></div>
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3"><p className="text-sm font-semibold text-amber-900">Separate ledger only</p><p className="mt-1 text-xs leading-5 text-amber-800">These entries are not calculated or considered in Fund financials, Cycle totals, Share balances, payments, or payouts.</p></div>
+          <div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">Fund context</p><p className="font-semibold">{selectedFund?.fund_name ?? "No Fund selected"}</p></div>
           <div><span className="mb-1.5 block text-sm font-medium">Entry type</span><div className="grid grid-cols-2 gap-2">
-            <button type="button" aria-pressed={fundEntryType === "credit"} onClick={() => setFundEntryType("credit")} className={["min-h-11 rounded-xl px-2 text-sm font-semibold", fundEntryType === "credit" ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-700"].join(" ")}>Credit</button>
-            <button type="button" aria-pressed={fundEntryType === "debit"} onClick={() => setFundEntryType("debit")} className={["min-h-11 rounded-xl px-2 text-sm font-semibold", fundEntryType === "debit" ? "bg-rose-600 text-white" : "bg-slate-100 text-slate-700"].join(" ")}>Debit</button>
+            <button type="button" aria-pressed={fundEntryType === "credit"} onClick={() => setFundEntryType("credit")} className={["min-h-11 rounded-xl px-2 text-sm font-semibold", fundEntryType === "credit" ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-700"].join(" ")}>Credit (+)</button>
+            <button type="button" aria-pressed={fundEntryType === "debit"} onClick={() => setFundEntryType("debit")} className={["min-h-11 rounded-xl px-2 text-sm font-semibold", fundEntryType === "debit" ? "bg-rose-600 text-white" : "bg-slate-100 text-slate-700"].join(" ")}>Debit (−)</button>
           </div></div>
-          <label className="block"><span className="mb-1.5 block text-sm font-medium">Amount (₹)</span><input type="number" min="1" max="2147483647" step="1" required value={fundEntryAmount} onChange={(event) => setFundEntryAmount(event.target.value)} className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm" placeholder="Enter amount"/></label>
-          <label className="block"><span className="mb-1.5 block text-sm font-medium">Remarks</span><textarea rows={2} required maxLength={500} value={fundEntryRemarks} onChange={(event) => setFundEntryRemarks(event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="e.g. stationery, expense, discount"/></label>
+          <label className="block"><span className="mb-1.5 block text-sm font-medium">Adjustment category *</span><select required value={fundEntryCategory} onChange={(event) => setFundEntryCategory(event.target.value as typeof fundEntryCategory)} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"><option value="">Select category</option><option value="outside_money">Outside money</option><option value="commission">Commission</option><option value="discount">Discount</option><option value="stationery">Stationery</option><option value="others">Others</option></select></label>
+          <label className="block"><span className="mb-1.5 block text-sm font-medium">Amount (₹) *</span><input type="number" min="1" max="2147483647" step="1" required value={fundEntryAmount} onChange={(event) => setFundEntryAmount(event.target.value)} className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm" placeholder="Enter amount"/></label>
+          <label className="block"><span className="mb-1.5 block text-sm font-medium">Remarks (optional)</span><textarea rows={2} maxLength={500} value={fundEntryRemarks} onChange={(event) => setFundEntryRemarks(event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="Optional note"/></label>
           {fundEntryError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{fundEntryError}</p>}
-          <div className="flex justify-end gap-2 border-t border-slate-100 pt-4"><button type="button" onClick={() => setIsFundEntryModalOpen(false)} disabled={isSavingFundEntry} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button><button type="submit" disabled={isSavingFundEntry || !selectedFund} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingFundEntry ? "Saving…" : "Record adjustment"}</button></div>
+          <div className="flex justify-end gap-2 border-t border-slate-100 pt-4"><button type="button" onClick={() => setIsFundEntryModalOpen(false)} disabled={isSavingFundEntry} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button><button type="submit" disabled={isSavingFundEntry || !selectedFund || !fundEntryCategory} className="min-h-11 rounded-xl bg-emerald-700 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingFundEntry ? "Saving…" : "Add adjustment"}</button></div>
         </form>
       </Modal>
 
