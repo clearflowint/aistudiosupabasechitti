@@ -64,8 +64,6 @@ export async function createCfcfFund(
   const { data, error } = await supabase
     .from("cfcf_funds")
     .insert({
-      // CFCF PRODUCT: Required IDs come from the authorized workspace or a generated record ID.
-      fund_id: crypto.randomUUID().replace(/-/g, "").toUpperCase(),
       product_id: cfcfConfig.productId,
       tenant_id: tenantId,
       person_id: personId,
@@ -315,7 +313,7 @@ export async function createCfcfShare(tenantId: string, fundId: string, personId
   if (!fundId || !personId || !contactId) throw new Error("Choose a Fund and Contact.");
   const { error } = await supabase.rpc("cfcf_create_share", {
     p_tenant_id: tenantId, p_fund_id: fundId,
-    p_share_id: crypto.randomUUID().replace(/-/g, "").toUpperCase(),
+    p_share_id: "", // Legacy RPC parameter; database now generates the actual Share ID.
     p_person_id: personId, p_contact_id: contactId,
   });
   if (error) {
