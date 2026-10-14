@@ -182,6 +182,10 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [isCycleStatementOpen, setIsCycleStatementOpen] = useState(false);
   const [isFundEditOpen, setIsFundEditOpen] = useState(false);
   const [isFundReportOpen, setIsFundReportOpen] = useState(false);
+  const [isFullFundReportOpen, setIsFullFundReportOpen] = useState(false);
+  const [isLoadingFullFundReport, setIsLoadingFullFundReport] = useState(false);
+  const [fullFundReportError, setFullFundReportError] = useState<string | null>(null);
+  const [fullFundReportAdjustmentsSummary, setFullFundReportAdjustmentsSummary] = useState<CfcfFundOtherAdjustmentSummary | null>(null);
   const [isAdjustmentsLedgerOpen, setIsAdjustmentsLedgerOpen] = useState(false);
   const [adjustmentsLedgerRows, setAdjustmentsLedgerRows] = useState<CfcfLedgerItem[]>([]);
   const [adjustmentsSummary, setAdjustmentsSummary] = useState<CfcfFundOtherAdjustmentSummary | null>(null);
@@ -397,6 +401,49 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     const printWindow = window.open("", "_blank", "width=900,height=700");
     if (!printWindow) { setAdjustmentsLedgerError("Allow pop-ups to print or save the adjustment report."); return; }
     printWindow.document.write("<!doctype html><html><head><title>ClearFlow Other Adjustments Ledger</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><style>body{font-family:Arial,sans-serif;color:#0f172a;padding:24px;max-width:1000px;margin:auto}button{display:none!important}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #cbd5e1;padding:8px;text-align:left;vertical-align:top}th{background:#f1f5f9}tr{break-inside:avoid}p,h2,h3,h4{margin:8px 0}.border{border:1px solid #cbd5e1}.rounded-xl{border-radius:12px}.p-3,.p-4{padding:12px}.bg-slate-50{background:#f8fafc}.text-xs{font-size:12px}.text-sm{font-size:14px}.font-bold,.font-semibold{font-weight:700}</style></head><body>" + content + "</body></html>");
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  }
+
+  async function openFullFundReport() {
+    if (!selectedFund || isLoadingFullFundReport) return;
+    const requestedFundId = selectedFund.fund_id;
+    const requestedTenantId = workspace.tenantId;
+    setIsLoadingFullFundReport(true);
+    setFullFundReportError(null);
+    setFullFundReportAdjustmentsSummary(null);
+    try {
+      // Refresh every report section from the authorized tenant-scoped services before rendering.
+      const [freshShares, freshContacts, freshBills, freshLedger, freshCycles, adjustmentsSummary] = await Promise.all([
+        listCfcfShares(requestedTenantId, requestedFundId),
+        listCfcfContacts(requestedTenantId),
+        listCfcfBills(requestedTenantId, requestedFundId),
+        listCfcfLedgerItems(requestedTenantId, requestedFundId),
+        listCfcfCycles(requestedTenantId, requestedFundId),
+        getCfcfFundOtherAdjustmentSummary(requestedTenantId, requestedFundId),
+      ]);
+      if (workspace.tenantId !== requestedTenantId || selectedFundId !== requestedFundId) return;
+      setShares(freshShares);
+      setContacts(freshContacts);
+      setBills(freshBills);
+      setLedgerItems(freshLedger);
+      setCycleRows(freshCycles);
+      setFullFundReportAdjustmentsSummary(adjustmentsSummary);
+      setIsFullFundReportOpen(true);
+    } catch (error) {
+      setFullFundReportError(error instanceof Error ? error.message : "Unable to load the complete Fund report.");
+    } finally {
+      setIsLoadingFullFundReport(false);
+    }
+  }
+
+  function printFullFundReport() {
+    const content = document.querySelector("[data-cfcf-full-fund-report]")?.innerHTML;
+    if (!content) { setFullFundReportError("Full Fund report content is not ready to print."); return; }
+    const printWindow = window.open("", "_blank", "width=1000,height=800");
+    if (!printWindow) { setFullFundReportError("Allow pop-ups to print or save the Full Fund report as PDF."); return; }
+    printWindow.document.write("<!doctype html><html><head><title>ClearFlow Full Fund Report</title><meta name=\\"viewport\\" content=\\"width=device-width, initial-scale=1\\"><style>@page{size:A4;margin:14mm}body{font-family:Arial,sans-serif;color:#0f172a;font-size:11px;line-height:1.45;margin:0}h1{font-size:22px;margin:0 0 6px}h2{font-size:15px;margin:18px 0 8px;page-break-after:avoid}h3{font-size:12px;margin:10px 0 5px}.report-section{break-inside:auto;margin-bottom:16px}.record{border:1px solid #cbd5e1;border-radius:7px;padding:9px;margin:6px 0;break-inside:avoid}.muted{color:#64748b}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.metric{border:1px solid #cbd5e1;border-radius:6px;padding:8px;break-inside:avoid}.metric-label{font-size:9px;color:#64748b}.metric-value{font-size:12px;font-weight:700;margin-top:3px;overflow-wrap:anywhere}.pill{display:inline-block;border:1px solid #cbd5e1;border-radius:10px;padding:2px 6px;font-size:9px}p{margin:3px 0;overflow-wrap:anywhere}.entry-amount{font-weight:700}.entry-meta{font-size:9px;color:#64748b;overflow-wrap:anywhere}.disclaimer{border:1px solid #fcd34d;background:#fffbeb;padding:9px;border-radius:6px}.report-footer{margin-top:20px;padding-top:8px;border-top:1px solid #cbd5e1;font-size:9px;color:#64748b}@media print{.report-section{break-inside:auto}.record,.metric{break-inside:avoid}h2{break-after:avoid}}</style></head><body>" + content + "<footer class=\\"report-footer\\">ClearFlow · Full Fund Report · Generated " + new Date().toLocaleString("en-IN") + "</footer></body></html>");
     printWindow.document.close();
     printWindow.focus();
     printWindow.print();
@@ -1031,7 +1078,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                 </div>
                 <div className="mt-2 flex items-center justify-between gap-2 text-xs text-slate-600"><span>Total Commission: {formatINR(selectedFund.fund_total_commissions ?? 0)}</span><span>Shares: {shares.length}</span></div>
                 <div className="mt-3 grid grid-cols-3 gap-2 border-t border-slate-100 pt-3">
-                  <button type="button" onClick={() => setIsFundReportOpen(true)} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-1 text-xs font-semibold text-sky-800"><FileText size={14}/> Fund Report</button>
+                  <button type="button" onClick={() => setIsFundReportOpen(true)} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-1 text-xs font-semibold text-sky-800"><FileText size={14}/> Summary</button>
+                  <button type="button" onClick={() => void openFullFundReport()} disabled={isLoadingFullFundReport} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-1 text-xs font-semibold text-violet-800 disabled:opacity-50"><FileText size={14}/> {isLoadingFullFundReport ? "Loading…" : "Full PDF"}</button>
                   <button type="button" onClick={() => void openAdjustmentsLedger()} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-1 text-xs font-semibold text-emerald-800"><IndianRupee size={14}/> Adjustments</button>
                   <button type="button" onClick={() => { setFundEditForm({ fundName: selectedFund.fund_name ?? "", startDate: selectedFund.start_date ?? "", numberOfCycles: selectedFund.number_of_cycles == null ? "" : String(selectedFund.number_of_cycles) }); setFundEditError(null); setIsFundEditOpen(true); }} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-slate-200 px-1 text-xs font-semibold text-slate-700"><Pencil size={14}/> Edit Fund</button>
                 </div>
@@ -1572,6 +1620,82 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
             <button type="button" onClick={() => setIsAdjustmentsLedgerOpen(false)} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Close</button>
             <button type="button" disabled={!adjustmentsSummary} onClick={printAdjustmentsLedger} className="min-h-11 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white disabled:opacity-40">Print / Save HTML report</button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={isFullFundReportOpen} title="Full Fund Report · PDF" description="Complete fund-level report. Use Print / Save PDF to save a local PDF from your browser. Report figures use stored values and saved ledger entries." size="large" onClose={() => setIsFullFundReportOpen(false)}>
+        <div className="space-y-4">
+          {fullFundReportError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{fullFundReportError}</p>}
+          {selectedFund && <div data-cfcf-full-fund-report className="space-y-4 text-slate-900">
+            <section className="report-section rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">ClearFlow · Full Fund Report</p>
+              <h1 className="mt-1 text-xl font-bold">{selectedFund.fund_name}</h1>
+              <p className="break-all text-xs text-slate-500">Fund ID · {selectedFund.fund_id}</p>
+              <p className="text-sm">Report date · {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</p>
+              <p className="text-sm">Start date · {selectedFund.start_date ? formatDate(selectedFund.start_date) : "Not set"} · Planned cycles · {selectedFund.number_of_cycles ?? "Not set"} · Saved cycles · {cycleRows.length}</p>
+              <p className="text-xs text-slate-500">Share records · {shares.length} · Billing entries · {bills.length} · Payment entries · {ledgerItems.filter((item) => item.kind === "payment").length} · Other adjustment entries · {ledgerItems.filter((item) => item.kind === "fund-entry").length}</p>
+            </section>
+            <section className="report-section">
+              <h2 className="text-base font-bold">1. Fund Summary</h2>
+              <div className="grid grid-cols-2 gap-2">
+                <StoredValue label="Fund Net Balance (stored)" value={formatINR(selectedFund.fund_net_balance ?? 0)}/>
+                <StoredValue label="Total billed (stored)" value={formatINR(selectedFund.fund_total_billed_amount ?? 0)}/>
+                <StoredValue label="Total paid / net payments (stored share figures)" value={formatINR(selectedFund.fund_total_billed_amount == null ? 0 : shares.reduce((sum, share) => sum + (share.share_net_payment_received ?? 0), 0))}/>
+                <StoredValue label="Pending (stored)" value={formatINR(selectedFund.fund_total_pending_amount ?? 0)}/>
+                <StoredValue label="Advance (stored)" value={formatINR(selectedFund.fund_total_advance ?? 0)}/>
+                <StoredValue label="Withdrawn (stored)" value={formatINR(selectedFund.fund_total_withdrawn ?? 0)}/>
+                <StoredValue label="Commissions (stored)" value={formatINR(selectedFund.fund_total_commissions ?? 0)}/>
+              </div>
+            </section>
+            <section className="report-section">
+              <h2 className="text-base font-bold">2. Share-wise Summary</h2>
+              {shares.length ? shares.map((share) => {
+                const contact = contactById.get(share.contact_id);
+                return <article key={share.share_id} className="record rounded-xl border border-slate-200 p-3">
+                  <div className="flex items-start justify-between gap-2"><div className="min-w-0"><h3 className="break-words font-semibold">{contact?.name ?? "Contact unavailable"}</h3><p className="entry-meta break-all">Share ID · {share.share_id} · Contact ID · {share.contact_id}</p><p className="entry-meta">{contact?.phone ? "Phone · " + contact.phone : "Phone · Not recorded"} · Share status · {share.status}</p></div><span className="pill">{share.payout_status === "drawn" ? "Drawn" : "Undrawn"}</span></div>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <StoredValue label="Total billed (stored)" value={formatINR(share.share_total_billed_amount ?? 0)}/>
+                    <StoredValue label="Total paid / net received (stored)" value={formatINR(share.share_net_payment_received ?? 0)}/>
+                    <StoredValue label="Advance (stored)" value={formatINR(share.total_advance ?? 0)}/>
+                    <StoredValue label="Pending (stored)" value={formatINR(share.total_pending ?? 0)}/>
+                    <StoredValue label="Draw cycle" value={share.payout_status === "drawn" ? String(share.payout_cycle_number ?? "Not recorded") : "Not drawn"}/>
+                    <StoredValue label="Recorded payout" value={share.payout_status === "drawn" ? formatINR(share.withdrawn_amount ?? 0) : "Not drawn"}/>
+                  </div>
+                </article>;
+              }) : <p className="text-sm text-slate-500">No Share records were returned for this Fund.</p>}
+            </section>
+            <section className="report-section">
+              <h2 className="text-base font-bold">3. Saved Cycle Register</h2>
+              {cycleRows.length ? cycleRows.map((cycle) => <article key={cycle.cycle_id} className="record rounded-xl border border-slate-200 p-3"><h3 className="font-semibold">Cycle {cycle.cycle_number}</h3><p>Cycle ID · {cycle.cycle_id}</p><p>Planned payout · {displayStoredAmount(cycle.planned_payout_amount)}</p><p>Commission · {displayStoredAmount(cycle.commission_amount)}</p><p className="entry-meta">Created · {formatDate(cycle.created_at)} · Updated · {formatDate(cycle.updated_at)}</p></article>) : <p className="text-sm text-slate-500">No saved Cycles were returned for this Fund.</p>}
+            </section>
+            <section className="report-section">
+              <h2 className="text-base font-bold">4. Cycle-wise Billing Details</h2>
+              {cycleRows.length ? cycleRows.map((cycle) => {
+                const cycleBills = bills.filter((bill) => bill.cycle_id === cycle.cycle_id).slice().sort((a, b) => a.share_id.localeCompare(b.share_id));
+                return <article key={cycle.cycle_id} className="record rounded-xl border border-slate-200 p-3"><h3 className="font-semibold">Cycle {cycle.cycle_number} · {cycleBills.length} saved billing record(s)</h3>{cycleBills.length ? cycleBills.map((bill) => { const share = shares.find((item) => item.share_id === bill.share_id); const contact = share ? contactById.get(share.contact_id) : undefined; return <div key={bill.bill_id} className="mt-2 border-t border-slate-200 pt-2"><p className="font-semibold">{contact?.name ?? "Contact unavailable"} · {formatINR(bill.amount)}</p><p className="entry-meta">Share ID · {bill.share_id} · Billing ID · {bill.bill_id}</p><p className="entry-meta">Billing date · {bill.bill_date ? formatDate(bill.bill_date) : "Not recorded"} · Saved · {formatDate(bill.created_at)}</p></div>; }) : <p className="mt-2 text-sm text-slate-500">No billing entries recorded for this Cycle.</p>}</article>;
+              }) : <p className="text-sm text-slate-500">No saved Cycle records were returned; any available billing rows are listed below.</p>}
+              {!cycleRows.length && bills.map((bill) => <article key={bill.bill_id} className="record rounded-xl border border-slate-200 p-3"><p className="font-semibold">Share · {bill.share_id} · {formatINR(bill.amount)}</p><p className="entry-meta">Billing ID · {bill.bill_id} · Cycle ID · {bill.cycle_id} · Date · {bill.bill_date ? formatDate(bill.bill_date) : "Not recorded"}</p></article>)}
+            </section>
+            <section className="report-section">
+              <h2 className="text-base font-bold">5. Complete Payment Ledger</h2>
+              {ledgerItems.filter((item) => item.kind === "payment").length ? ledgerItems.filter((item) => item.kind === "payment").slice().sort((a, b) => a.date.localeCompare(b.date)).map((item) => { const share = shares.find((row) => row.share_id === item.shareId); const contact = share ? contactById.get(share.contact_id) : undefined; return <article key={item.id} className="record rounded-xl border border-slate-200 p-3"><p className="font-semibold">{formatDate(item.date)} · {item.entryType === "credit" ? "Credit" : "Debit"} · {formatINR(item.amount)}</p><p className="entry-meta">Payment ID · {item.id} · Share · {contact?.name ?? "Contact unavailable"} · Share ID · {item.shareId ?? "Not recorded"}</p><p>Mode · {item.paymentType ?? "Not recorded"} · Remarks · {item.remarks || "None"}</p></article>; }) : <p className="text-sm text-slate-500">No payment records were returned for this Fund.</p>}
+            </section>
+            <section className="report-section">
+              <h2 className="text-base font-bold">6. Draw / Payout Register</h2>
+              {shares.length ? shares.map((share) => { const contact = contactById.get(share.contact_id); return <article key={share.share_id} className="record rounded-xl border border-slate-200 p-3"><p className="font-semibold">{contact?.name ?? "Contact unavailable"} · {share.payout_status === "drawn" ? "Drawn" : "Undrawn"}</p><p className="entry-meta">Share ID · {share.share_id} · Cycle · {share.payout_status === "drawn" ? (share.payout_cycle_number ?? "Not recorded") : "Not drawn"}</p><p>Recorded payout · {share.payout_status === "drawn" ? formatINR(share.withdrawn_amount ?? 0) : "Not drawn"}</p></article>; }) : <p className="text-sm text-slate-500">No Share payout statuses were returned for this Fund.</p>}
+            </section>
+            <section className="report-section">
+              <h2 className="text-base font-bold">7. Other Adjustments — Separate Ledger</h2>
+              <div className="disclaimer rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm"><p className="font-bold">Not included in Fund financial calculations</p><p>Other Adjustments are an independent ledger. Credits and debits in this section do not change Fund Net Balance, Share balances, Cycle billing, payments or payouts.</p></div>
+              {fullFundReportAdjustmentsSummary && <div className="mt-2 grid grid-cols-2 gap-2"><StoredValue label="Adjustment entries" value={fullFundReportAdjustmentsSummary.entry_count}/><StoredValue label="Total credits" value={formatINR(fullFundReportAdjustmentsSummary.total_credits)}/><StoredValue label="Total debits" value={formatINR(fullFundReportAdjustmentsSummary.total_debits)}/><StoredValue label="Net adjustments (separate)" value={formatINR(fullFundReportAdjustmentsSummary.net_adjustments)}/></div>}
+              {ledgerItems.filter((item) => item.kind === "fund-entry").length ? ledgerItems.filter((item) => item.kind === "fund-entry").slice().sort((a, b) => a.date.localeCompare(b.date)).map((item) => <article key={item.id} className="record rounded-xl border border-slate-200 p-3"><p className="font-semibold">{formatDate(item.date)} · {item.entryType === "credit" ? "Credit (+)" : "Debit (−")} · {formatINR(item.amount)}</p><p className="entry-meta">Entry ID · {item.id} · Category · {adjustmentCategoryLabel(item.adjustmentCategory)}</p><p>Remarks · {item.remarks || "None"}</p></article>) : <p className="mt-2 text-sm text-slate-500">No Other Adjustments were returned for this Fund.</p>}
+            </section>
+            <section className="report-section"><h2 className="text-base font-bold">8. Report Notes</h2><p>All figures above are shown from saved Fund/Share fields and saved ledger records. No new financial totals are derived by this report.</p><p>Generated from the currently authorized ClearFlow workspace. Keep this report with the Fund's business records.</p></section>
+          </div>}
+          <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-3">
+            <button type="button" onClick={() => setIsFullFundReportOpen(false)} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Close</button>
+            <button type="button" onClick={printFullFundReport} disabled={!selectedFund || isLoadingFullFundReport || !!fullFundReportError} className="min-h-11 rounded-xl bg-violet-700 px-4 text-sm font-semibold text-white disabled:opacity-40">Print / Save PDF</button>
           </div>
         </div>
       </Modal>
