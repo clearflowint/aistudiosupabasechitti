@@ -1399,7 +1399,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         </form>
       </Modal>
 
-      <Modal isOpen={Boolean(statementShare)} title="Share Statement" description="Database-backed billing, payout and payment ledger. Refreshes when opened." size="large" onClose={() => { setStatementShare(null); setStatementError(null); }}>
+      <Modal isOpen={Boolean(statementShare)} title="Share Statement" description="Database-backed billing, payout and payment ledger. Refreshes when opened." size="large" onClose={() => { statementRequestId.current += 1; setStatementShare(null); setStatementError(null); setIsLoadingStatement(false); }}>
         {statementShare && (() => {
           const contact = contactById.get(statementShare.contact_id);
           const history = ledgerItems.filter((item) => item.kind === "payment" && item.shareId === statementShare.share_id).sort((a,b) => b.date.localeCompare(a.date));
