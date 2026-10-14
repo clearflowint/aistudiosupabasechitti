@@ -1626,8 +1626,9 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         </div>
       </Modal>
 
-      <Modal isOpen={isFullFundReportOpen} title="Full Fund Report · PDF" description="Complete fund-level report. Use Print / Save PDF to save a local PDF from your browser. Report figures use stored values and saved ledger entries." size="large" onClose={() => setIsFullFundReportOpen(false)}>
+      <Modal isOpen={isFullFundReportOpen} title="Full Fund Report" description="Download a report file and open the full report in a separate browser tab. The report is mobile-friendly; use its own Print / Save as PDF control only if you need a PDF." size="large" onClose={() => setIsFullFundReportOpen(false)}>
         <div className="space-y-4">
+          <div className="sticky top-0 z-10 -mx-1 flex flex-wrap gap-2 border-b border-slate-100 bg-white px-1 py-2"><button type="button" onClick={printFullFundReport} disabled={!selectedFund || isLoadingFullFundReport || !!fullFundReportError} className="min-h-11 flex-1 rounded-xl bg-violet-700 px-4 text-sm font-semibold text-white disabled:opacity-40">Download / Open Report</button><button type="button" onClick={() => setIsFullFundReportOpen(false)} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Close</button></div>
           {fullFundReportError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{fullFundReportError}</p>}
           {selectedFund && <div data-cfcf-full-fund-report className="space-y-4 text-slate-900">
             <section className="report-section rounded-xl border border-slate-200 bg-slate-50 p-4">
@@ -1638,6 +1639,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               <p className="text-sm">Start date · {selectedFund.start_date ? formatDate(selectedFund.start_date) : "Not set"} · Planned cycles · {selectedFund.number_of_cycles ?? "Not set"} · Saved cycles · {cycleRows.length}</p>
               <p className="text-xs text-slate-500">Share records · {shares.length} · Billing entries · {bills.length} · Payment entries · {ledgerItems.filter((item) => item.kind === "payment").length} · Other adjustment entries · {ledgerItems.filter((item) => item.kind === "fund-entry").length}</p>
             </section>
+            <section className="report-section"><h2 className="text-base font-bold">Workspace / Tenant Details</h2><div className="grid grid-cols-2 gap-2"><StoredValue label="Tenant ID" value={workspace.tenantId}/><StoredValue label="Authorized person" value={workspace.displayName || "Not available"}/><StoredValue label="Person ID" value={workspace.personId}/><StoredValue label="Email" value={workspace.email || "Not available"}/></div></section>
             <section className="report-section">
               <h2 className="text-base font-bold">1. Fund Summary</h2>
               <div className="grid grid-cols-2 gap-2">
@@ -1695,10 +1697,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             </section>
             <section className="report-section"><h2 className="text-base font-bold">8. Report Notes</h2><p>All figures above are shown from saved Fund/Share fields and saved ledger records. No new financial totals are derived by this report.</p><p>Generated from the currently authorized ClearFlow workspace. Keep this report with the Fund's business records.</p></section>
           </div>}
-          <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-3">
-            <button type="button" onClick={() => setIsFullFundReportOpen(false)} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Close</button>
-            <button type="button" onClick={printFullFundReport} disabled={!selectedFund || isLoadingFullFundReport || !!fullFundReportError} className="min-h-11 rounded-xl bg-violet-700 px-4 text-sm font-semibold text-white disabled:opacity-40">Print / Save PDF</button>
-          </div>
+
         </div>
       </Modal>
 
