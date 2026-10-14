@@ -138,7 +138,7 @@ export function WorkspaceHomePage({ product, workspace, onNavigate }: WorkspaceH
             <ArrowRight size={20} className="shrink-0" />
           </button>
         )}
-        <button type="button" onClick={() => { setQuickPaymentOpen(true); setQuickSuccess(null); setQuickError(null); quickPaymentRequestRef.current = null; }} className="flex min-h-20 w-full min-w-0 items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-left text-slate-900 shadow-sm transition hover:bg-emerald-100 sm:p-4">
+        <button type="button" onClick={() => { setQuickPaymentOpen(true); setQuickSuccess(null); setQuickError(null); quickPaymentRequestRef.current = null; quickPaymentRequestRef.current = null; }} className="flex min-h-20 w-full min-w-0 items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-left text-slate-900 shadow-sm transition hover:bg-emerald-100 sm:p-4">
           <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-600 text-white"><CreditCard size={22} /></div>
           <div className="min-w-0 flex-1"><h3 className="text-base font-bold">Record Payment (Quick)</h3><p className="mt-1 break-words text-sm leading-5 text-slate-600">Record a credit or debit against one Share without opening the full workspace.</p></div>
           <ArrowRight size={20} className="shrink-0 text-emerald-700" />
