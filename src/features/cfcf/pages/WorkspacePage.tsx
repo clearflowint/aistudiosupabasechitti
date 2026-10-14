@@ -1383,17 +1383,44 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         })()}
       </Modal>
 
-      <Modal isOpen={Boolean(deleteTarget)} title={deleteTarget?.kind === "fund" ? "Danger Zone · Delete Fund" : "Danger Zone · Delete Share"} description={`Step ${deleteStep} of 3 · Permanent deletion review`} onClose={() => { if (!isDeleting) { setDeleteTarget(null); setDeleteError(null); setDeleteStep(1); setDeleteAcknowledged(false); setDeleteTypedId(""); } }}>
+      <Modal isOpen={Boolean(deleteTarget)} title={deleteTarget?.kind === "fund" ? "Danger Zone · Delete Fund" : "Danger Zone · Delete Share"} description={"Step " + deleteStep + " of 3 · Permanent deletion review"} onClose={() => { if (!isDeleting) { setDeleteTarget(null); setDeleteError(null); setDeleteStep(1); setDeleteAcknowledged(false); setDeleteTypedId(""); setShareDeleteRecords(null); } }}>
         {deleteTarget && <div className="space-y-4">
-          <div className="rounded-xl border border-rose-200 bg-rose-50 p-3"><p className="text-sm font-semibold text-rose-900">{deleteTarget.label}</p><p className="mt-2 text-sm leading-5 text-rose-800">{deleteTarget.kind === "fund" ? "Fund deletion is blocked if it has any Shares, Payments, Fund adjustments, or any saved Cycle payout or commission values (including zero)." : "Share deletion is blocked if any Payment row, billing entry, payout status/history, or stored financial balance exists."}</p><p className="mt-2 text-sm leading-5 text-rose-800">Financial history will never be cascade-deleted. The database deletion safeguard remains authoritative.</p></div>
-          {deleteStep === 1 && <div className="space-y-3"><p className="text-sm leading-5 text-slate-700">Review the exact record and deletion restrictions. This should only be used for an accidentally created empty record.</p><button type="button" onClick={() => setDeleteStep(2)} className="min-h-11 w-full rounded-xl bg-rose-700 px-4 text-sm font-semibold text-white">I reviewed this record</button></div>}
-          {deleteStep === 2 && <div className="space-y-3"><label className="flex items-start gap-3 rounded-xl border border-slate-200 p-3 text-sm leading-5 text-slate-700"><input type="checkbox" checked={deleteAcknowledged} onChange={(event) => setDeleteAcknowledged(event.target.checked)} className="mt-1 h-4 w-4 shrink-0"/><span>I understand this is permanent and only succeeds if the database confirms there is no protected financial history.</span></label><button type="button" disabled={!deleteAcknowledged} onClick={() => { setDeleteTypedId(""); setDeleteStep(3); }} className="min-h-11 w-full rounded-xl bg-rose-700 px-4 text-sm font-semibold text-white disabled:opacity-40">Continue to final confirmation</button></div>}
-          {deleteStep === 3 && <div className="space-y-3"><label className="block text-sm font-medium text-slate-700">To confirm, type the email address of the currently logged-in account<p className="mt-2 break-all rounded-lg bg-slate-100 p-3 text-sm font-semibold text-slate-800">{workspace.email}</p><input value={deleteTypedId} onChange={(event) => setDeleteTypedId(event.target.value)} autoComplete="email" spellCheck={false} inputMode="email" className="mt-2 min-h-11 w-full rounded-xl border border-slate-300 px-3 text-sm" placeholder="Enter your logged-in email address"/></label><button type="button" onClick={() => void handleConfirmDelete()} disabled={isDeleting || !deleteAcknowledged || deleteTypedId.trim().toLowerCase() !== workspace.email.trim().toLowerCase()} className="min-h-11 w-full rounded-xl bg-rose-800 px-4 text-sm font-semibold text-white disabled:opacity-40">{isDeleting ? "Deleting…" : "Permanently delete empty record"}</button></div>}
-          {deleteError && <p role="alert" className="rounded-xl border border-rose-300 bg-white p-3 text-sm text-rose-800">{deleteError}</p>}
-          <div className="flex justify-end border-t border-slate-100 pt-3"><button type="button" onClick={() => { setDeleteTarget(null); setDeleteError(null); setDeleteStep(1); setDeleteAcknowledged(false); setDeleteTypedId(""); }} disabled={isDeleting} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button></div>
+          <div className="rounded-xl border border-rose-200 bg-rose-50 p-3">
+            <p className="text-sm font-semibold text-rose-900">{deleteTarget.label}</p>
+            {deleteTarget.kind === "share" && <p className="mt-1 text-xs text-rose-800">Share ID: {deleteTarget.id}</p>}
+            <p className="mt-2 text-sm leading-5 text-rose-800">{deleteTarget.kind === "fund" ? "Fund deletion is blocked if it has any Shares, Payments, Fund adjustments, or saved Cycle payout/commission values." : "This permanently deletes this Share, its Cycle bill rows, shareholder payment ledger rows, and recorded payout data. The Fund, its Cycles, and other Shares remain."}</p>
+            {deleteTarget.kind === "share" && <p className="mt-2 text-xs leading-5 text-rose-800">Audit records are retained to document the deletion. Only this Share and its related bill/payment rows are removed.</p>}
+          </div>
+          {deleteTarget.kind === "share" && <section className="space-y-2 rounded-xl border border-slate-200 p-3">
+            <h3 className="text-sm font-semibold text-slate-900">Related records to be deleted</h3>
+            {isLoadingShareDeleteRecords && <p className="text-sm text-slate-500">Loading related saved records…</p>}
+            {!isLoadingShareDeleteRecords && shareDeleteRecords && <>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-lg bg-slate-50 p-2"><p className="text-xs text-slate-500">Cycle bills</p><p className="text-base font-semibold">{shareDeleteRecords.bills.length}</p></div>
+                <div className="rounded-lg bg-slate-50 p-2"><p className="text-xs text-slate-500">Payment entries</p><p className="text-base font-semibold">{shareDeleteRecords.payments.length}</p></div>
+              </div>
+              <div className="max-h-44 space-y-2 overflow-y-auto">
+                {shareDeleteRecords.bills.map((bill) => <div key={"bill-" + bill.bill_id} className="flex items-start justify-between gap-2 rounded-lg bg-slate-50 p-2 text-xs"><span>Cycle {cycleRows.find((row) => row.cycle_id === bill.cycle_id)?.cycle_number ?? "—"} bill{bill.bill_date ? " · " + formatDate(bill.bill_date) : ""}</span><strong>{formatINR(bill.amount)}</strong></div>)}
+                {shareDeleteRecords.payments.map((payment) => <div key={"payment-" + payment.id} className="flex items-start justify-between gap-2 rounded-lg bg-slate-50 p-2 text-xs"><span>{payment.entryType === "credit" ? "Credit" : "Debit"} · {payment.date || "Date unavailable"}{payment.paymentType ? " · " + payment.paymentType : ""}{payment.remarks ? " · " + payment.remarks : ""}</span><strong>{formatINR(payment.amount)}</strong></div>)}
+                {shareDeleteRecords.bills.length === 0 && shareDeleteRecords.payments.length === 0 && <p className="text-xs text-slate-500">No bill/payment rows. The Share record and any saved payout data will still be deleted.</p>}
+              </div>
+            </>}
+          </section>}
+          {deleteStep === 1 && <div className="space-y-3">
+            <p className="text-sm leading-5 text-slate-700">{deleteTarget.kind === "share" ? "Review the Share and every listed bill/payment record. This action cannot be undone." : "Review the Fund and its deletion restrictions."}</p>
+            <button type="button" disabled={deleteTarget.kind === "share" && (isLoadingShareDeleteRecords || !shareDeleteRecords)} onClick={() => setDeleteStep(2)} className="min-h-11 w-full rounded-xl bg-rose-700 px-4 text-sm font-semibold text-white disabled:opacity-40">I reviewed these records</button>
+          </div>}
+          {deleteStep === 2 && <div className="space-y-3">
+            <label className="flex items-start gap-3 rounded-xl border border-rose-200 p-3 text-sm leading-5 text-slate-700"><input type="checkbox" checked={deleteAcknowledged} onChange={(event) => setDeleteAcknowledged(event.target.checked)} className="mt-1 h-4 w-4 shrink-0"/><span>{deleteTarget.kind === "share" ? "I understand the Share, its bills, all credit/debit payment entries, and payout data will be permanently deleted. The Fund, Cycles, other Shares, and audit records remain." : "I understand Fund deletion is permanent and the database will block it if related records remain."}</span></label>
+            <button type="button" disabled={!deleteAcknowledged} onClick={() => { setDeleteTypedId(""); setDeleteStep(3); }} className="min-h-11 w-full rounded-xl bg-rose-700 px-4 text-sm font-semibold text-white disabled:opacity-40">Continue to final confirmation</button>
+          </div>}
+          {deleteStep === 3 && <div className="space-y-3">
+            <label className="block text-sm font-medium text-slate-700">To confirm, type the email address of the currently logged-in account<p className="mt-2 break-all rounded-lg bg-slate-100 p-3 text-sm font-semibold text-slate-800">{workspace.email}</p><input value={deleteTypedId} onChange={(event) => setDeleteTypedId(event.target.value)} autoComplete="email" spellCheck={false} inputMode="email" className="mt-2 min-h-11 w-full rounded-xl border border-slate-300 px-3 text-sm" placeholder="Enter your logged-in email address"/></label>
+            <button type="button" onClick={() => void handleConfirmDelete()} disabled={isDeleting || !deleteAcknowledged || deleteTypedId.trim().toLowerCase() !== workspace.email.trim().toLowerCase() || (deleteTarget.kind === "share" && !shareDeleteRecords)} className="min-h-11 w-full rounded-xl bg-rose-800 px-4 text-sm font-semibold text-white disabled:opacity-40">{isDeleting ? "Deleting…" : deleteTarget.kind === "share" ? "Permanently delete Share + history" : "Permanently delete Fund"}</button>
+          </div>}
+          {deleteError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{deleteError}</p>}
         </div>}
       </Modal>
-
       <Modal isOpen={isFundReportOpen} title="Fund Report" description="Report uses stored Fund and Share values; no financial totals are calculated in the browser." size="large" onClose={() => setIsFundReportOpen(false)}>
         {selectedFund && <div className="space-y-4">
           <div data-cfcf-fund-report className="space-y-4 text-slate-900">
