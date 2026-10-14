@@ -38,7 +38,6 @@ import {
   listCfcfLedgerItems,
   listCfcfShares,
   listCfcfBills,
-  inspectCfcfFundFinancialSummary,
   setCfcfSharePayout,
   saveCfcfCycleWorkspace,
   listCfcfCycles,
@@ -51,7 +50,6 @@ import {
   updateCfcfFundDetails,
   type CfcfLedgerItem,
   type CfcfFundOtherAdjustmentSummary,
-  type CfcfFinancialReconciliation,
 } from "../services/workspace.service";
 import type { CfcfBillRow, CfcfContactRow, CfcfFundRow, CfcfShareRow } from "../types/database.types";
 
@@ -134,10 +132,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [fundEntryCategory, setFundEntryCategory] = useState<"" | "outside_money" | "commission" | "discount" | "stationery" | "others">("");
   const [fundEntryError, setFundEntryError] = useState<string | null>(null);
   const [isSavingFundEntry, setIsSavingFundEntry] = useState(false);
-  const [financialReconciliation, setFinancialReconciliation] = useState<CfcfFinancialReconciliation | null>(null);
-  const [reconciliationError, setReconciliationError] = useState<string | null>(null);
-  const [isReconciling, setIsReconciling] = useState(false);
-  const reconciliationRequestId = useRef(0);
   const inFlightActions = useRef(new Set<string>());
 
   function beginAction(action: string): boolean {
@@ -898,32 +892,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     finally { endAction("record-payment"); setIsSavingPayment(false); }
   }
 
-  async function handleReconcileFinancialSummary() {
-    if (!selectedFund || isReconciling) return;
-    const requestId = ++reconciliationRequestId.current;
-    const requestedFundId = selectedFund.fund_id;
-    const requestedTenantId = workspace.tenantId;
-    setIsReconciling(true);
-    setReconciliationError(null);
-    setFinancialReconciliation(null);
-    try {
-      const result = await inspectCfcfFundFinancialSummary(requestedTenantId, requestedFundId);
-      if (requestId === reconciliationRequestId.current
-        && selectedFundId === requestedFundId
-        && workspace.tenantId === requestedTenantId) {
-        setFinancialReconciliation(result);
-      }
-    } catch (error) {
-      if (requestId === reconciliationRequestId.current
-        && selectedFundId === requestedFundId
-        && workspace.tenantId === requestedTenantId) {
-        setReconciliationError(error instanceof Error ? error.message : "Unable to reconcile stored financial summaries.");
-      }
-    } finally {
-      if (requestId === reconciliationRequestId.current) setIsReconciling(false);
-    }
-  }
-
   async function handleRecordFundEntry(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedFund || isSavingFundEntry) return;
@@ -1263,49 +1231,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                   <h2 className="text-base font-semibold text-slate-900">Fund Ledger</h2>
                   <p className="text-sm text-slate-500">Share Payments and Fund adjustments are separate records.</p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={() => void handleReconcileFinancialSummary()} disabled={!selectedFund || isReconciling} className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 disabled:opacity-50">
-                    {isReconciling ? "Checking…" : "Reconcile totals"}
-                  </button>
-
-                </div>
-              </div>
-              <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <h3 className="text-sm font-semibold text-slate-900">Fund ledger summary</h3>
-                <p className="mt-1 text-xs text-slate-500">Stored values from the Fund row. Other credits and debits are independent of Share Payments.</p>
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <StoredValue label="Net Fund balance" value={formatINR(selectedFund.fund_net_balance)} />
-                  <StoredValue label="Other amount (credits − debits)" value={formatINR(selectedFund.other_amount)} />
-                  <StoredValue label="Total billed" value={formatINR(selectedFund.fund_total_billed_amount)} />
-                  <StoredValue label="Pending" value={formatINR(selectedFund.fund_total_pending_amount)} />
-                  <StoredValue label="Advance" value={formatINR(selectedFund.fund_total_advance)} />
-                  <StoredValue label="Withdrawn" value={formatINR(selectedFund.fund_total_withdrawn)} />
-                  <StoredValue label="Commissions" value={formatINR(selectedFund.fund_total_commissions)} />
-                </div>
-              </section>
-              {reconciliationError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{reconciliationError}</div>}
-              {financialReconciliation && (
-                <div role="status" className={["space-y-3 rounded-xl border p-3", financialReconciliation.mismatches.length === 0 ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"].join(" ")}>
-                  <div>
-                    <p className="font-semibold">{financialReconciliation.mismatches.length === 0 ? "Stored financial summaries match the ledger" : "Financial summary differences found"}</p>
-                    <p className="mt-1 text-sm">Read-only check. No records were changed. Payments, Share billing, payouts, commissions and Fund adjustments were compared with stored summaries.</p>
-                  </div>
-                  {financialReconciliation.mismatches.length > 0 && (
-                    <div className="space-y-2">
-                      {financialReconciliation.mismatches.map((item) => (
-                        <article key={item.recordType + ":" + item.recordId + ":" + item.field} className="min-w-0 rounded-lg border border-slate-200 bg-white p-3">
-                          <p className="break-words text-xs font-semibold uppercase tracking-wide text-slate-500">{item.recordType === "fund" ? "Fund" : "Share"} · {item.recordId}</p>
-                          <p className="mt-1 break-words text-sm font-semibold text-slate-800">{item.field}</p>
-                          <div className="mt-2 grid grid-cols-2 gap-2">
-                            <div className="min-w-0 rounded-md bg-slate-50 p-2"><p className="text-xs text-slate-500">Stored</p><p className="break-words text-sm font-semibold tabular-nums">{item.stored.toLocaleString("en-IN")}</p></div>
-                            <div className="min-w-0 rounded-md bg-slate-50 p-2"><p className="text-xs text-slate-500">Expected</p><p className="break-words text-sm font-semibold tabular-nums">{item.expected.toLocaleString("en-IN")}</p></div>
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
               {selectedShareId && (
                 <button
                   type="button"
