@@ -32,6 +32,7 @@ import {
   deleteCfcfFundIfEmpty,
   recordCfcfSharePayment,
   recordCfcfFundOtherEntry,
+  getCfcfFundOtherAdjustmentSummary,
   recordCfcfCycleBilling,
   listCfcfFunds,
   listCfcfLedgerItems,
@@ -49,6 +50,7 @@ import {
   type CfcfCycleSummary,
   updateCfcfFundDetails,
   type CfcfLedgerItem,
+  type CfcfFundOtherAdjustmentSummary,
   type CfcfFinancialReconciliation,
 } from "../services/workspace.service";
 import type { CfcfBillRow, CfcfContactRow, CfcfFundRow, CfcfShareRow } from "../types/database.types";
@@ -180,6 +182,11 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [isCycleStatementOpen, setIsCycleStatementOpen] = useState(false);
   const [isFundEditOpen, setIsFundEditOpen] = useState(false);
   const [isFundReportOpen, setIsFundReportOpen] = useState(false);
+  const [isAdjustmentsLedgerOpen, setIsAdjustmentsLedgerOpen] = useState(false);
+  const [adjustmentsLedgerRows, setAdjustmentsLedgerRows] = useState<CfcfLedgerItem[]>([]);
+  const [adjustmentsSummary, setAdjustmentsSummary] = useState<CfcfFundOtherAdjustmentSummary | null>(null);
+  const [isLoadingAdjustmentsLedger, setIsLoadingAdjustmentsLedger] = useState(false);
+  const [adjustmentsLedgerError, setAdjustmentsLedgerError] = useState<string | null>(null);
   const [fundEditForm, setFundEditForm] = useState({ fundName: "", startDate: "", numberOfCycles: "" });
   const [fundEditError, setFundEditError] = useState<string | null>(null);
   const [isSavingFundEdit, setIsSavingFundEdit] = useState(false);
@@ -360,6 +367,36 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     const printWindow = window.open("", "_blank", "width=900,height=700");
     if (!printWindow) { setFundNotice("Allow pop-ups to print or save the Share statement."); return; }
     printWindow.document.write("<!doctype html><html><head><title>ClearFlow Share Statement</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><style>body{font-family:Arial,sans-serif;color:#0f172a;padding:24px;max-width:900px;margin:auto}button{display:none!important}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}article,section{break-inside:avoid}p,h3,h4{margin-top:8px;margin-bottom:8px}.border{border:1px solid #cbd5e1}.rounded-xl{border-radius:12px}.p-3,.p-4{padding:12px}.bg-slate-50{background:#f8fafc}.text-xs{font-size:12px}.text-sm{font-size:14px}.font-bold,.font-semibold{font-weight:700}</style></head><body>" + content + "</body></html>");
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  }
+
+  async function openAdjustmentsLedger() {
+    if (!selectedFund) return;
+    setIsAdjustmentsLedgerOpen(true);
+    setIsLoadingAdjustmentsLedger(true);
+    setAdjustmentsLedgerError(null);
+    try {
+      const [allLedgerItems, summary] = await Promise.all([
+        listCfcfLedgerItems(workspace.tenantId, selectedFund.fund_id),
+        getCfcfFundOtherAdjustmentSummary(workspace.tenantId, selectedFund.fund_id),
+      ]);
+      setAdjustmentsLedgerRows(allLedgerItems.filter((item) => item.kind === "fund-entry"));
+      setAdjustmentsSummary(summary);
+    } catch (error) {
+      setAdjustmentsLedgerError(error instanceof Error ? error.message : "Unable to load Other Adjustments ledger.");
+    } finally {
+      setIsLoadingAdjustmentsLedger(false);
+    }
+  }
+
+  function printAdjustmentsLedger() {
+    const content = document.querySelector("[data-cfcf-adjustments-report]")?.innerHTML;
+    if (!content) { setAdjustmentsLedgerError("Adjustment report content is not ready to print."); return; }
+    const printWindow = window.open("", "_blank", "width=900,height=700");
+    if (!printWindow) { setAdjustmentsLedgerError("Allow pop-ups to print or save the adjustment report."); return; }
+    printWindow.document.write("<!doctype html><html><head><title>ClearFlow Other Adjustments Ledger</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><style>body{font-family:Arial,sans-serif;color:#0f172a;padding:24px;max-width:1000px;margin:auto}button{display:none!important}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #cbd5e1;padding:8px;text-align:left;vertical-align:top}th{background:#f1f5f9}tr{break-inside:avoid}p,h2,h3,h4{margin:8px 0}.border{border:1px solid #cbd5e1}.rounded-xl{border-radius:12px}.p-3,.p-4{padding:12px}.bg-slate-50{background:#f8fafc}.text-xs{font-size:12px}.text-sm{font-size:14px}.font-bold,.font-semibold{font-weight:700}</style></head><body>" + content + "</body></html>");
     printWindow.document.close();
     printWindow.focus();
     printWindow.print();
@@ -994,7 +1031,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                 <div className="mt-2 flex items-center justify-between gap-2 text-xs text-slate-600"><span>Total Commission: {formatINR(selectedFund.fund_total_commissions ?? 0)}</span><span>Shares: {shares.length}</span></div>
                 <div className="mt-3 grid grid-cols-3 gap-2 border-t border-slate-100 pt-3">
                   <button type="button" onClick={() => setIsFundReportOpen(true)} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-1 text-xs font-semibold text-sky-800"><FileText size={14}/> Fund Report</button>
-                  <button type="button" onClick={() => { setFundEntryType("debit"); setFundEntryAmount(""); setFundEntryRemarks(""); setFundEntryCategory(""); setFundEntryError(null); setIsFundEntryModalOpen(true); }} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-1 text-xs font-semibold text-emerald-800"><IndianRupee size={14}/> Adjustments</button>
+                  <button type="button" onClick={() => void openAdjustmentsLedger()} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-1 text-xs font-semibold text-emerald-800"><IndianRupee size={14}/> Adjustments</button>
                   <button type="button" onClick={() => { setFundEditForm({ fundName: selectedFund.fund_name ?? "", startDate: selectedFund.start_date ?? "", numberOfCycles: selectedFund.number_of_cycles == null ? "" : String(selectedFund.number_of_cycles) }); setFundEditError(null); setIsFundEditOpen(true); }} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-slate-200 px-1 text-xs font-semibold text-slate-700"><Pencil size={14}/> Edit Fund</button>
                 </div>
               </article>
@@ -1485,6 +1522,63 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           {deleteError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{deleteError}</p>}
         </div>}
       </Modal>
+      <Modal isOpen={isAdjustmentsLedgerOpen} title="Fund Other Adjustments" description="Separate, append-only ledger. These entries are not included in Fund financials." size="large" onClose={() => setIsAdjustmentsLedgerOpen(false)}>
+        <div className="space-y-4">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            <p className="font-semibold">Separate ledger only</p>
+            <p className="mt-1 text-xs leading-5">This amount is not calculated or considered in Fund financials. These are Fund Other Adjustments only. Credits and debits here do not change Cycle totals, Share balances, payments, payouts or Fund Net Balance.</p>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-xs text-slate-500">{selectedFund?.fund_name ?? "Fund"} · {adjustmentsSummary?.entry_count ?? 0} entries</div>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => void openAdjustmentsLedger()} disabled={isLoadingAdjustmentsLedger} className="inline-flex min-h-10 items-center gap-1 rounded-lg border border-slate-200 px-3 text-sm font-semibold disabled:opacity-50"><RefreshCw size={14}/> Refresh</button>
+              <button type="button" onClick={() => { setFundEntryType("debit"); setFundEntryAmount(""); setFundEntryRemarks(""); setFundEntryCategory(""); setFundEntryError(null); setIsFundEntryModalOpen(true); }} className="inline-flex min-h-10 items-center gap-1 rounded-lg bg-emerald-700 px-3 text-sm font-semibold text-white"><IndianRupee size={14}/> Add Adjustment</button>
+            </div>
+          </div>
+          {adjustmentsLedgerError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{adjustmentsLedgerError}</p>}
+          {isLoadingAdjustmentsLedger && <p role="status" className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">Loading latest adjustments from the database…</p>}
+          {adjustmentsSummary && <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3"><p className="text-[11px] text-emerald-800">Total Credits</p><p className="mt-1 break-words text-sm font-bold tabular-nums text-emerald-800">{formatINR(adjustmentsSummary.total_credits)}</p></div>
+            <div className="rounded-xl border border-rose-100 bg-rose-50 p-3"><p className="text-[11px] text-rose-800">Total Debits</p><p className="mt-1 break-words text-sm font-bold tabular-nums text-rose-800">{formatINR(adjustmentsSummary.total_debits)}</p></div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="text-[11px] text-slate-600">Net Adjustments</p><p className={["mt-1 break-words text-sm font-bold tabular-nums", adjustmentsSummary.net_adjustments < 0 ? "text-rose-700" : adjustmentsSummary.net_adjustments > 0 ? "text-emerald-700" : "text-slate-900"].join(" ")}>{adjustmentsSummary.net_adjustments > 0 ? "+" : adjustmentsSummary.net_adjustments < 0 ? "−" : ""}{formatINR(Math.abs(adjustmentsSummary.net_adjustments))}</p></div>
+          </div>}
+          <div data-cfcf-adjustments-report className="space-y-3 text-slate-900">
+            <section className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">ClearFlow · Fund Other Adjustments Ledger</p>
+              <h3 className="mt-1 text-lg font-bold">{selectedFund?.fund_name ?? "Fund"}</h3>
+              <p className="mt-1 break-all text-xs text-slate-500">Fund ID · {selectedFund?.fund_id ?? "—"}</p>
+              <p className="mt-1 text-xs text-slate-500">Report generated · {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</p>
+              <p className="mt-2 text-xs font-semibold text-amber-800">Independent ledger — excluded from Fund financial calculations</p>
+            </section>
+            {adjustmentsSummary && <section className="grid grid-cols-3 gap-2">
+              <div className="rounded-xl border border-slate-200 p-3"><p className="text-xs text-slate-500">Total Credits</p><p className="mt-1 font-bold">{formatINR(adjustmentsSummary.total_credits)}</p></div>
+              <div className="rounded-xl border border-slate-200 p-3"><p className="text-xs text-slate-500">Total Debits</p><p className="mt-1 font-bold">{formatINR(adjustmentsSummary.total_debits)}</p></div>
+              <div className="rounded-xl border border-slate-200 p-3"><p className="text-xs text-slate-500">Net Adjustments</p><p className="mt-1 font-bold">{formatINR(adjustmentsSummary.net_adjustments)}</p></div>
+            </section>}
+            <section>
+              <h4 className="font-semibold">Dated entries</h4>
+              {adjustmentsLedgerRows.length ? <div className="mt-2 overflow-x-auto">
+                <table className="w-full min-w-[600px] border-collapse text-left text-xs">
+                  <thead><tr className="bg-slate-100"><th className="border border-slate-200 p-2">Date</th><th className="border border-slate-200 p-2">Category</th><th className="border border-slate-200 p-2">Type</th><th className="border border-slate-200 p-2">Amount</th><th className="border border-slate-200 p-2">Remarks</th><th className="border border-slate-200 p-2">Entry ID</th></tr></thead>
+                  <tbody>{adjustmentsLedgerRows.slice().sort((a,b) => b.date.localeCompare(a.date)).map((item) => <tr key={item.id}>
+                    <td className="border border-slate-200 p-2 whitespace-nowrap">{formatDate(item.date)}</td>
+                    <td className="border border-slate-200 p-2">{adjustmentCategoryLabel(item.adjustmentCategory)}</td>
+                    <td className={["border border-slate-200 p-2 font-semibold", item.entryType === "credit" ? "text-emerald-700" : "text-rose-700"].join(" ")}>{item.entryType === "credit" ? "Credit (+)" : "Debit (−)"}</td>
+                    <td className="border border-slate-200 p-2 whitespace-nowrap">{item.entryType === "debit" ? "−" : "+"}{formatINR(item.amount)}</td>
+                    <td className="border border-slate-200 p-2">{item.remarks || "—"}</td>
+                    <td className="border border-slate-200 p-2 break-all">{item.id}</td>
+                  </tr>)}</tbody>
+                </table>
+              </div> : <p className="mt-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-500">{isLoadingAdjustmentsLedger ? "Loading entries…" : "No Other Adjustments have been recorded for this Fund."}</p>}
+            </section>
+          </div>
+          <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
+            <button type="button" onClick={() => setIsAdjustmentsLedgerOpen(false)} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Close</button>
+            <button type="button" disabled={!adjustmentsSummary} onClick={printAdjustmentsLedger} className="min-h-11 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white disabled:opacity-40">Print / Save HTML report</button>
+          </div>
+        </div>
+      </Modal>
+
       <Modal isOpen={isFundReportOpen} title="Fund Report" description="Report uses stored Fund and Share values; no financial totals are calculated in the browser." size="large" onClose={() => setIsFundReportOpen(false)}>
         {selectedFund && <div className="space-y-4">
           <div data-cfcf-fund-report className="space-y-4 text-slate-900">
@@ -1620,6 +1714,17 @@ function formatDate(value: string): string {
   return Number.isNaN(date.getTime())
     ? value
     : date.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function adjustmentCategoryLabel(value: string | null): string {
+  switch (value) {
+    case "outside_money": return "Outside money";
+    case "commission": return "Commission";
+    case "discount": return "Discount";
+    case "stationery": return "Stationery";
+    case "others": return "Others";
+    default: return "Uncategorised (legacy)";
+  }
 }
 
 function displayStoredAmount(value: unknown): string {
