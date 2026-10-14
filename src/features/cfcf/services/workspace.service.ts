@@ -224,6 +224,7 @@ export async function listCfcfLedgerItems(
       date: row.entry_date,
       paymentType: row.payment_type,
       remarks: row.remarks,
+      adjustmentCategory: null,
     })),
     ...fundEntries.map((row) => ({
       id: row.entry_id,
