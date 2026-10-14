@@ -754,8 +754,9 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setFundNotice("This Share has no outstanding amount to remind about.");
       return;
     }
-    const phone = contact.phone.replace(/\D/g, "");
-    if (!phone) { setFundNotice("The selected Contact's phone number is invalid."); return; }
+    const rawPhone = contact.phone.replace(/\D/g, "");
+    const phone = rawPhone.length === 10 ? "91" + rawPhone : rawPhone.length === 11 && rawPhone.startsWith("0") ? "91" + rawPhone.slice(1) : rawPhone;
+    if (phone.length < 10) { setFundNotice("The selected Contact's phone number is invalid."); return; }
     const ownerName = workspace.displayName.trim() || workspace.email;
     const currentCycle = selectedFund.current_cycle;
     const currentBill = billForShareCycle(share.share_id, currentCycle);
