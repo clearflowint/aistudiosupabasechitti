@@ -44,7 +44,6 @@ import {
 } from "../services/workspace.service";
 import type { CfcfContactRow, CfcfFundRow, CfcfShareRow } from "../types/database.types";
 
-type WorkspaceTab = "shares" | "ledger";
 type ShareFilter = "all" | "pending" | "drawn" | "undrawn";
 
 interface WorkspacePageProps {
@@ -82,10 +81,6 @@ function readSavedWorkspaceView(tenantId: string): SavedWorkspaceView {
   }
 }
 
-const workspaceTabs: { id: WorkspaceTab; label: string; icon: typeof Layers3 }[] = [
-  { id: "shares", label: "Shares", icon: UsersRound },
-  { id: "ledger", label: "Ledger", icon: CreditCard },
-];
 
 export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [funds, setFunds] = useState<CfcfFundRow[]>([]);
