@@ -830,14 +830,14 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-wide text-sky-700">Fund details</p><h3 className="mt-1 break-words text-lg font-semibold text-slate-900">{selectedFund.fund_name}</h3><p className="mt-1 break-all text-xs text-slate-400">Fund ID · {selectedFund.fund_id}</p><div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500"><span>Start · {selectedFund.start_date ? formatDate(selectedFund.start_date) : "Not set"}</span><span>Planned Cycles · {selectedFund.number_of_cycles ?? "Not set"}</span></div></div>
                 <div className="flex shrink-0 items-center gap-2"><button type="button" onClick={() => setIsFundReportOpen(true)} className="inline-flex min-h-10 items-center justify-center rounded-xl border border-sky-200 bg-sky-50 px-3 text-sm font-semibold text-sky-800">Fund Report</button><button type="button" onClick={() => { setFundEditForm({ fundName: selectedFund.fund_name ?? "", startDate: selectedFund.start_date ?? "", numberOfCycles: selectedFund.number_of_cycles == null ? "" : String(selectedFund.number_of_cycles) }); setFundEditError(null); setIsFundEditOpen(true); }} className="inline-flex min-h-10 shrink-0 items-center gap-1 rounded-lg border border-slate-200 px-3 text-sm font-semibold text-slate-700"><Pencil size={15}/> Edit</button></div></div>
             </article>
-            {(() => { const savedCycles = cycleRows.map((row) => row.cycle_number); const billedCycles = billedCycleNumbers(); const cycleNumbers = [...new Set([...savedCycles, ...billedCycles])].sort((a,b)=>a-b); const currentCycle = selectedCycleNumber !== null && cycleNumbers.includes(selectedCycleNumber) ? selectedCycleNumber : (cycleNumbers.at(-1) ?? null); const row = cycleRows.find((item) => item.cycle_number === currentCycle); const payout = row?.planned_payout_amount ?? (currentCycle === null ? undefined : selectedFund.cycle_payout_amounts?.[currentCycle - 1]); const commission = currentCycle === null ? undefined : selectedFund.cycle_commissions?.[currentCycle - 1]; return <article className="rounded-2xl border border-violet-200 bg-violet-50 p-3 shadow-sm">
+            {(() => { const cycleNumbers = savedCycleNumbers(); const currentCycle = selectedCycleNumber !== null && cycleNumbers.includes(selectedCycleNumber) ? selectedCycleNumber : (cycleNumbers.at(-1) ?? null); const row = cycleRows.find((item) => item.cycle_number === currentCycle); const payout = row?.planned_payout_amount; const commission = row?.commission_amount; return <article className="rounded-2xl border border-violet-200 bg-violet-50 p-3 shadow-sm">
               <div className="flex items-start justify-between gap-2"><div className="min-w-0"><h3 className="text-base font-bold text-slate-950">{currentCycle === null ? "No Cycles yet" : `Cycle ${currentCycle} / ${selectedFund.number_of_cycles ?? "Not set"}`}</h3><p className="mt-1 text-xs text-slate-600">{row ? `Created ${formatDate(row.created_at)}` : "Existing billing record"}</p></div><div className="flex shrink-0 items-center gap-1"><button type="button" aria-label="Previous Cycle" disabled={currentCycle === null || cycleNumbers.indexOf(currentCycle) <= 0} onClick={() => { if (currentCycle !== null) setSelectedCycleNumber(cycleNumbers[cycleNumbers.indexOf(currentCycle)-1]); }} className="grid h-9 w-9 place-items-center rounded-lg border border-violet-200 bg-white disabled:opacity-40"><ChevronLeft size={17}/></button><button type="button" aria-label="Latest Cycle" disabled={currentCycle === null || currentCycle === cycleNumbers.at(-1)} onClick={() => setSelectedCycleNumber(cycleNumbers.at(-1) ?? null)} className="grid h-9 w-9 place-items-center rounded-lg border border-violet-200 bg-white disabled:opacity-40"><RotateCcw size={16}/></button></div></div>
               <div className="mt-3 grid grid-cols-2 gap-2"><StoredValue label="Total billed" value={cycleSummary ? formatINR(cycleSummary.total_billed) : "—"}/><StoredValue label="Planned payout" value={displayStoredAmount(payout)}/><StoredValue label="Billed shares" value={cycleSummary ? String(cycleSummary.billed_shares) : "—"}/><StoredValue label="Not billed" value={cycleSummary ? String(cycleSummary.not_billed_shares) : "—"}/><StoredValue label="Total paid out" value={cycleSummary ? formatINR(cycleSummary.total_paid_out) : "—"}/><StoredValue label="Commission" value={displayStoredAmount(commission)}/></div>
               <div className="mt-3 grid grid-cols-2 gap-2"><button type="button" disabled={currentCycle === null} onClick={() => currentCycle !== null && openCycleEditor(currentCycle)} className="min-h-10 rounded-xl bg-violet-700 px-2 text-sm font-semibold text-white disabled:opacity-40">Edit Cycle</button><button type="button" disabled={currentCycle === null} onClick={() => setIsCycleStatementOpen(true)} className="min-h-10 rounded-xl border border-violet-200 bg-white px-2 text-sm font-semibold text-violet-800 disabled:opacity-40">Cycle Statement</button><button type="button" disabled={currentCycle === null} onClick={() => { setPlannedPayoutCycle(currentCycle); setPlannedPayoutInput(payout == null ? "" : String(payout)); setPlannedPayoutError(null); }} className="min-h-10 rounded-xl border border-violet-200 bg-white px-2 text-sm font-semibold text-violet-800 disabled:opacity-40">Planned Payout</button><button type="button" disabled={currentCycle === null || currentCycle !== Math.max(...cycleNumbers)} onClick={async () => { if (currentCycle === null || !window.confirm(`Delete highest Cycle ${currentCycle}? This cannot be undone.`)) return; setIsCycleBusy(true); setCycleError(null); try { await deleteHighestCfcfCycle(workspace.tenantId, selectedFund.fund_id, currentCycle); setCycleRows((rows) => rows.filter((item) => item.cycle_number !== currentCycle)); setSelectedCycleNumber(null); setDetailReloadKey((v) => v+1); } catch (e) { setCycleError(e instanceof Error ? e.message : "Unable to delete Cycle."); } finally { setIsCycleBusy(false); } }} className="min-h-10 rounded-xl border border-rose-200 bg-white px-2 text-sm font-semibold text-rose-700 disabled:opacity-40">{isCycleBusy ? "Working…" : "Delete Cycle"}</button></div>
               {cycleError && <p role="alert" className="mt-2 text-sm text-rose-700">{cycleError}</p>}
             </article>; })()}
             <button type="button" disabled={isCycleBusy} onClick={async () => { setIsCycleBusy(true); setCycleError(null); try { const row = await addCfcfCycle(workspace.tenantId, selectedFund.fund_id); setCycleRows((rows) => [...rows, row].sort((a,b)=>a.cycle_number-b.cycle_number)); setSelectedCycleNumber(row.cycle_number); } catch (e) { setCycleError(e instanceof Error ? e.message : "Unable to add Cycle."); } finally { setIsCycleBusy(false); } }} className="min-h-11 w-full rounded-xl border border-violet-200 bg-white px-3 text-sm font-semibold text-violet-800">{isCycleBusy ? "Working…" : `Add Cycle ${Math.max(0,...cycleRows.map((row)=>row.cycle_number),...billedCycleNumbers())+1}`}</button>
-            <div className="grid grid-cols-2 gap-2"><div className="rounded-xl border border-slate-200 bg-white px-3 py-3"><p className="text-xs text-slate-500">Cycle progress</p><p className="mt-1 text-lg font-bold text-slate-900">{billedCycleNumbers().at(-1) ?? 0} / {selectedFund.number_of_cycles ?? "Not set"}</p></div><div className="rounded-xl border border-slate-200 bg-white px-3 py-3"><p className="text-xs text-slate-500">Total Shares</p><p className="mt-1 text-lg font-bold text-slate-900">{shares.length}</p></div></div>
+            <div className="grid grid-cols-2 gap-2"><div className="rounded-xl border border-slate-200 bg-white px-3 py-3"><p className="text-xs text-slate-500">Cycle progress</p><p className="mt-1 text-lg font-bold text-slate-900">{savedCycleNumbers().at(-1) ?? 0} / {selectedFund.number_of_cycles ?? "Not set"}</p></div><div className="rounded-xl border border-slate-200 bg-white px-3 py-3"><p className="text-xs text-slate-500">Total Shares</p><p className="mt-1 text-lg font-bold text-slate-900">{shares.length}</p></div></div>
             </div>
           </section>
 
@@ -861,8 +861,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               ) : filteredShares.map((share) => {
                 const contact = contactById.get(share.contact_id);
                 const highestCycle = billedCycleNumbers([share]).at(-1) ?? 0;
-                const highestCycleBill = highestCycle ? share.billing_entries?.[String(highestCycle)] : null;
-                const highestCycleBillDate = highestCycle ? share.billing_entry_dates?.[String(highestCycle)] : null;
+                const highestCycleBill = highestCycle ? billForShareCycle(share.share_id, highestCycle) : undefined;
+                const highestCycleBillDate = highestCycleBill?.bill_date ?? null;
                 return <article key={share.share_id} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                   <div className="flex min-w-0 items-start justify-between gap-2">
                     <div className="min-w-0"><p className="inline-block rounded-lg bg-slate-100 px-3 py-1 font-mono text-sm font-bold text-slate-700">{share.share_id}</p><h3 className="mt-2 break-words text-base font-semibold text-slate-900">{contact?.name ?? "Contact unavailable"}</h3><p className="mt-1 break-all text-sm text-slate-500">{contact?.phone ?? "No phone saved"}</p></div>
@@ -872,8 +872,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                     </div>
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-3">
-                    <StoredValue label={highestCycle ? "Cycle " + highestCycle + " bill" : "Highest Cycle bill"} value={highestCycleBill === null || highestCycleBill === undefined ? "—" : displayStoredAmount(highestCycleBill)}/>
-                    <StoredValue label="Bill added" value={highestCycleBillDate ? formatDate(highestCycleBillDate) : highestCycle ? "Date unavailable (older bill)" : "—"}/>
+                    <StoredValue label={highestCycle ? "Cycle " + highestCycle + " bill" : "Highest Cycle bill"} value={highestCycleBill === undefined ? "—" : displayStoredAmount(highestCycleBill.amount)}/>
+                    <StoredValue label="Bill added" value={highestCycleBillDate ? formatDate(highestCycleBillDate) : highestCycleBill ? "Date unavailable" : "—"}/>
                     <StoredValue label="Total billed" value={formatINR(share.share_total_billed_amount)}/>
                     <StoredValue label="Total paid" value={formatINR(share.share_net_payment_received)}/>
                     <StoredValue label="Withdrawn amount" value={formatINR(share.withdrawn_amount)}/>
@@ -1041,23 +1041,23 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             <label htmlFor="payout-cycle-number" className="mb-1.5 block text-sm font-medium text-slate-700">Payout Cycle</label>
             <select id="payout-cycle-number" value={payoutCycleNumber} onChange={(event) => {
               setPayoutCycleNumber(event.target.value);
-              const savedPayout = selectedFund?.cycle_payout_amounts?.[Number(event.target.value) - 1];
+              const savedPayout = cycleRows.find((row) => row.cycle_number === Number(event.target.value))?.planned_payout_amount;
               setWithdrawnAmount(typeof savedPayout === "number" ? String(savedPayout) : "");
-            }} required disabled={billedCycleNumbers().length === 0} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm disabled:bg-slate-100">
-              {billedCycleNumbers().length === 0
-                ? <option value="">No billed Cycles available</option>
-                : billedCycleNumbers().map((cycle) => <option key={cycle} value={String(cycle)}>Cycle {cycle}</option>)}
+            }} required disabled={savedCycleNumbers().length === 0} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm disabled:bg-slate-100">
+              {savedCycleNumbers().length === 0
+                ? <option value="">No saved Cycles available</option>
+                : savedCycleNumbers().map((cycle) => <option key={cycle} value={String(cycle)}>Cycle {cycle}</option>)}
             </select>
-            {billedCycleNumbers().length === 0 && (
-              <p className="mt-1.5 text-sm text-amber-700">This Share cannot be marked drawn until billing has been saved for at least one Cycle in this Fund.</p>
+            {savedCycleNumbers().length === 0 && (
+              <p className="mt-1.5 text-sm text-amber-700">Add a Cycle before recording a payout status.</p>
             )}
-            {payoutShare?.payout_status === "drawn" && payoutShare.payout_cycle_number !== null && !billedCycleNumbers().includes(payoutShare.payout_cycle_number) && (
-              <p className="mt-1.5 text-sm text-amber-700">Its previously saved payout Cycle is no longer billed. You can mark this Share Undrawn, or choose a currently billed Cycle to update its payout.</p>
+            {payoutShare?.payout_status === "drawn" && payoutShare.payout_cycle_number !== null && !savedCycleNumbers().includes(payoutShare.payout_cycle_number) && (
+              <p className="mt-1.5 text-sm text-amber-700">Its previous payout Cycle is no longer saved. You can mark this Share Undrawn or choose an existing Cycle.</p>
             )}
           </div>
           <div className="rounded-xl bg-slate-50 p-3">
             <p className="text-xs font-medium text-slate-500">Payout amount stored on Cycle {payoutCycleNumber}</p>
-            <p className="mt-1 text-lg font-semibold text-slate-900">{displayStoredAmount(selectedFund?.cycle_payout_amounts?.[Number(payoutCycleNumber) - 1])}</p>
+            <p className="mt-1 text-lg font-semibold text-slate-900">{displayStoredAmount(cycleRows.find((row) => row.cycle_number === Number(payoutCycleNumber))?.planned_payout_amount)}</p>
           </div>
           <div>
             <label htmlFor="payout-withdrawn-amount" className="mb-1.5 block text-sm font-medium text-slate-700">Withdrawn amount (₹)</label>
@@ -1071,7 +1071,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             ) : <span />}
             <div className="flex gap-2">
               <button type="button" onClick={() => setPayoutShare(null)} disabled={isSavingPayout} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button>
-              <button type="submit" disabled={isSavingPayout || billedCycleNumbers().length === 0} className="min-h-11 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingPayout ? "Saving…" : "Save drawn status"}</button>
+              <button type="submit" disabled={isSavingPayout || savedCycleNumbers().length === 0} className="min-h-11 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingPayout ? "Saving…" : "Save drawn status"}</button>
             </div>
           </div>
         </form>
@@ -1086,8 +1086,10 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         <form onSubmit={(event) => void handleSaveCycleBilling(event)} className="space-y-4">
           <div>
             <label htmlFor="cycle-billing-cycle" className="mb-1.5 block text-sm font-medium text-slate-700">Cycle</label>
-            <input id="cycle-billing-cycle" type="number" inputMode="numeric" min="1" max={MAX_CFCF_CYCLES} step="1" value={billingCycleNumber} onChange={(event) => { setBillingCycleNumber(event.target.value); const saved = billingShare?.billing_entries?.[event.target.value]; setBillingAmount(typeof saved === "number" || typeof saved === "string" ? String(saved) : ""); }} required className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100" />
-            <p className="mt-1 text-xs text-slate-500">Enter a Cycle number from 1–100. A new Cycle appears in navigation only after billing is saved.</p>
+            <select id="cycle-billing-cycle" value={billingCycleNumber} onChange={(event) => { setBillingCycleNumber(event.target.value); const saved = billForShareCycle(billingShare?.share_id ?? "", Number(event.target.value)); setBillingAmount(saved ? String(saved.amount) : ""); }} required disabled={savedCycleNumbers().length === 0} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 disabled:bg-slate-100">
+              {savedCycleNumbers().length === 0 ? <option value="">Add a Cycle first</option> : savedCycleNumbers().map((cycle) => <option key={cycle} value={String(cycle)}>Cycle {cycle}</option>)}
+            </select>
+            <p className="mt-1 text-xs text-slate-500">One current bill per Share per saved Cycle. Selecting an existing Cycle loads its current bill for editing.</p>
           </div>
           <div>
             <label htmlFor="cycle-billing-amount" className="mb-1.5 block text-sm font-medium text-slate-700">Billing amount (₹)</label>
@@ -1109,7 +1111,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           {billingError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm leading-5 text-rose-800">{billingError}</div>}
           <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
             <button type="button" onClick={() => setBillingShare(null)} disabled={isSavingBilling} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">Cancel</button>
-            <button type="submit" disabled={isSavingBilling} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60">
+            <button type="submit" disabled={isSavingBilling || savedCycleNumbers().length === 0} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60">
               <CalendarDays size={16} /> {isSavingBilling ? "Saving…" : "Save billing"}
             </button>
           </div>
@@ -1158,11 +1160,14 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         {statementShare && (() => {
           const contact = contactById.get(statementShare.contact_id);
           const history = ledgerItems.filter((item) => item.kind === "payment" && item.shareId === statementShare.share_id).sort((a,b) => b.date.localeCompare(a.date));
-          const cycles = Object.entries(statementShare.billing_entries ?? {}).filter(([key, value]) => /^\d+$/.test(key) && Number(key) >= 1 && Number(key) <= MAX_CFCF_CYCLES && (typeof value === "number" || (typeof value === "string" && value.trim() !== ""))).sort(([a],[b]) => Number(a)-Number(b));
+          const cycles = bills.filter((bill) => bill.share_id === statementShare.share_id)
+            .map((bill) => ({ ...bill, cycle_number: cycleRows.find((row) => row.cycle_id === bill.cycle_id)?.cycle_number ?? null }))
+            .filter((bill) => bill.cycle_number !== null)
+            .sort((a,b) => (a.cycle_number ?? 0) - (b.cycle_number ?? 0));
           return <div className="space-y-4 text-slate-900">
             <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4"><div><p className="text-xs font-bold uppercase tracking-wide text-slate-500">ClearFlow · Share Statement</p><h3 className="mt-1 text-lg font-bold">{selectedFund?.fund_name}</h3><p className="mt-1 text-sm">{contact?.name} · {contact?.phone}</p><p className="mt-1 break-all text-xs text-slate-500">Share ID: {statementShare.share_id}</p></div><button type="button" onClick={printShareStatement} className="min-h-10 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white">Print / Save</button></div>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4"><StoredValue label="Current billed" value={formatINR(currentBilledForShare(statementShare))}/><StoredValue label="Total billed" value={formatINR(statementShare.share_total_billed_amount)}/><StoredValue label="Total paid (net)" value={formatINR(statementShare.share_net_payment_received)}/><StoredValue label="Pending due" value={formatINR(statementShare.total_pending)}/><StoredValue label="Advance" value={formatINR(statementShare.total_advance)}/><StoredValue label="Cycle progress" value={cycles.length+" billed cycles"}/><StoredValue label="Payout status" value={statementShare.payout_status}/><StoredValue label="Withdrawn amount" value={formatINR(statementShare.withdrawn_amount)}/></div>
-            <section><h4 className="font-semibold">Cycle billing history</h4>{cycles.length ? <div className="mt-2 divide-y divide-slate-200 rounded-xl border border-slate-200">{cycles.map(([cycle,amount])=><div key={cycle} className="flex justify-between gap-3 p-3 text-sm"><span>Cycle {cycle}</span><strong>{displayStoredAmount(amount)}</strong></div>)}</div> : <p className="mt-2 text-sm text-slate-500">No cycle billing recorded.</p>}</section>
+            <section><h4 className="font-semibold">Cycle billing history</h4>{cycles.length ? <div className="mt-2 divide-y divide-slate-200 rounded-xl border border-slate-200">{cycles.map((bill)=><div key={bill.bill_id} className="flex justify-between gap-3 p-3 text-sm"><span>Cycle {bill.cycle_number}{bill.bill_date ? " · "+formatDate(bill.bill_date) : " · Date unavailable"}</span><strong>{formatINR(bill.amount)}</strong></div>)}</div> : <p className="mt-2 text-sm text-slate-500">No cycle billing recorded.</p>}</section>
             <section><h4 className="font-semibold">Previous transactions</h4>{history.length ? <div className="mt-2 divide-y divide-slate-200 rounded-xl border border-slate-200">{history.map((item)=><div key={item.id} className="flex justify-between gap-3 p-3 text-sm"><div><p className="font-semibold capitalize">{item.entryType} · {formatDate(item.date)}</p><p className="text-xs text-slate-500">{item.paymentType ?? "—"}{item.remarks ? " · "+item.remarks : ""}</p></div><strong>{formatINR(item.amount)}</strong></div>)}</div> : <p className="mt-2 text-sm text-slate-500">No previous transactions loaded. Open Ledger once to load transaction history.</p>}</section>
           </div>;
         })()}
