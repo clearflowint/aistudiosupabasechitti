@@ -1,5 +1,5 @@
 // SKELETON: Shared modal primitive. Feature modules supply their own form and actions.
-import { useEffect, useId, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
 
 interface ModalProps {
@@ -23,6 +23,8 @@ export function Modal({
 }: ModalProps) {
   const titleId = useId();
   const descriptionId = useId();
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -36,7 +38,7 @@ export function Modal({
     body.style.overscrollBehavior = "none";
 
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") onCloseRef.current();
     }
 
     window.addEventListener("keydown", handleKeyDown);
@@ -45,7 +47,7 @@ export function Modal({
       body.style.overflow = previousOverflow;
       body.style.overscrollBehavior = previousOverscrollBehavior;
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
