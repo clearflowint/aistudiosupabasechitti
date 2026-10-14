@@ -125,6 +125,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [paymentRemarks, setPaymentRemarks] = useState("");
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [isSavingPayment, setIsSavingPayment] = useState(false);
+  const [paymentReview, setPaymentReview] = useState(false);
   const [isFundEntryModalOpen, setIsFundEntryModalOpen] = useState(false);
   const [fundEntryType, setFundEntryType] = useState<"credit" | "debit">("debit");
   const [fundEntryAmount, setFundEntryAmount] = useState("");
@@ -163,11 +164,13 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [billingError, setBillingError] = useState<string | null>(null);
   const [billingEditEnabled, setBillingEditEnabled] = useState(false);
   const [isSavingBilling, setIsSavingBilling] = useState(false);
+  const [billingReview, setBillingReview] = useState(false);
   const [payoutShare, setPayoutShare] = useState<CfcfShareRow | null>(null);
   const [payoutCycleNumber, setPayoutCycleNumber] = useState("1");
   const [withdrawnAmount, setWithdrawnAmount] = useState("");
   const [payoutError, setPayoutError] = useState<string | null>(null);
   const [isSavingPayout, setIsSavingPayout] = useState(false);
+  const [payoutReview, setPayoutReview] = useState(false);
   const [isSavingFund, setIsSavingFund] = useState(false);
   const [fundForm, setFundForm] = useState(emptyFundForm);
   const [fundFormError, setFundFormError] = useState<string | null>(null);
@@ -547,6 +550,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         : typeof cyclePayout === "number" ? String(cyclePayout) : "",
     );
     setPayoutError(null);
+    setPayoutReview(false);
   }
 
   async function handleSavePayout(event: FormEvent<HTMLFormElement>) {
@@ -566,6 +570,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setPayoutError("Enter a whole-rupee withdrawn amount.");
       return;
     }
+    if (!payoutReview) { setPayoutReview(true); setPayoutError(null); return; }
     if (!beginAction("share-payout")) return;
     setIsSavingPayout(true);
     setPayoutError(null);
@@ -610,6 +615,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     const existing = cycle ? billForShareCycle(share.share_id, cycle) : undefined;
     setBillingAmount(existing ? String(existing.amount) : "");
     setBillingError(cycle ? null : "Add a Cycle before entering bills.");
+    setBillingReview(false);
   }
 
   async function handleSaveCycleBilling(event: FormEvent<HTMLFormElement>) {
@@ -626,6 +632,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setBillingError("Enter a whole-rupee billing amount of zero or more.");
       return;
     }
+    if (!billingReview) { setBillingReview(true); setBillingError(null); return; }
     if (!beginAction("cycle-billing")) return;
     setIsSavingBilling(true);
     setBillingError(null);
@@ -850,6 +857,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
 
   function openPaymentModal(share: CfcfShareRow) {
     setPaymentShare(share);
+    setPaymentReview(false);
     setPaymentEntryType("credit");
     setPaymentAmount("");
     setPaymentDate(localDateInputValue());
@@ -865,6 +873,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     if (!paymentAmount.trim() || !Number.isSafeInteger(amount) || amount <= 0 || amount > 2147483647) {
       setPaymentError("Enter a positive whole-rupee amount."); return;
     }
+    if (!paymentReview) { setPaymentReview(true); setPaymentError(null); return; }
     if (!beginAction("record-payment")) return;
     setIsSavingPayment(true); setPaymentError(null);
     try {
@@ -1459,7 +1468,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         onClose={() => { if (!isSavingPayout) { setPayoutShare(null); setPayoutError(null); } }}
       >
         <form onSubmit={(event) => void handleSavePayout(event)} className="space-y-4">
-          <div>
+          {payoutReview && <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3"><p className="font-semibold text-amber-900">Second confirmation required</p><p className="mt-1 text-sm text-amber-800">Confirm payout status for Share {payoutShare?.share_id}, Cycle {payoutCycleNumber}, withdrawn amount {formatINR(Number(withdrawnAmount))}. This updates payout status only and does not create a payment.</p><button type="button" onClick={() => setPayoutReview(false)} className="mt-2 min-h-9 text-sm font-semibold underline">Back to edit</button></div>}
+          <div className={payoutReview ? "pointer-events-none opacity-60" : ""}>
             <label htmlFor="payout-cycle-number" className="mb-1.5 block text-sm font-medium text-slate-700">Payout Cycle</label>
             <select id="payout-cycle-number" value={payoutCycleNumber} onChange={(event) => {
               setPayoutCycleNumber(event.target.value);
@@ -1477,11 +1487,11 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               <p className="mt-1.5 text-sm text-amber-700">Its previous payout Cycle is no longer saved. You can mark this Share Undrawn or choose an existing Cycle.</p>
             )}
           </div>
-          <div className="rounded-xl bg-slate-50 p-3">
+          <div className={"rounded-xl bg-slate-50 p-3 " + (payoutReview ? "opacity-60" : "")}>
             <p className="text-xs font-medium text-slate-500">Payout amount stored on Cycle {payoutCycleNumber}</p>
             <p className="mt-1 text-lg font-semibold text-slate-900">{displayStoredAmount(cycleRows.find((row) => row.cycle_number === Number(payoutCycleNumber))?.planned_payout_amount)}</p>
           </div>
-          <div>
+          <div className={payoutReview ? "pointer-events-none opacity-60" : ""}>
             <label htmlFor="payout-withdrawn-amount" className="mb-1.5 block text-sm font-medium text-slate-700">Withdrawn amount (₹)</label>
             <input id="payout-withdrawn-amount" type="number" min="0" max="2147483647" step="1" required value={withdrawnAmount} onChange={(event) => setWithdrawnAmount(event.target.value)} className="min-h-11 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
             <p className="mt-1.5 text-xs text-slate-500">Prefilled from the Cycle payout amount, but editable to record the actual stored withdrawn amount.</p>
@@ -1493,7 +1503,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             ) : <span />}
             <div className="flex gap-2">
               <button type="button" onClick={() => setPayoutShare(null)} disabled={isSavingPayout} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button>
-              <button type="submit" disabled={isSavingPayout || savedCycleNumbers().length === 0} className="min-h-11 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingPayout ? <><RefreshCw size={16} className="animate-spin" /> Waiting for Supabase…</> : "Save drawn status"}</button>
+              <button type="submit" disabled={isSavingPayout || savedCycleNumbers().length === 0} className="min-h-11 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingPayout ? <><RefreshCw size={16} className="animate-spin" /> Waiting for Supabase…</> : payoutReview ? "Confirm and save payout" : "Review payout"}</button>
             </div>
           </div>
         </form>
@@ -1506,6 +1516,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         onClose={() => { if (!isSavingBilling) { setBillingShare(null); setBillingError(null); } }}
       >
         <form onSubmit={(event) => void handleSaveCycleBilling(event)} className="space-y-4">
+          {billingReview && <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3"><p className="font-semibold text-amber-900">Second confirmation required</p><p className="mt-1 text-sm text-amber-800">Save bill for Share {billingShare?.share_id}, Cycle {billingCycleNumber}, amount {formatINR(Number(billingAmount))}. This is a billing entry only; it does not create a payment or payout.</p><button type="button" onClick={() => setBillingReview(false)} className="mt-2 min-h-9 text-sm font-semibold underline">Back to edit</button></div>}
           <section className="space-y-2 rounded-xl border border-slate-200 p-3">
             <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">Saved bills for this Share</h4>
             {savedCycleNumbers().length === 0 ? <p className="text-sm text-slate-500">No saved Cycles yet.</p> : savedCycleNumbers().map((cycle) => {
@@ -1515,14 +1526,14 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               </button>;
             })}
           </section>
-          <div>
+          <div className={billingReview ? "pointer-events-none opacity-60" : ""}>
             <label htmlFor="cycle-billing-cycle" className="mb-1.5 block text-sm font-medium text-slate-700">Cycle</label>
             <select id="cycle-billing-cycle" value={billingCycleNumber} onChange={(event) => { setBillingCycleNumber(event.target.value); const saved = billForShareCycle(billingShare?.share_id ?? "", Number(event.target.value)); setBillingAmount(saved ? String(saved.amount) : "0"); setBillingEditEnabled(false); }} required disabled={savedCycleNumbers().length === 0 || billingEditEnabled} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 disabled:bg-slate-100">
               {savedCycleNumbers().length === 0 ? <option value="">Add a Cycle first</option> : savedCycleNumbers().map((cycle) => <option key={cycle} value={String(cycle)}>Cycle {cycle}</option>)}
             </select>
             <p className="mt-1 text-xs text-slate-500">One current bill per Share per saved Cycle. Selecting an existing Cycle loads its current bill for editing.</p>
           </div>
-          <div>
+          <div className={billingReview ? "pointer-events-none opacity-60" : ""}>
             <label htmlFor="cycle-billing-amount" className="mb-1.5 block text-sm font-medium text-slate-700">Billing amount (₹)</label>
             <input
               id="cycle-billing-amount"
@@ -1543,7 +1554,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           {billingError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm leading-5 text-rose-800">{billingError}</div>}
           <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
             <button type="button" onClick={() => setBillingShare(null)} disabled={isSavingBilling} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">Close</button>
-            {!billingEditEnabled ? <button type="button" disabled={savedCycleNumbers().length === 0} onClick={() => { setBillingEditEnabled(true); setBillingError(null); }} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">Edit bill</button> : <button type="submit" disabled={isSavingBilling || savedCycleNumbers().length === 0 || !billingAmount.trim() || !Number.isSafeInteger(Number(billingAmount)) || Number(billingAmount) < 0 || Number(billingAmount) > 2147483647} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"><CalendarDays size={16} /> {isSavingBilling ? <><RefreshCw size={16} className="animate-spin" /> Waiting for Supabase…</> : "Save bill"}</button>}
+            {!billingEditEnabled ? <button type="button" disabled={savedCycleNumbers().length === 0} onClick={() => { setBillingEditEnabled(true); setBillingError(null); }} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">Edit bill</button> : <button type="submit" disabled={isSavingBilling || savedCycleNumbers().length === 0 || !billingAmount.trim() || !Number.isSafeInteger(Number(billingAmount)) || Number(billingAmount) < 0 || Number(billingAmount) > 2147483647} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"><CalendarDays size={16} /> {isSavingBilling ? <><RefreshCw size={16} className="animate-spin" /> Waiting for Supabase…</> : billingReview ? "Confirm and save bill" : "Review bill"}</button>}
           </div>
         </form>
       </Modal>
@@ -1561,13 +1572,14 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
 
       <Modal isOpen={Boolean(paymentShare)} title="Record Payment / Correction" description="Actual transactions are stored separately from payout status. Saving updates the transaction and Share/Fund summaries atomically." onClose={() => { if (!isSavingPayment) setPaymentShare(null); }}>
         <form onSubmit={(event) => void handleRecordPayment(event)} className="space-y-4">
-          <div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">Manager ID: {workspace.tenantId}</p><p className="mt-1 text-xs text-slate-500">Fund: {selectedFund?.fund_name}</p><p className="mt-1 text-xs text-slate-500">Share ID: {paymentShare?.share_id}</p><p className="mt-2 font-semibold">{contactById.get(paymentShare?.contact_id ?? "")?.name ?? "Member"}</p><p className="mt-1 text-sm text-slate-500">Current billed: {paymentShare ? formatINR(currentBilledForShare(paymentShare)) : "—"}</p></div>
-          <div><span className="mb-1.5 block text-sm font-medium">Record type</span><div className="grid grid-cols-2 gap-2"><button type="button" aria-pressed={paymentEntryType==="credit"} onClick={() => setPaymentEntryType("credit")} className={["min-h-11 rounded-xl px-2 text-sm font-semibold",paymentEntryType==="credit"?"bg-emerald-600 text-white":"bg-slate-100 text-slate-700"].join(" ")}>Credit (Payment)</button><button type="button" aria-pressed={paymentEntryType==="debit"} onClick={() => setPaymentEntryType("debit")} className={["min-h-11 rounded-xl px-2 text-sm font-semibold",paymentEntryType==="debit"?"bg-rose-600 text-white":"bg-slate-100 text-slate-700"].join(" ")}>Debit (Correction)</button></div></div>
-          <label className="block"><span className="mb-1.5 block text-sm font-medium">Amount (₹)</span><input type="number" min="1" max="2147483647" step="1" required value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm" placeholder="Enter amount"/></label>
-          <label className="block"><span className="mb-1.5 block text-sm font-medium">Payment / Adjustment mode</span><select value={paymentMode} onChange={(event) => setPaymentMode(event.target.value as "UPI"|"Cash"|"Other")} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"><option value="UPI">UPI / Google Pay / PhonePe</option><option value="Cash">Cash</option><option value="Other">Other</option></select></label>
-          <label className="block"><span className="mb-1.5 block text-sm font-medium">Remarks (optional)</span><textarea rows={2} value={paymentRemarks} onChange={(event) => setPaymentRemarks(event.target.value)} maxLength={500} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="Reference or correction reason"/></label>
+          {paymentReview && <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3"><p className="font-semibold text-amber-900">Second confirmation required</p><p className="mt-1 text-sm text-amber-800">{paymentEntryType === "credit" ? "Credit payment" : "Debit correction"} · {contactById.get(paymentShare?.contact_id ?? "")?.name ?? "Contact"} · Fund {selectedFund?.fund_name} · Share {paymentShare?.share_id} · {formatINR(Number(paymentAmount))} · {paymentMode}. No Cycle or payout association.</p><button type="button" onClick={() => setPaymentReview(false)} className="mt-2 min-h-9 text-sm font-semibold underline">Back to edit</button></div>}
+          <div className={"rounded-xl bg-slate-50 p-3 " + (paymentReview ? "opacity-60" : "")}><p className="text-xs text-slate-500">Manager ID: {workspace.tenantId}</p><p className="mt-1 text-xs text-slate-500">Fund: {selectedFund?.fund_name}</p><p className="mt-1 text-xs text-slate-500">Share ID: {paymentShare?.share_id}</p><p className="mt-2 font-semibold">{contactById.get(paymentShare?.contact_id ?? "")?.name ?? "Member"}</p><p className="mt-1 text-sm text-slate-500">Current billed: {paymentShare ? formatINR(currentBilledForShare(paymentShare)) : "—"}</p></div>
+          <div className={paymentReview ? "pointer-events-none opacity-60" : ""}><span className="mb-1.5 block text-sm font-medium">Record type</span><div className="grid grid-cols-2 gap-2"><button type="button" aria-pressed={paymentEntryType==="credit"} onClick={() => setPaymentEntryType("credit")} className={["min-h-11 rounded-xl px-2 text-sm font-semibold",paymentEntryType==="credit"?"bg-emerald-600 text-white":"bg-slate-100 text-slate-700"].join(" ")}>Credit (Payment)</button><button type="button" aria-pressed={paymentEntryType==="debit"} onClick={() => setPaymentEntryType("debit")} className={["min-h-11 rounded-xl px-2 text-sm font-semibold",paymentEntryType==="debit"?"bg-rose-600 text-white":"bg-slate-100 text-slate-700"].join(" ")}>Debit (Correction)</button></div></div>
+          <label className={"block " + (paymentReview ? "pointer-events-none opacity-60" : "")}><span className="mb-1.5 block text-sm font-medium">Amount (₹)</span><input type="number" min="1" max="2147483647" step="1" required value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm" placeholder="Enter amount"/></label>
+          <label className={"block " + (paymentReview ? "pointer-events-none opacity-60" : "")}><span className="mb-1.5 block text-sm font-medium">Payment / Adjustment mode</span><select value={paymentMode} onChange={(event) => setPaymentMode(event.target.value as "UPI"|"Cash"|"Other")} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"><option value="UPI">UPI / Google Pay / PhonePe</option><option value="Cash">Cash</option><option value="Other">Other</option></select></label>
+          <label className={"block " + (paymentReview ? "pointer-events-none opacity-60" : "")}><span className="mb-1.5 block text-sm font-medium">Remarks (optional)</span><textarea rows={2} value={paymentRemarks} onChange={(event) => setPaymentRemarks(event.target.value)} maxLength={500} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="Reference or correction reason"/></label>
           {paymentError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{paymentError}</p>}
-          <div className="flex justify-end gap-2 border-t border-slate-100 pt-4"><button type="button" onClick={() => setPaymentShare(null)} disabled={isSavingPayment} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button><button type="submit" disabled={isSavingPayment || !paymentShare || !selectedFund || !paymentAmount.trim() || !Number.isSafeInteger(Number(paymentAmount)) || Number(paymentAmount) <= 0 || Number(paymentAmount) > 2147483647} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white">{isSavingPayment ? <><RefreshCw size={16} className="animate-spin" /> Waiting for Supabase…</> : paymentEntryType==="credit" ? "Confirm Payment" : "Confirm Correction"}</button></div>
+          <div className="flex justify-end gap-2 border-t border-slate-100 pt-4"><button type="button" onClick={() => setPaymentShare(null)} disabled={isSavingPayment} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button><button type="submit" disabled={isSavingPayment || !paymentShare || !selectedFund || !paymentAmount.trim() || !Number.isSafeInteger(Number(paymentAmount)) || Number(paymentAmount) <= 0 || Number(paymentAmount) > 2147483647} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white">{isSavingPayment ? <><RefreshCw size={16} className="animate-spin" /> Waiting for Supabase…</> : paymentReview ? "Confirm and record" : paymentEntryType==="credit" ? "Review payment" : "Review correction"}</button></div>
         </form>
       </Modal>
 
