@@ -482,22 +482,36 @@ export async function createCfcfShare(tenantId: string, fundId: string, personId
   }
 }
 
+export interface CfcfPaymentWriteResult {
+  payment_id: string;
+  share_id: string;
+  duplicate: boolean;
+}
+
 export async function recordCfcfSharePayment(
   tenantId: string, fundId: string, shareId: string, personId: string,
   entryType: "credit" | "debit", amount: number, entryDate: string,
-  paymentType: "UPI" | "Cash" | "Other", remarks: string,
-): Promise<void> {
+  paymentType: "UPI" | "Cash" | "Other", remarks: string, requestId: string,
+): Promise<CfcfPaymentWriteResult> {
   if (!Number.isSafeInteger(amount) || amount <= 0 || amount > 2147483647) throw new Error("Enter a positive whole-rupee amount.");
   if (!["UPI", "Cash", "Other"].includes(paymentType)) throw new Error("Choose a valid payment mode.");
-  const { error } = await supabase.rpc("cfcf_record_share_payment", {
+  if (!requestId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) {
+    throw new Error("A valid payment request id is required. Reopen the payment form and try again.");
+  }
+  const { data, error } = await supabase.rpc("cfcf_record_share_payment", {
     p_tenant_id: tenantId, p_fund_id: fundId, p_share_id: shareId, p_person_id: personId,
     p_entry_type: entryType, p_amount: amount, p_entry_date: entryDate || null,
-    p_payment_type: paymentType, p_remarks: remarks.trim() || null,
+    p_payment_type: paymentType, p_remarks: remarks.trim() || null, p_request_id: requestId,
   });
   if (error) {
     if (error.code === "42501") throw new Error("You do not have owner access to record this transaction.");
-    throw new Error("Unable to record payment/correction: " + error.message);
+    throw new Error("Unable to confirm payment status with Supabase. Do not start a new entry yet; retry the same confirmation to safely check whether it was saved. Details: " + error.message);
   }
+  const result = data as Partial<CfcfPaymentWriteResult> | null;
+  if (!result?.payment_id || result.share_id !== shareId || typeof result.duplicate !== "boolean") {
+    throw new Error("Supabase returned an incomplete payment acknowledgement. Retry this same confirmation to safely check the saved entry.");
+  }
+  return { payment_id: result.payment_id, share_id: result.share_id, duplicate: result.duplicate };
 }
 
 
