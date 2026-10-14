@@ -176,7 +176,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [databaseResult, setDatabaseResult] = useState<{ status: "success" | "error"; message: string } | null>(null);
 
   function showDatabaseResult(message: string, status: "success" | "error" = "success"): void {
-    showDatabaseResult(message, "error");
+    setFundNotice(message);
     setDatabaseResult({ status, message });
   }
   const [deleteTarget, setDeleteTarget] = useState<{ kind: "share" | "fund"; id: string; label: string; fundId?: string } | null>(null);
