@@ -504,8 +504,9 @@ export async function recordCfcfSharePayment(
     p_payment_type: paymentType, p_remarks: remarks.trim() || null, p_request_id: requestId,
   });
   if (error) {
-    if (error.code === "42501") throw new Error("You do not have owner access to record this transaction.");
-    throw new Error("Unable to confirm payment status with Supabase. Do not start a new entry yet; retry the same confirmation to safely check whether it was saved. Details: " + error.message);
+    if (error.code === "42501") throw new Error("Supabase rejected this payment because active owner access is required. No payment was saved.");
+    if (error.code) throw new Error("Supabase rejected the payment and rolled back the request. No payment was saved: " + error.message);
+    throw new Error("The Supabase response was interrupted, so the final save status is unknown. Do not start a new entry; retry the same confirmation to safely check whether it was saved. Details: " + error.message);
   }
   const result = data as Partial<CfcfPaymentWriteResult> | null;
   if (!result?.payment_id || result.share_id !== shareId || typeof result.duplicate !== "boolean") {
