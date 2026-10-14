@@ -40,33 +40,29 @@ export function WorkspaceLayout({
     <div className="min-h-screen overflow-x-hidden bg-slate-100 text-slate-900">
       <header className="relative z-30 border-b border-slate-200 bg-white">
         <div className="mx-auto flex min-h-16 max-w-3xl items-center gap-2 px-3 py-3 sm:gap-3 sm:px-5">
-          <button type="button" onClick={() => onNavigate(activePage.isHome ? (product.navigation.find((item) => item.id === "workspace")?.id ?? product.navigation.find((item) => !item.isHome)?.id ?? activePage.id) : (product.navigation.find((item) => item.isHome)?.id ?? activePage.id))} className="inline-flex min-h-10 max-w-[34%] shrink-0 items-center justify-center gap-1 rounded-xl bg-sky-50 px-2 text-xs font-semibold text-sky-800 transition hover:bg-sky-100 sm:max-w-none sm:px-3 sm:text-sm">
-            {activePage.isHome ? <><span className="hidden sm:inline">Go to </span>Workspace</> : <><span className="hidden sm:inline">Go to </span>Home / Contacts</>}
+          <button type="button" onClick={() => onNavigate(activePage.isHome ? (product.navigation.find((item) => item.id === "workspace")?.id ?? product.navigation.find((item) => !item.isHome)?.id ?? activePage.id) : (product.navigation.find((item) => item.isHome)?.id ?? activePage.id))} className="inline-flex min-h-10 min-w-0 flex-1 items-center justify-start rounded-xl px-1 text-left text-xs font-semibold text-sky-800 transition hover:bg-sky-50 sm:flex-none sm:px-3 sm:text-sm">
+            {activePage.isHome ? "Go to Workspace" : "Go to Home / Contacts"}
           </button>
-          <button type="button" onClick={() => setIsNotificationsOpen((open) => !open)} aria-label={isNotificationsOpen ? "Close notifications" : "Open notifications"} aria-expanded={isNotificationsOpen} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800">
-            <Bell size={19} />
-          </button>
-          {activeRequestCount > 0 && (
-            <div role="status" aria-live="polite" className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full bg-sky-50 px-2.5 text-[11px] font-semibold text-sky-800">
-              <span className="h-2 w-2 animate-spin rounded-full border-2 border-sky-600 border-t-transparent" />
-              <span className="hidden sm:inline">Syncing</span>
-              <span className="sr-only">{activeRequestCount} requests in progress</span>
-            </div>
-          )}
-          <DatabaseStatus status={databaseStatus} onRetry={onRetryConnection} />
-          <button type="button" onClick={() => setIsInstallHelpOpen(true)} aria-label="How to install ClearFlow on this phone" title="Add ClearFlow to your phone" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800">
-            <Smartphone size={19} />
-          </button>
-          <button
-            type="button"
-            onClick={onSignOut}
-            disabled={isSigningOut}
-            aria-label={isSigningOut ? "Signing out" : `Sign out ${workspace.displayName || workspace.email}`}
-            className="inline-flex min-h-10 max-w-[35%] shrink-0 items-center justify-center gap-1 rounded-xl border border-rose-200 bg-rose-600 px-2 text-[11px] font-semibold text-white transition hover:bg-rose-700 disabled:opacity-50 sm:max-w-[48%] sm:gap-1.5 sm:px-3 sm:text-xs"
-          >
-            <LogOut size={15} className="shrink-0" />
-            <span className="truncate">{isSigningOut ? "Signing out…" : `Sign out · ${workspace.displayName || workspace.email}`}</span>
-          </button>
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            <button type="button" onClick={onSignOut} disabled={isSigningOut} aria-label={isSigningOut ? "Signing out" : `Sign out ${workspace.displayName || workspace.email}`} className="inline-flex min-h-10 max-w-[min(45vw,13rem)] shrink-0 items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-600 px-2.5 text-[11px] font-semibold text-white transition hover:bg-rose-700 disabled:opacity-50 sm:max-w-[48%] sm:px-3 sm:text-xs">
+              <LogOut size={15} className="shrink-0" />
+              <span className="truncate">{isSigningOut ? "Signing out…" : `Sign out · ${workspace.displayName || workspace.email}`}</span>
+            </button>
+            <button type="button" onClick={() => setIsInstallHelpOpen(true)} aria-label="How to install ClearFlow on this phone" title="Add ClearFlow to your phone" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800">
+              <Smartphone size={19} />
+            </button>
+            <button type="button" onClick={() => setIsNotificationsOpen((open) => !open)} aria-label={isNotificationsOpen ? "Close notifications" : "Open notifications"} aria-expanded={isNotificationsOpen} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800">
+              <Bell size={19} />
+            </button>
+            {activeRequestCount > 0 && (
+              <div role="status" aria-live="polite" className="hidden min-h-9 shrink-0 items-center gap-1.5 rounded-full bg-sky-50 px-2.5 text-[11px] font-semibold text-sky-800 md:inline-flex">
+                <span className="h-2 w-2 animate-spin rounded-full border-2 border-sky-600 border-t-transparent" />
+                Syncing
+                <span className="sr-only">{activeRequestCount} requests in progress</span>
+              </div>
+            )}
+            <DatabaseStatus status={databaseStatus} onRetry={onRetryConnection} />
+          </div>
         </div>
         {isNotificationsOpen && (
           <div className="relative">
