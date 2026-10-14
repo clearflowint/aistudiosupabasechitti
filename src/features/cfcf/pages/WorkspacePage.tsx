@@ -741,7 +741,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setDetailReloadKey((n) => n + 1);
       if (isAdjustmentsLedgerOpen) void openAdjustmentsLedger();
     } catch (error) {
-      setCycleEditError(error instanceof Error ? error.message : "Unable to save Cycle workspace."); showDatabaseResult(error instanceof Error ? error.message : "Unable to save Cycle workspace.", "error"); showDatabaseResult(error instanceof Error ? error.message : "Unable to save Cycle workspace.", "error");
+      setCycleEditError(error instanceof Error ? error.message : "Unable to save Cycle workspace."); showDatabaseResult(error instanceof Error ? error.message : "Unable to save Cycle workspace.", "error");
     } finally {
       endAction("save-cycle-workspace");
       setIsSavingCycle(false);
@@ -1866,6 +1866,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
 
       <Modal
         isOpen={databaseResult !== null}
+        closeOnOverlayClick={false}
+        closeOnEscape={false}
         title={databaseResult?.status === "error" ? "Operation failed" : "Database acknowledgement"}
         description={databaseResult?.status === "error" ? "The operation was not confirmed as successful. Review the message below." : "The operation completed and the acknowledgement was received."}
         onClose={() => { setDatabaseResult(null); }}
