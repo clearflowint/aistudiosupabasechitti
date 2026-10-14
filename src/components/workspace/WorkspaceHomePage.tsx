@@ -37,6 +37,7 @@ export function WorkspaceHomePage({ product, workspace, onNavigate }: WorkspaceH
   const [quickError, setQuickError] = useState<string | null>(null);
   const [quickSuccess, setQuickSuccess] = useState<string | null>(null);
   const quickSavingRef = useRef(false);
+  const quickPaymentRequestRef = useRef<string | null>(null);
   const sharesRequestRef = useRef(0);
   const selectedFund = quickFunds.find((fund) => fund.fund_id === quickFundId) ?? null;
   const filteredContacts = useMemo(() => {
@@ -81,18 +82,18 @@ export function WorkspaceHomePage({ product, workspace, onNavigate }: WorkspaceH
 
   function closeQuickPayment() {
     if (quickSavingRef.current) return;
-    setQuickPaymentOpen(false); setQuickReview(false); setQuickError(null); setQuickSearch(""); setQuickAmount(""); setQuickRemarks(""); setQuickContactId(""); setQuickFundId(""); setQuickShareId(""); setQuickEntryType("credit"); setQuickMode("UPI");
+    setQuickPaymentOpen(false); setQuickReview(false); quickPaymentRequestRef.current = null; setQuickError(null); setQuickSearch(""); setQuickAmount(""); setQuickRemarks(""); setQuickContactId(""); setQuickFundId(""); setQuickShareId(""); setQuickEntryType("credit"); setQuickMode("UPI");
   }
 
   async function handleQuickPaymentSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (quickSavingRef.current || !selectedFund || !selectedShare || !validAmount) return;
-    if (!quickReview) { setQuickReview(true); setQuickError(null); return; }
+    if (!quickReview) { quickPaymentRequestRef.current = crypto.randomUUID(); setQuickReview(true); setQuickError(null); return; }
     quickSavingRef.current = true; setQuickSaving(true); setQuickError(null); setQuickSuccess(null);
     try {
       const now = new Date();
       const today = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-      await recordCfcfSharePayment(workspace.tenantId, selectedFund.fund_id, selectedShare.share_id, workspace.personId, quickEntryType, Number(quickAmount), today, quickMode, quickRemarks);
+      const savedPayment = await recordCfcfSharePayment(workspace.tenantId, selectedFund.fund_id, selectedShare.share_id, workspace.personId, quickEntryType, Number(quickAmount), today, quickMode, quickRemarks, quickPaymentRequestRef.current ?? crypto.randomUUID());
       setQuickPaymentOpen(false); setQuickReview(false);
       setQuickSuccess((quickEntryType === "credit" ? "Payment recorded" : "Debit correction recorded") + " successfully in Supabase for " + (selectedContact?.name ?? "the selected contact") + " · Share " + selectedShare.share_id + ".");
       setQuickSearch(""); setQuickAmount(""); setQuickRemarks(""); setQuickContactId(""); setQuickFundId(""); setQuickShareId("");
@@ -137,7 +138,7 @@ export function WorkspaceHomePage({ product, workspace, onNavigate }: WorkspaceH
             <ArrowRight size={20} className="shrink-0" />
           </button>
         )}
-        <button type="button" onClick={() => { setQuickPaymentOpen(true); setQuickSuccess(null); setQuickError(null); }} className="flex min-h-20 w-full min-w-0 items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-left text-slate-900 shadow-sm transition hover:bg-emerald-100 sm:p-4">
+        <button type="button" onClick={() => { setQuickPaymentOpen(true); setQuickSuccess(null); setQuickError(null); quickPaymentRequestRef.current = null; }} className="flex min-h-20 w-full min-w-0 items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-left text-slate-900 shadow-sm transition hover:bg-emerald-100 sm:p-4">
           <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-600 text-white"><CreditCard size={22} /></div>
           <div className="min-w-0 flex-1"><h3 className="text-base font-bold">Record Payment (Quick)</h3><p className="mt-1 break-words text-sm leading-5 text-slate-600">Record a credit or debit against one Share without opening the full workspace.</p></div>
           <ArrowRight size={20} className="shrink-0 text-emerald-700" />
@@ -163,7 +164,7 @@ export function WorkspaceHomePage({ product, workspace, onNavigate }: WorkspaceH
 
       <Modal isOpen={quickPaymentOpen} title="Record Payment (Quick)" description="Contact first → Fund → Share → amount. Payments remain independent of Cycle billing and payouts." onClose={closeQuickPayment}>
         <form onSubmit={(event) => void handleQuickPaymentSubmit(event)} className="space-y-3">
-          {quickReview && <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3"><p className="font-semibold text-amber-900">Second confirmation required</p><p className="mt-1 text-sm text-amber-800">{quickEntryType === "credit" ? "Credit payment" : "Debit correction"} · {selectedContact?.name} · {selectedFund?.fund_name} (ID {selectedFund?.fund_id}) · Share {selectedShare?.share_id} · {"₹" + Number(quickAmount).toLocaleString("en-IN")} · {quickMode}. Date is automatic. This entry is not linked to a Cycle or payout.</p><button type="button" onClick={() => setQuickReview(false)} className="mt-2 min-h-9 text-sm font-semibold underline">Back to edit</button></div>}
+          {quickReview && <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3"><p className="font-semibold text-amber-900">Second confirmation required</p><p className="mt-1 text-sm text-amber-800">{quickEntryType === "credit" ? "Credit payment" : "Debit correction"} · {selectedContact?.name} · {selectedFund?.fund_name} (ID {selectedFund?.fund_id}) · Share {selectedShare?.share_id} · {"₹" + Number(quickAmount).toLocaleString("en-IN")} · {quickMode}. Date is automatic. This entry is not linked to a Cycle or payout.</p><button type="button" onClick={() => { setQuickReview(false); quickPaymentRequestRef.current = null; }} className="mt-2 min-h-9 text-sm font-semibold underline">Back to edit</button></div>}
           {quickLoading && <div role="status" className="flex items-center gap-2 rounded-lg bg-sky-50 p-2 text-sm text-sky-800"><RefreshCw size={16} className="animate-spin" /> Loading saved contacts and Shares…</div>}
           <label className="block"><span className="mb-1 block text-sm font-medium">1. Search contact</span><input autoFocus value={quickSearch} onChange={(event) => { setQuickSearch(event.target.value); setQuickContactId(""); setQuickFundId(""); setQuickShareId(""); }} disabled={quickLoading || quickSaving || quickReview} placeholder="Name or phone number" className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm" /></label>
           {quickSearch.trim() && !quickContactId && <div className="max-h-32 space-y-1 overflow-y-auto rounded-xl border border-slate-200 p-1">{filteredContacts.length ? filteredContacts.slice(0, 8).map((contact) => <button type="button" key={contact.contact_id} onClick={() => { setQuickContactId(contact.contact_id); setQuickSearch(contact.name + (contact.phone ? " · " + contact.phone : "")); setQuickFundId(""); setQuickShareId(""); }} className="flex min-h-11 w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50"><span className="min-w-0"><span className="block truncate font-medium">{contact.name}</span><span className="block truncate text-xs text-slate-500">{contact.phone || contact.email || "No contact details"}</span></span><ArrowRight size={16} className="shrink-0" /></button>) : <p className="p-2 text-sm text-slate-500">No matching contacts.</p>}</div>}
