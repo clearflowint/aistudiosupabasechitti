@@ -721,19 +721,19 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
 
   return (
     <div className="min-w-0 space-y-4 pb-2">
-      <section aria-label="Fund actions" className="flex min-w-0 items-center justify-between gap-2">
-        <p className="inline-flex min-w-0 items-center gap-1.5 text-sm font-medium text-slate-500">
-          <CalendarDays size={16} className="shrink-0 text-sky-700" />
-          {new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
-        </p>
-        <div className="flex shrink-0 items-center gap-2">
-          <button type="button" onClick={openFundModal} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-sky-600 px-3 text-sm font-semibold text-white transition hover:bg-sky-700">
-            <Plus size={16} /> New Fund
-          </button>
-          <button type="button" onClick={() => setFundReloadKey((current) => current + 1)} disabled={isLoadingFunds} aria-label="Refresh funds" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:opacity-50">
-            <RefreshCw size={17} className={isLoadingFunds ? "animate-spin" : ""} />
-          </button>
+      <section aria-label="All funds workspace" className="space-y-2">
+        <div className="flex min-w-0 items-center justify-between gap-2">
+          <h1 className="min-w-0 text-lg font-bold tracking-tight text-slate-950 sm:text-xl">All Funds Workspace</h1>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <button type="button" onClick={() => setFundReloadKey((current) => current + 1)} disabled={isLoadingFunds} aria-label="Refresh funds" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:opacity-50">
+              <RefreshCw size={17} className={isLoadingFunds ? "animate-spin" : ""} />
+            </button>
+            <button type="button" onClick={openFundModal} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-sky-600 px-3 text-sm font-semibold text-white transition hover:bg-sky-700">
+              <Plus size={16} /> New Fund
+            </button>
+          </div>
         </div>
+        <p className="text-sm font-medium text-slate-500">{new Date().toLocaleDateString("en-IN", { weekday: "long", day: "2-digit", month: "short", year: "numeric" })}</p>
       </section>
 
       {fundNotice && (
@@ -776,7 +776,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         <>
           <section aria-label="Choose Fund" className="space-y-3">
             <div className="grid grid-cols-3 gap-2">
-              {funds.map((fund) => <button key={fund.fund_id} type="button" onClick={() => { setSelectedFundId(fund.fund_id); setSelectedShareId(null); setSelectedCycleNumber(null); }} aria-pressed={selectedFundId === fund.fund_id} className={["min-h-12 min-w-0 rounded-xl border px-2 py-2 text-sm font-semibold leading-4", selectedFundId === fund.fund_id ? "border-sky-600 bg-sky-600 text-white" : "border-slate-200 bg-white text-slate-700"].join(" ")}><span className="line-clamp-2 break-words">{fund.fund_name}</span></button>)}
+              {funds.map((fund) => <button key={fund.fund_id} type="button" onClick={() => { setSelectedFundId(fund.fund_id); setSelectedShareId(null); setSelectedCycleNumber(null); }} aria-pressed={selectedFundId === fund.fund_id} className={["min-h-12 min-w-0 rounded-xl border px-2 py-2 text-sm font-semibold leading-4", selectedFundId === fund.fund_id ? "border-emerald-500 bg-emerald-100 text-emerald-950 ring-2 ring-emerald-200 shadow-sm" : "border-slate-200 bg-white text-slate-700"].join(" ")}><span className="line-clamp-2 break-words">{fund.fund_name}</span></button>)}
             </div>
             <article className="rounded-2xl border border-sky-100 bg-white p-4 shadow-sm">
               <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-wide text-sky-700">Fund details</p><h3 className="mt-1 break-words text-lg font-semibold text-slate-900">{selectedFund.fund_name}</h3><p className="mt-1 break-all text-xs text-slate-400">Fund ID · {selectedFund.fund_id}</p><p className="mt-1 text-sm text-slate-500">Start date · {selectedFund.start_date ? formatDate(selectedFund.start_date) : "Not set"} · Planned Cycles · {selectedFund.number_of_cycles ?? "Not set"}</p></div>
