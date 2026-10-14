@@ -721,19 +721,19 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
 
   return (
     <div className="min-w-0 space-y-4 pb-2">
-      <section aria-label="All funds workspace" className="space-y-2">
-        <div className="flex min-w-0 items-center justify-between gap-2">
-          <h1 className="min-w-0 text-lg font-bold tracking-tight text-slate-950 sm:text-xl">All Funds Workspace</h1>
-          <div className="flex shrink-0 items-center gap-1.5">
-            <button type="button" onClick={() => setFundReloadKey((current) => current + 1)} disabled={isLoadingFunds} aria-label="Refresh funds" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:opacity-50">
-              <RefreshCw size={17} className={isLoadingFunds ? "animate-spin" : ""} />
-            </button>
-            <button type="button" onClick={openFundModal} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-sky-600 px-3 text-sm font-semibold text-white transition hover:bg-sky-700">
-              <Plus size={16} /> New Fund
-            </button>
-          </div>
+      <section aria-label="All funds workspace" className="flex min-w-0 items-center justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-base font-bold leading-5 tracking-tight text-slate-950 sm:text-xl">All Funds Workspace</h1>
+          <p className="mt-1 text-xs font-medium leading-4 text-slate-500 sm:text-sm">{new Date().toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}</p>
         </div>
-        <p className="text-sm font-medium text-slate-500">{new Date().toLocaleDateString("en-IN", { weekday: "long", day: "2-digit", month: "short", year: "numeric" })}</p>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button type="button" onClick={() => setFundReloadKey((current) => current + 1)} disabled={isLoadingFunds} aria-label="Refresh funds" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:opacity-50">
+            <RefreshCw size={17} className={isLoadingFunds ? "animate-spin" : ""} />
+          </button>
+          <button type="button" onClick={openFundModal} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-xl bg-sky-600 px-2.5 text-xs font-semibold text-white transition hover:bg-sky-700 sm:gap-1.5 sm:px-3 sm:text-sm">
+            <Plus size={15} /> New Fund
+          </button>
+        </div>
       </section>
 
       {fundNotice && (
