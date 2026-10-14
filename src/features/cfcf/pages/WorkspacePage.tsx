@@ -27,7 +27,7 @@ import { listCfcfContacts } from "../services/contacts.service";
 import {
   createCfcfFund,
   createCfcfShare,
-  deleteCfcfShareIfEmpty,
+  deleteCfcfShareWithHistory,
   deleteCfcfFundIfEmpty,
   recordCfcfSharePayment,
   recordCfcfFundOtherEntry,
@@ -614,8 +614,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     setIsDeleting(true); setDeleteError(null);
     try {
       if (deleteTarget.kind === "share") {
-        await deleteCfcfShareIfEmpty(workspace.tenantId, deleteTarget.fundId ?? selectedFundId, deleteTarget.id);
-        setFundNotice("Empty Share deleted. Financial-history Shares cannot be deleted.");
+        const result = await deleteCfcfShareWithHistory(workspace.tenantId, deleteTarget.fundId ?? selectedFundId, deleteTarget.id);
+        setFundNotice("Share " + result.share_id + " deleted with " + result.deleted_bills + " bill record(s) and " + result.deleted_payments + " payment record(s). Fund totals refreshed.");
         setDeleteTarget(null); setDeleteStep(1); setDeleteAcknowledged(false); setDeleteTypedId(""); setDetailReloadKey((n) => n + 1); setFundReloadKey((n) => n + 1);
       } else {
         await deleteCfcfFundIfEmpty(workspace.tenantId, deleteTarget.id);
@@ -730,13 +730,46 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   function openShareWhatsApp(share: CfcfShareRow, mode: "reminder" | "report") {
     const contact = contactById.get(share.contact_id);
     if (!contact?.phone) { setFundNotice("This Contact has no saved phone number."); return; }
+    if (!selectedFund) { setFundNotice("Select a Fund before opening WhatsApp."); return; }
+    if (mode === "reminder" && share.total_pending <= 0) {
+      setFundNotice("This Share has no outstanding amount to remind about.");
+      return;
+    }
     const phone = contact.phone.replace(/\D/g, "");
-    const completed = billedCycleNumbers([share]).length;
-    const cycleProgress = String(completed) + " billed cycles";
-    const message = mode === "reminder"
-      ? `Hello ${contact.name}, this is a reminder for your ClearFlow Share in ${selectedFund?.fund_name ?? "the Fund"}. Pending due: ${formatINR(share.total_pending)}. Total billed: ${formatINR(share.share_total_billed_amount)}. Please let us know when payment is convenient. Thank you.`
-      : `ClearFlow Share Statement\\nFund: ${selectedFund?.fund_name ?? "—"}\\nMember: ${contact.name}\\nShare ID: ${share.share_id}\\nCycles completed/recorded: ${cycleProgress}\\nCurrent billed (highest recorded Cycle): ${formatINR(currentBilledForShare(share))}\\nTotal billed: ${formatINR(share.share_total_billed_amount)}\\nTotal paid (net): ${formatINR(share.share_net_payment_received)}\\nPending due: ${formatINR(share.total_pending)}\\nAdvance: ${formatINR(share.total_advance)}\\nPayout status: ${share.payout_status === "drawn" ? "Drawn" : "Undrawn"}`;
-    window.open("https://wa.me/" + phone + "?text=" + encodeURIComponent(message), "_blank", "noopener,noreferrer");
+    if (!phone) { setFundNotice("The selected Contact's phone number is invalid."); return; }
+    const ownerName = workspace.displayName.trim() || workspace.email;
+    const currentCycle = selectedFund.current_cycle;
+    const currentBill = billForShareCycle(share.share_id, currentCycle);
+    const lines = mode === "reminder"
+      ? [
+          "Dear " + contact.name,
+          "Share ID: " + share.share_id,
+          "Fund: " + selectedFund.fund_name,
+          "Amount Due: " + formatINR(share.total_pending),
+          "",
+          "Thank you,",
+          ownerName,
+        ]
+      : [
+          "Dear " + contact.name,
+          "Share ID: " + share.share_id,
+          "Fund: " + selectedFund.fund_name,
+          "Cycle Progress: " + currentCycle + " of " + (selectedFund.number_of_cycles ?? "—"),
+          "Current Cycle Bill: " + (currentBill ? formatINR(currentBill.amount) : "Not billed"),
+          "Total Billed: " + formatINR(share.share_total_billed_amount),
+          "Total Paid: " + formatINR(share.share_net_payment_received),
+          ...(share.total_pending > 0 ? ["Pending Amount: " + formatINR(share.total_pending)] : []),
+          ...(share.total_advance > 0 ? ["Advance Amount: " + formatINR(share.total_advance)] : []),
+          "Status: " + (share.payout_status === "drawn" ? "Drawn" : "Undrawn"),
+          ...(share.payout_status === "drawn" ? [
+            "Amount Withdrawn: " + formatINR(share.withdrawn_amount),
+            ...(share.payout_cycle_number !== null ? ["Withdrawal Cycle: " + share.payout_cycle_number] : []),
+          ] : []),
+          "",
+          "Thank you,",
+          ownerName,
+        ];
+    window.open("https://wa.me/" + phone + "?text=" + encodeURIComponent(lines.join("\\n")), "_blank", "noopener,noreferrer");
   }
 
   function currentBilledForShare(share: CfcfShareRow): number {
@@ -923,7 +956,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                   <div className="flex min-w-0 items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <h3 className="break-words text-base font-semibold leading-tight text-slate-900">{contact?.name ?? "Contact unavailable"}</h3>
-                      <div className="mt-1 flex items-center gap-2"><p className="min-w-0 text-xs text-slate-500">Share ID: <span className="font-mono">{share.share_id}</span></p><button type="button" aria-label={"Delete empty Share " + share.share_id} title="Delete empty Share" onClick={() => { setDeleteStep(1); setDeleteAcknowledged(false); setDeleteTypedId(""); setDeleteTarget({ kind: "share", id: share.share_id, label: contact?.name ?? share.share_id, fundId: selectedFund.fund_id }); setDeleteError(null); }} className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-rose-600 hover:bg-rose-50"><Trash2 size={13}/></button></div>
+                      <p className="mt-1 text-xs text-slate-500">Share ID: <span className="font-mono">{share.share_id}</span></p>
                       <p className="mt-0.5 break-all text-xs text-slate-500">{contact?.phone ?? "No phone saved"}</p>
                     </div>
                     <div className="shrink-0 text-right">
@@ -951,8 +984,9 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                   </div>
                   <div className="mt-1 flex gap-1">
                     <button type="button" onClick={() => setStatementShare(share)} className="inline-flex min-h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-1.5 text-xs font-semibold text-slate-800"><FileText size={14}/> Statement</button>
+                    <button type="button" aria-label={"Delete Share " + share.share_id} title="Delete Share and its related bills/payments" onClick={() => void openShareDelete(share)} className="inline-flex min-h-8 w-9 shrink-0 items-center justify-center rounded-lg border border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100"><Trash2 size={14}/></button>
                     <button type="button" onClick={() => openShareWhatsApp(share,"report")} className="inline-flex min-h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-1.5 text-xs font-semibold text-emerald-800"><MessageCircle size={13}/> Report</button>
-                    <button type="button" onClick={() => openShareWhatsApp(share,"reminder")} className="inline-flex min-h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-1.5 text-xs font-semibold text-emerald-800"><MessageCircle size={13}/> Reminder</button>
+                    <button type="button" onClick={() => openShareWhatsApp(share,"reminder")} disabled={share.total_pending <= 0} title={share.total_pending <= 0 ? "No outstanding amount" : "Open WhatsApp reminder"} className="inline-flex min-h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-1.5 text-xs font-semibold text-emerald-800 disabled:cursor-not-allowed disabled:opacity-40"><MessageCircle size={13}/> Reminder</button>
                   </div>
                 </article>;
               })}
@@ -1067,7 +1101,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             <h3 className="mt-1 text-base font-semibold text-slate-900">Permanent deletion</h3>
             <p className="mt-1 text-sm leading-5 text-slate-600">Only empty records can be deleted. Every request requires three confirmations and the database blocks records with financial history.</p>
             <button type="button" onClick={() => { if (!selectedFund) return; setDeleteStep(1); setDeleteAcknowledged(false); setDeleteTypedId(""); setDeleteError(null); setDeleteTarget({ kind: "fund", id: selectedFund.fund_id, label: selectedFund.fund_name }); }} disabled={!selectedFund} className="mt-3 min-h-11 w-full rounded-xl border border-rose-300 bg-white px-3 text-sm font-semibold text-rose-800 disabled:opacity-40">Delete selected Fund · {selectedFund.fund_name}</button>
-            {shares.length > 0 && <div className="mt-3 space-y-2"><p className="text-sm font-semibold text-rose-900">Delete an empty Share</p>{shares.map((share) => { const contact = contactById.get(share.contact_id); return <div key={share.share_id} className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-rose-100 bg-white p-3"><div className="min-w-0"><p className="break-words text-sm font-semibold text-slate-800">{contact?.name ?? "Share"}</p><p className="break-all text-xs text-slate-500">Share ID · {share.share_id}</p></div><button type="button" onClick={() => { setDeleteStep(1); setDeleteAcknowledged(false); setDeleteTypedId(""); setDeleteError(null); setDeleteTarget({ kind: "share", id: share.share_id, label: contact?.name ?? share.share_id, fundId: selectedFund.fund_id }); }} className="min-h-10 shrink-0 rounded-lg border border-rose-300 px-3 text-xs font-semibold text-rose-800">Delete</button></div>; })}</div>}
+
           </section>
         </>
       ) : null}
