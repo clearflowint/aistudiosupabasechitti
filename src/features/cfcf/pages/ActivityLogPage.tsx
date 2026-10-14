@@ -31,6 +31,7 @@ function details(value: Record<string, unknown> | null): string {
   delete safe.tenant_id;
   delete safe.product_id;
   delete safe.person_id;
+  delete safe.actor_person_id;
   return JSON.stringify(safe, null, 2);
 }
 
