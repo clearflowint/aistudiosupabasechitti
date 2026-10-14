@@ -160,6 +160,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [cycleRows, setCycleRows] = useState<CfcfCycleRow[]>([]);
   const [cycleError, setCycleError] = useState<string | null>(null);
   const [isCycleBusy, setIsCycleBusy] = useState(false);
+  const [cycleDeleteTarget, setCycleDeleteTarget] = useState<number | null>(null);
+  const [cycleDeleteError, setCycleDeleteError] = useState<string | null>(null);
   const [plannedPayoutCycle, setPlannedPayoutCycle] = useState<number | null>(null);
   const [plannedPayoutInput, setPlannedPayoutInput] = useState("");
   const [plannedPayoutError, setPlannedPayoutError] = useState<string | null>(null);
@@ -181,12 +183,13 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
 
   useEffect(() => {
     let cancelled = false;
-    if (!selectedFund || selectedCycleNumber === null) { setCycleSummary(null); return; }
-    getCfcfCycleSummary(workspace.tenantId, selectedFund.fund_id, selectedCycleNumber)
+    const summaryCycleNumber = selectedCycleNumber ?? cycleRows.at(-1)?.cycle_number ?? null;
+    if (!selectedFund || summaryCycleNumber === null) { setCycleSummary(null); return; }
+    getCfcfCycleSummary(workspace.tenantId, selectedFund.fund_id, summaryCycleNumber)
       .then((summary) => { if (!cancelled) setCycleSummary(summary); })
       .catch(() => { if (!cancelled) setCycleSummary(null); });
     return () => { cancelled = true; };
-  }, [workspace.tenantId, selectedFund?.fund_id, selectedCycleNumber, detailReloadKey]);
+  }, [workspace.tenantId, selectedFund?.fund_id, selectedCycleNumber, cycleRows, detailReloadKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -496,6 +499,26 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     setCyclePayoutInput(cycle?.planned_payout_amount == null ? "" : String(cycle.planned_payout_amount));
     setCycleCommissionInput(cycle?.commission_amount == null ? "" : String(cycle.commission_amount));
     setCycleEditError(null);
+  }
+
+  async function handleConfirmDeleteCycle() {
+    if (!selectedFund || cycleDeleteTarget === null || isCycleBusy) return;
+    setIsCycleBusy(true);
+    setCycleDeleteError(null);
+    try {
+      await deleteHighestCfcfCycle(workspace.tenantId, selectedFund.fund_id, cycleDeleteTarget);
+      const remaining = cycleRows.filter((row) => row.cycle_number !== cycleDeleteTarget);
+      setCycleRows(remaining);
+      setSelectedCycleNumber(remaining.at(-1)?.cycle_number ?? null);
+      setCycleDeleteTarget(null);
+      setFundNotice("Cycle deleted. Its bills, planned payout and commission were removed; withdrawals assigned to it were reset to Undrawn. Shareholder payment records were not changed.");
+      setDetailReloadKey((value) => value + 1);
+      setFundReloadKey((value) => value + 1);
+    } catch (error) {
+      setCycleDeleteError(error instanceof Error ? error.message : "Unable to delete Cycle.");
+    } finally {
+      setIsCycleBusy(false);
+    }
   }
 
   async function handleSaveCycleValues(event: FormEvent<HTMLFormElement>) {
@@ -833,7 +856,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             {(() => { const cycleNumbers = savedCycleNumbers(); const currentCycle = selectedCycleNumber !== null && cycleNumbers.includes(selectedCycleNumber) ? selectedCycleNumber : (cycleNumbers.at(-1) ?? null); const row = cycleRows.find((item) => item.cycle_number === currentCycle); const payout = row?.planned_payout_amount; const commission = row?.commission_amount; return <article className="rounded-2xl border border-violet-200 bg-violet-50 p-3 shadow-sm">
               <div className="flex items-start justify-between gap-2"><div className="min-w-0"><h3 className="text-base font-bold text-slate-950">{currentCycle === null ? "No Cycles yet" : `Cycle ${currentCycle} / ${selectedFund.number_of_cycles ?? "Not set"}`}</h3><p className="mt-1 text-xs text-slate-600">{row ? `Created ${formatDate(row.created_at)}` : "Existing billing record"}</p></div><div className="flex shrink-0 items-center gap-1"><button type="button" aria-label="Previous Cycle" disabled={currentCycle === null || cycleNumbers.indexOf(currentCycle) <= 0} onClick={() => { if (currentCycle !== null) setSelectedCycleNumber(cycleNumbers[cycleNumbers.indexOf(currentCycle)-1]); }} className="grid h-9 w-9 place-items-center rounded-lg border border-violet-200 bg-white disabled:opacity-40"><ChevronLeft size={17}/></button><button type="button" aria-label="Latest Cycle" disabled={currentCycle === null || currentCycle === cycleNumbers.at(-1)} onClick={() => setSelectedCycleNumber(cycleNumbers.at(-1) ?? null)} className="grid h-9 w-9 place-items-center rounded-lg border border-violet-200 bg-white disabled:opacity-40"><RotateCcw size={16}/></button></div></div>
               <div className="mt-3 grid grid-cols-2 gap-2"><StoredValue label="Total billed" value={cycleSummary ? formatINR(cycleSummary.total_billed) : "—"}/><StoredValue label="Planned payout" value={displayStoredAmount(payout)}/><StoredValue label="Billed shares" value={cycleSummary ? String(cycleSummary.billed_shares) : "—"}/><StoredValue label="Not billed" value={cycleSummary ? String(cycleSummary.not_billed_shares) : "—"}/><StoredValue label="Total paid out" value={cycleSummary ? formatINR(cycleSummary.total_paid_out) : "—"}/><StoredValue label="Commission" value={displayStoredAmount(commission)}/></div>
-              <div className="mt-3 grid grid-cols-2 gap-2"><button type="button" disabled={currentCycle === null} onClick={() => currentCycle !== null && openCycleEditor(currentCycle)} className="min-h-10 rounded-xl bg-violet-700 px-2 text-sm font-semibold text-white disabled:opacity-40">Edit Cycle</button><button type="button" disabled={currentCycle === null} onClick={() => setIsCycleStatementOpen(true)} className="min-h-10 rounded-xl border border-violet-200 bg-white px-2 text-sm font-semibold text-violet-800 disabled:opacity-40">Cycle Statement</button><button type="button" disabled={currentCycle === null} onClick={() => { setPlannedPayoutCycle(currentCycle); setPlannedPayoutInput(payout == null ? "" : String(payout)); setPlannedPayoutError(null); }} className="min-h-10 rounded-xl border border-violet-200 bg-white px-2 text-sm font-semibold text-violet-800 disabled:opacity-40">Planned Payout</button><button type="button" disabled={currentCycle === null || currentCycle !== Math.max(...cycleNumbers)} onClick={async () => { if (currentCycle === null || !window.confirm(`Delete highest Cycle ${currentCycle}? This cannot be undone.`)) return; setIsCycleBusy(true); setCycleError(null); try { await deleteHighestCfcfCycle(workspace.tenantId, selectedFund.fund_id, currentCycle); setCycleRows((rows) => rows.filter((item) => item.cycle_number !== currentCycle)); setSelectedCycleNumber(null); setDetailReloadKey((v) => v+1); } catch (e) { setCycleError(e instanceof Error ? e.message : "Unable to delete Cycle."); } finally { setIsCycleBusy(false); } }} className="min-h-10 rounded-xl border border-rose-200 bg-white px-2 text-sm font-semibold text-rose-700 disabled:opacity-40">{isCycleBusy ? "Working…" : "Delete Cycle"}</button></div>
+              <div className="mt-3 grid grid-cols-2 gap-2"><button type="button" disabled={currentCycle === null} onClick={() => currentCycle !== null && openCycleEditor(currentCycle)} className="min-h-10 rounded-xl bg-violet-700 px-2 text-sm font-semibold text-white disabled:opacity-40">Edit Cycle</button><button type="button" disabled={currentCycle === null} onClick={() => setIsCycleStatementOpen(true)} className="min-h-10 rounded-xl border border-violet-200 bg-white px-2 text-sm font-semibold text-violet-800 disabled:opacity-40">Cycle Statement</button><button type="button" disabled={currentCycle === null} onClick={() => { setPlannedPayoutCycle(currentCycle); setPlannedPayoutInput(payout == null ? "" : String(payout)); setPlannedPayoutError(null); }} className="min-h-10 rounded-xl border border-violet-200 bg-white px-2 text-sm font-semibold text-violet-800 disabled:opacity-40">Planned Payout</button><button type="button" disabled={currentCycle === null || currentCycle !== Math.max(...cycleNumbers) || isCycleBusy} onClick={() => { if (currentCycle === null) return; setSelectedCycleNumber(currentCycle); setCycleDeleteTarget(currentCycle); setCycleDeleteError(null); }} className="min-h-10 rounded-xl border border-rose-200 bg-white px-2 text-sm font-semibold text-rose-700 disabled:opacity-40">Delete Cycle</button></div>
               {cycleError && <p role="alert" className="mt-2 text-sm text-rose-700">{cycleError}</p>}
             </article>; })()}
             <button type="button" disabled={isCycleBusy} onClick={async () => { setIsCycleBusy(true); setCycleError(null); try { const row = await addCfcfCycle(workspace.tenantId, selectedFund.fund_id); setCycleRows((rows) => [...rows, row].sort((a,b)=>a.cycle_number-b.cycle_number)); setSelectedCycleNumber(row.cycle_number); } catch (e) { setCycleError(e instanceof Error ? e.message : "Unable to add Cycle."); } finally { setIsCycleBusy(false); } }} className="min-h-11 w-full rounded-xl border border-violet-200 bg-white px-3 text-sm font-semibold text-violet-800">{isCycleBusy ? "Working…" : `Add Cycle ${Math.max(0,...cycleRows.map((row)=>row.cycle_number),...billedCycleNumbers())+1}`}</button>
@@ -1005,6 +1028,42 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           </section>
         </>
       ) : null}
+
+      <Modal
+        isOpen={cycleDeleteTarget !== null}
+        title={cycleDeleteTarget === null ? "Delete Cycle" : "Delete Cycle " + cycleDeleteTarget}
+        description="Review the financial data that will be removed and withdrawals that will be reset before confirming."
+        onClose={() => { if (!isCycleBusy) { setCycleDeleteTarget(null); setCycleDeleteError(null); } }}
+      >
+        {cycleDeleteTarget !== null && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-3">
+              <p className="font-semibold text-rose-900">This operation cannot be undone.</p>
+              <p className="mt-1 text-sm leading-5 text-rose-800">Cycle {cycleDeleteTarget} bills, its planned payout and commission will be deleted. Every Share currently marked Drawn against this Cycle will become Undrawn and its stored withdrawn amount will be reset to zero. Shareholder payments and Fund payment history will remain untouched.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <StoredValue label="Cycle billing to remove" value={cycleSummary ? formatINR(cycleSummary.total_billed) : "Loading…"} />
+              <StoredValue label="Planned payout to remove" value={displayStoredAmount(cycleSummary?.planned_payout_amount)} />
+              <StoredValue label="Commission to remove" value={displayStoredAmount(cycleSummary?.commission_amount)} />
+              <StoredValue label="Withdrawals to reset" value={cycleSummary ? String(cycleSummary.withdrawn_shares.length) : "Loading…"} />
+            </div>
+            <section className="space-y-2">
+              <h4 className="text-sm font-semibold text-slate-900">Shares that will be set to Undrawn</h4>
+              {cycleSummary?.withdrawn_shares.length ? cycleSummary.withdrawn_shares.map((item) => (
+                <div key={item.share_id} className="flex items-start justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                  <div className="min-w-0"><p className="break-words text-sm font-semibold text-slate-900">{item.contact_name || "Contact unavailable"}</p><p className="text-xs text-slate-600">Share {item.share_id}</p><p className="text-xs font-semibold text-amber-800">Drawn · Cycle {cycleDeleteTarget} → Undrawn</p></div>
+                  <strong className="shrink-0 text-sm text-slate-900">{formatINR(item.withdrawn_amount)}</strong>
+                </div>
+              )) : cycleSummary ? <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">No Shares are currently drawn against this Cycle.</p> : <p className="text-sm text-slate-500">Loading withdrawal details…</p>}
+            </section>
+            {cycleDeleteError && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{cycleDeleteError}</p>}
+            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
+              <button type="button" onClick={() => setCycleDeleteTarget(null)} disabled={isCycleBusy} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button>
+              <button type="button" onClick={() => void handleConfirmDeleteCycle()} disabled={isCycleBusy || !cycleSummary} className="min-h-11 rounded-xl bg-rose-700 px-4 text-sm font-semibold text-white disabled:opacity-50">{isCycleBusy ? "Deleting…" : "Confirm and delete Cycle"}</button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <Modal
         isOpen={cycleEditNumber !== null}
