@@ -168,6 +168,11 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const lastTenantId = useRef(workspace.tenantId);
   const hydratedViewTenantId = useRef<string | null>(null);
 
+  const selectedFund = useMemo(
+    () => funds.find((fund) => fund.fund_id === selectedFundId) ?? null,
+    [funds, selectedFundId],
+  );
+
   useEffect(() => {
     let cancelled = false;
     if (!selectedFund) { setCycleRows([]); return; }
@@ -176,11 +181,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       .catch((error: unknown) => { if (!cancelled) setCycleError(error instanceof Error ? error.message : "Unable to load Cycles."); });
     return () => { cancelled = true; };
   }, [workspace.tenantId, selectedFund?.fund_id, detailReloadKey, fundReloadKey]);
-
-  const selectedFund = useMemo(
-    () => funds.find((fund) => fund.fund_id === selectedFundId) ?? null,
-    [funds, selectedFundId],
-  );
 
   // CFCF PRODUCT: Clear Fund-specific filters, unsaved inputs, and open financial modals on Fund/tenant changes.
   // This prevents a modal opened for one Fund from being accidentally submitted against another selected Fund.
