@@ -158,6 +158,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [cycleEditError, setCycleEditError] = useState<string | null>(null);
   const [cycleEditEnabled, setCycleEditEnabled] = useState(false);
   const [isSavingCycle, setIsSavingCycle] = useState(false);
+  const [cycleReview, setCycleReview] = useState(false);
   const [billingShare, setBillingShare] = useState<CfcfShareRow | null>(null);
   const [billingCycleNumber, setBillingCycleNumber] = useState("1");
   const [billingAmount, setBillingAmount] = useState("");
@@ -188,6 +189,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [cycleBillInputs, setCycleBillInputs] = useState<Record<string, string>>({});
   const [cycleError, setCycleError] = useState<string | null>(null);
   const [isCycleBusy, setIsCycleBusy] = useState(false);
+  const [plannedPayoutReview, setPlannedPayoutReview] = useState(false);
   const [cycleDeleteTarget, setCycleDeleteTarget] = useState<number | null>(null);
   const [cycleDeleteError, setCycleDeleteError] = useState<string | null>(null);
   const [plannedPayoutCycle, setPlannedPayoutCycle] = useState<number | null>(null);
@@ -657,6 +659,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   }
 
   function openCycleEditor(cycleNumber: number) {
+    setCycleReview(false);
     setCycleEditNumber(cycleNumber);
     setCycleEditEnabled(false);
     const cycle = cycleRows.find((row) => row.cycle_number === cycleNumber);
@@ -723,6 +726,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setCycleEditError("Every Share must have a nonnegative whole-rupee bill. Blank amounts are saved as ₹0.");
       return;
     }
+    if (!cycleReview) { setCycleReview(true); setCycleEditError(null); return; }
     if (!beginAction("save-cycle-workspace")) return;
     setIsSavingCycle(true);
     setCycleEditError(null);
@@ -735,6 +739,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setSelectedCycleNumber(cycleNumber);
       setCycleEditNumber(null);
       setCycleEditEnabled(false);
+      setCycleReview(false);
       setFundNotice("Cycle " + cycleNumber + " saved. Shareholder payments were not changed.");
       setFundReloadKey((n) => n + 1);
       setDetailReloadKey((n) => n + 1);
@@ -1365,17 +1370,18 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           if (!selectedFund || plannedPayoutCycle === null || isCycleBusy) return;
           const amount = plannedPayoutInput.trim() === "" ? null : Number(plannedPayoutInput);
           if (amount === null || !Number.isSafeInteger(amount) || amount < 0 || amount > 2147483647) { setPlannedPayoutError("Enter a whole-rupee amount of zero or more."); return; }
+          if (!plannedPayoutReview) { setPlannedPayoutReview(true); setPlannedPayoutError(null); return; }
           setIsCycleBusy(true); setPlannedPayoutError(null);
           try {
             const updated = await setCfcfCyclePlannedPayout(workspace.tenantId, selectedFund.fund_id, plannedPayoutCycle, amount);
             setCycleRows((rows) => rows.map((row) => row.cycle_number === plannedPayoutCycle ? { ...row, planned_payout_amount: updated.planned_payout_amount } : row));
-            setPlannedPayoutCycle(null); setFundNotice("Planned payout saved. No payment or withdrawal was recorded."); setDetailReloadKey((v) => v + 1);
+            setPlannedPayoutCycle(null); setPlannedPayoutReview(false); setFundNotice("Planned payout saved. No payment or withdrawal was recorded."); setDetailReloadKey((v) => v + 1);
           } catch (error) { setPlannedPayoutError(error instanceof Error ? error.message : "Unable to save planned payout."); }
           finally { setIsCycleBusy(false); }
         }} className="space-y-4">
           <label htmlFor="planned-payout-amount" className="block text-sm font-medium text-slate-700">Planned payout (₹)<input id="planned-payout-amount" type="number" inputMode="numeric" min="0" max="2147483647" step="1" required value={plannedPayoutInput} onChange={(event) => setPlannedPayoutInput(event.target.value)} className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm"/></label>
           {plannedPayoutError && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{plannedPayoutError}</p>}
-          <div className="flex justify-end gap-2 border-t border-slate-100 pt-3"><button type="button" onClick={() => setPlannedPayoutCycle(null)} disabled={isCycleBusy} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button><button type="submit" disabled={isCycleBusy} className="min-h-11 rounded-xl bg-violet-700 px-4 text-sm font-semibold text-white disabled:opacity-50">{isCycleBusy ? "Saving…" : "Save planned payout"}</button></div>
+          <div className="flex justify-end gap-2 border-t border-slate-100 pt-3"><button type="button" onClick={() => setPlannedPayoutCycle(null)} disabled={isCycleBusy} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button><button type="submit" disabled={isCycleBusy} className="min-h-11 rounded-xl bg-violet-700 px-4 text-sm font-semibold text-white disabled:opacity-50">{isCycleBusy ? <><RefreshCw size={16} className="animate-spin" /> Waiting for Supabase…</> : plannedPayoutReview ? "Confirm planned payout" : "Review planned payout"}</button></div>
         </form>
       </Modal>
 
@@ -1440,6 +1446,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         onClose={() => { if (!isSavingCycle) { setCycleEditNumber(null); setCycleEditError(null); } }}
       >
         <form onSubmit={(event) => void handleSaveCycleValues(event)} className="space-y-4">
+          {cycleReview && <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3"><p className="font-semibold text-amber-900">Second confirmation required</p><p className="mt-1 text-sm text-amber-800">Save Cycle {cycleEditNumber} billing entries for {shares.filter((share) => share.status === "active").length} active Shares, with planned payout {cyclePayoutInput.trim() ? "₹" + Number(cyclePayoutInput).toLocaleString("en-IN") : "not set"} and commission {cycleCommissionInput.trim() ? "₹" + Number(cycleCommissionInput).toLocaleString("en-IN") : "not set"}. This changes Cycle billing data only; it creates no Payments or actual payouts.</p><button type="button" onClick={() => setCycleReview(false)} className="mt-2 min-h-9 text-sm font-semibold underline">Back to edit</button></div>
           <div className="flex items-center justify-between gap-2 rounded-xl bg-violet-50 p-3"><div className="text-sm font-semibold text-violet-900">Cycle {cycleEditNumber ?? ""} · {shares.filter((share) => share.status === "active").length} active Shares</div><button type="button" onClick={() => setCycleEditEnabled((value) => !value)} className="min-h-9 rounded-lg border border-violet-200 bg-white px-3 text-xs font-semibold text-violet-800">{cycleEditEnabled ? "Review" : "Edit"}</button></div>
           <div className="grid grid-cols-2 gap-2">
             <div><label htmlFor="cycle-edit-payout" className="mb-1.5 block text-xs font-semibold text-slate-700">Planned payout (₹)</label><input id="cycle-edit-payout" type="number" min="0" max="2147483647" step="1" value={cyclePayoutInput} onChange={(event) => setCyclePayoutInput(event.target.value)} disabled={!cycleEditEnabled} placeholder="Not set" className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm disabled:bg-slate-50 disabled:text-slate-500" /></div>
@@ -1461,7 +1468,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           {cycleEditError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{cycleEditError}</div>}
           <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
             <button type="button" onClick={() => setCycleEditNumber(null)} disabled={isSavingCycle} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Close</button>
-            {cycleEditEnabled && <button type="submit" disabled={isSavingCycle} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingCycle ? "Saving…" : "Save Changes"}</button>}
+            {cycleEditEnabled && <button type="submit" disabled={isSavingCycle} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingCycle ? <><RefreshCw size={16} className="animate-spin" /> Waiting for Supabase…</> : cycleReview ? "Confirm and save Cycle" : "Review Cycle changes"}</button>}
           </div>
         </form>
       </Modal>
