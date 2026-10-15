@@ -2,8 +2,9 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
 
-// Shared lock avoids stale scroll styles when one modal replaces another in the same render.
+// Shared lock supports one modal replacing another without briefly unlocking the page.
 let activeModalLocks = 0;
+let pendingUnlockFrame: number | null = null;
 let originalBodyStyles: {
   overflow: string;
   overscrollBehavior: string;
@@ -46,10 +47,16 @@ export function Modal({
   useEffect(() => {
     if (!isOpen) return;
 
-    // Lock body scrolling while any modal is open. A shared counter is important
-    // when a result modal replaces a form modal in one React render.
+    // A result modal can replace a form modal during the same update. Defer the
+    // final unlock until the next frame so the replacement modal can retain the
+    // original page offset rather than recapturing a temporary scroll position.
+    if (pendingUnlockFrame !== null) {
+      window.cancelAnimationFrame(pendingUnlockFrame);
+      pendingUnlockFrame = null;
+    }
+
     const body = document.body;
-    if (activeModalLocks === 0) {
+    if (activeModalLocks === 0 && originalBodyStyles === null) {
       lockedScrollY = window.scrollY;
       originalBodyStyles = {
         overflow: body.style.overflow,
@@ -61,8 +68,7 @@ export function Modal({
         width: body.style.width,
       };
       // iOS Safari can reset the document to the top when body scrolling is
-      // merely set to overflow:hidden. Fix the body in place at the current
-      // offset, then restore the exact offset when the final modal closes.
+      // merely set to overflow:hidden. Fix the body at its current offset.
       body.style.position = "fixed";
       body.style.top = `-${lockedScrollY}px`;
       body.style.left = "0";
@@ -82,16 +88,27 @@ export function Modal({
       window.removeEventListener("keydown", handleKeyDown);
       activeModalLocks = Math.max(0, activeModalLocks - 1);
       if (activeModalLocks === 0 && originalBodyStyles) {
-        body.style.overflow = originalBodyStyles.overflow;
-        body.style.overscrollBehavior = originalBodyStyles.overscrollBehavior;
-        body.style.position = originalBodyStyles.position;
-        body.style.top = originalBodyStyles.top;
-        body.style.left = originalBodyStyles.left;
-        body.style.right = originalBodyStyles.right;
-        body.style.width = originalBodyStyles.width;
-        originalBodyStyles = null;
-        // Restore after layout has applied the body's original positioning.
-        window.requestAnimationFrame(() => window.scrollTo(0, lockedScrollY));
+        pendingUnlockFrame = window.requestAnimationFrame(() => {
+          pendingUnlockFrame = null;
+          // A replacement modal may have mounted before this frame.
+          if (activeModalLocks !== 0 || !originalBodyStyles) return;
+
+          body.style.overflow = originalBodyStyles.overflow;
+          body.style.overscrollBehavior = originalBodyStyles.overscrollBehavior;
+          body.style.position = originalBodyStyles.position;
+          body.style.top = originalBodyStyles.top;
+          body.style.left = originalBodyStyles.left;
+          body.style.right = originalBodyStyles.right;
+          body.style.width = originalBodyStyles.width;
+          originalBodyStyles = null;
+
+          // Restore the saved document position after the browser applies the
+          // body's original positioning, then verify it on the following frame.
+          window.requestAnimationFrame(() => {
+            window.scrollTo(0, lockedScrollY);
+            window.requestAnimationFrame(() => window.scrollTo(0, lockedScrollY));
+          });
+        });
       }
     };
   }, [isOpen, closeOnEscape]);
