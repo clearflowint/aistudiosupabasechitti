@@ -1653,12 +1653,12 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             <label htmlFor="payout-cycle-number" className="mb-1.5 block text-sm font-medium text-slate-700">Payout Cycle</label>
             <select id="payout-cycle-number" value={payoutCycleNumber} onChange={(event) => {
               setPayoutCycleNumber(event.target.value);
-              const savedPayout = cycleRows.find((row) => row.cycle_number === Number(event.target.value))?.planned_payout_amount;
+              const savedPayout = event.target.value ? cycleRows.find((row) => row.cycle_number === Number(event.target.value))?.planned_payout_amount : undefined;
               setWithdrawnAmount(typeof savedPayout === "number" ? String(savedPayout) : "");
+              setPayoutError(null);
             }} required disabled={savedCycleNumbers().length === 0} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm disabled:bg-slate-100">
-              {savedCycleNumbers().length === 0
-                ? <option value="">No saved Cycles available</option>
-                : savedCycleNumbers().map((cycle) => <option key={cycle} value={String(cycle)}>Cycle {cycle}</option>)}
+              <option value="">{savedCycleNumbers().length === 0 ? "No saved Cycles available" : "Select payout Cycle"}</option>
+              {savedCycleNumbers().map((cycle) => <option key={cycle} value={String(cycle)}>Cycle {cycle}</option>)}
             </select>
             {savedCycleNumbers().length === 0 && (
               <p className="mt-1.5 text-sm text-amber-700">Add a Cycle before recording a payout status.</p>
