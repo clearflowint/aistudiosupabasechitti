@@ -124,6 +124,7 @@ export async function listCfcfFunds(tenantId: string): Promise<CfcfFundRow[]> {
     .select(FUND_FIELDS)
     .eq("product_id", cfcfConfig.productId)
     .eq("tenant_id", tenantId)
+    .is("archived_at", null)
     .order("created_at", { ascending: false });
 
   if (error) throw new Error("Unable to load funds: " + error.message);
