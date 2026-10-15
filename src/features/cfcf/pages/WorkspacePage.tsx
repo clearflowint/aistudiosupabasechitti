@@ -456,7 +456,10 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       // The tenant-scoped saved view is restored below; never carry the previous tenant's selection across.
     }
 
-    setIsLoadingFunds(true);
+    // Only show the full-page Funds loading state on initial load.
+    // Same-tenant refreshes after bill/payment operations update in place and
+    // must not collapse the content above the current Share card.
+    if (funds.length === 0) setIsLoadingFunds(true);
     setFundsError(null);
     void listCfcfFunds(workspace.tenantId)
       .then((rows) => {
@@ -477,7 +480,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       });
 
     return () => { isCurrent = false; };
-  }, [workspace.tenantId, fundReloadKey]);
+  }, [workspace.tenantId, fundReloadKey, funds.length]);
 
   // MIX: Restore and persist the selected tab/fund per authorized tenant, so refresh returns to the same view.
   useEffect(() => {
