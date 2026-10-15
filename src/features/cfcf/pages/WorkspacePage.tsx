@@ -22,6 +22,8 @@ import {
   WalletCards,
   IndianRupee,
   Trash2,
+  Archive,
+  Download,
 } from "lucide-react";
 import type { AuthorizedWorkspace } from "../../../core/workspace/workspace.types";
 import { Modal } from "../../../components/ui/Modal";
@@ -49,6 +51,10 @@ import {
   getCfcfCycleSummary,
   type CfcfCycleSummary,
   updateCfcfFundDetails,
+  listCfcfArchivedFunds,
+  archiveCfcfFundWithReport,
+  deleteCfcfArchivedFund,
+  type CfcfArchivedFundRow,
   type CfcfLedgerItem,
   type CfcfFundOtherAdjustmentSummary,
 } from "../services/workspace.service";
@@ -95,6 +101,11 @@ function readSavedWorkspaceView(tenantId: string): SavedWorkspaceView {
 
 export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [funds, setFunds] = useState<CfcfFundRow[]>([]);
+  const [archivedFunds, setArchivedFunds] = useState<CfcfArchivedFundRow[]>([]);
+  const [isLoadingArchivedFunds, setIsLoadingArchivedFunds] = useState(false);
+  const [isArchivingFund, setIsArchivingFund] = useState(false);
+  const [archivingError, setArchivingError] = useState<string | null>(null);
+  const [deletingArchivedId, setDeletingArchivedId] = useState<string | null>(null);
   const [initialSavedView] = useState(() => readSavedWorkspaceView(workspace.tenantId));
   const [selectedFundId, setSelectedFundId] = useState(initialSavedView.fundId);
   const [, setActiveTab] = useState<WorkspaceTab>("shares");
@@ -215,6 +226,92 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const lastTenantId = useRef(workspace.tenantId);
   const hydratedViewTenantId = useRef<string | null>(null);
+
+  async function refreshArchivedFunds() {
+    setIsLoadingArchivedFunds(true);
+    try {
+      const rows = await listCfcfArchivedFunds(workspace.tenantId);
+      setArchivedFunds(rows);
+      setArchivingError(null);
+    } catch (error) {
+      setArchivingError(error instanceof Error ? error.message : "Unable to load Archived Funds.");
+    } finally {
+      setIsLoadingArchivedFunds(false);
+    }
+  }
+
+  useEffect(() => {
+    void refreshArchivedFunds();
+  }, [workspace.tenantId]);
+
+  async function archiveSelectedFund() {
+    if (!selectedFund || isArchivingFund) return;
+    const source = document.querySelector("[data-cfcf-full-fund-report]");
+    if (!(source instanceof HTMLElement)) {
+      setFullFundReportError("Open the complete Fund report and wait for it to load before archiving.");
+      return;
+    }
+    const confirmed = window.confirm(
+      "Archive " + selectedFund.fund_name + " (Fund ID " + selectedFund.fund_id + ")?\n\nA full report will be saved first. The Fund, Shares, Cycle billing, Payments and Other Adjustment records will then be removed from the active workspace. This cannot be restored."
+    );
+    if (!confirmed) return;
+
+    setIsArchivingFund(true);
+    setFullFundReportError(null);
+    try {
+      const reportMarkup = source.innerHTML;
+      const safeTitle = selectedFund.fund_name.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const reportHtml = "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>ClearFlow Full Fund Report - " +
+        safeTitle +
+        "</title><style>body{font-family:Arial,sans-serif;color:#0f172a;padding:20px;max-width:900px;margin:auto;line-height:1.45}button{display:none!important}.report-section{margin-bottom:16px;break-inside:auto}section,article{break-inside:avoid}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.rounded-xl{border-radius:12px}.border{border:1px solid #cbd5e1}.p-3,.p-4{padding:12px}.bg-slate-50{background:#f8fafc}.text-xs{font-size:12px}.text-sm{font-size:14px}.text-base{font-size:16px}.text-xl{font-size:22px}.font-bold,.font-semibold{font-weight:700}.text-slate-500{color:#64748b}.text-slate-600{color:#475569}.text-slate-900{color:#0f172a}.break-all,.break-words{overflow-wrap:anywhere;word-break:break-word}h1,h2,h3,p{margin-top:8px;margin-bottom:8px}@media print{body{padding:0}.report-section{break-inside:auto}}</style></head><body><header style=\"text-align:center;font-weight:800;padding-bottom:12px;border-bottom:1px solid #cbd5e1\">Powered by ClearFlow Automations · Archived Full Fund Report</header>" +
+        reportMarkup + "<footer style=\"margin-top:20px;padding-top:8px;border-top:1px solid #cbd5e1;text-align:center;font-size:10px\">ClearFlow · Archived on " + new Date().toLocaleString("en-IN") + "</footer></body></html>";
+      await archiveCfcfFundWithReport(workspace.tenantId, selectedFund.fund_id, reportHtml);
+      setIsFullFundReportOpen(false);
+      setSelectedFundId("");
+      setShares([]);
+      setBills([]);
+      setLedgerItems([]);
+      setCycleRows([]);
+      setFundReloadKey((current) => current + 1);
+      await refreshArchivedFunds();
+      showDatabaseResult("Fund archived. The full report is saved under Archived Funds; operational records were removed from the active workspace.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to archive this Fund.";
+      setFullFundReportError(message);
+      showDatabaseResult(message, "error");
+    } finally {
+      setIsArchivingFund(false);
+    }
+  }
+
+  function downloadArchivedFundReport(archive: CfcfArchivedFundRow) {
+    const printWindow = window.open("", "_blank", "width=900,height=700");
+    if (!printWindow) {
+      showDatabaseResult("Allow pop-ups to download the archived report as PDF.", "error");
+      return;
+    }
+    printWindow.document.open();
+    printWindow.document.write(archive.report_html);
+    printWindow.document.close();
+    printWindow.focus();
+    window.setTimeout(() => printWindow.print(), 300);
+  }
+
+  async function handleDeleteArchivedFund(archive: CfcfArchivedFundRow) {
+    if (deletingArchivedId) return;
+    const confirmed = window.confirm("Permanently delete the archived report for " + archive.fund_name + " (Fund ID " + archive.fund_id + ")? This cannot be undone.");
+    if (!confirmed) return;
+    setDeletingArchivedId(archive.archive_id);
+    try {
+      await deleteCfcfArchivedFund(workspace.tenantId, archive.archive_id);
+      setArchivedFunds((current) => current.filter((item) => item.archive_id !== archive.archive_id));
+      showDatabaseResult("Archived Fund report deleted.");
+    } catch (error) {
+      showDatabaseResult(error instanceof Error ? error.message : "Unable to delete archived report.", "error");
+    } finally {
+      setDeletingArchivedId(null);
+    }
+  }
 
   const selectedFund = useMemo(
     () => funds.find((fund) => fund.fund_id === selectedFundId) ?? null,
@@ -1133,6 +1230,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                 <div className="mt-3 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 sm:grid-cols-4">
                   <button type="button" onClick={() => setIsFundReportOpen(true)} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-1 text-xs font-semibold text-sky-800"><FileText size={14}/> Fund Summary</button>
                   <button type="button" onClick={() => void openFullFundReport()} disabled={isLoadingFullFundReport} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-1 text-xs font-semibold text-violet-800 disabled:opacity-50"><FileText size={14}/> {isLoadingFullFundReport ? "Loading…" : "Full Report"}</button>
+                  <button type="button" onClick={() => void openFullFundReport()} disabled={isLoadingFullFundReport} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-1 text-xs font-semibold text-amber-800 disabled:opacity-50"><Archive size={14}/> Archive Fund</button>
                   <button type="button" onClick={() => void openAdjustmentsLedger()} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-1 text-xs font-semibold text-emerald-800"><IndianRupee size={14}/> Adjustments</button>
                   <button type="button" onClick={() => { setFundEditForm({ fundName: selectedFund.fund_name ?? "", startDate: selectedFund.start_date ?? "", numberOfCycles: selectedFund.number_of_cycles == null ? "" : String(selectedFund.number_of_cycles) }); setFundEditError(null); setIsFundEditOpen(true); }} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-slate-200 px-1 text-xs font-semibold text-slate-700"><Pencil size={14}/> Edit Fund</button>
                 </div>
@@ -1676,9 +1774,15 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         </div>
       </Modal>
 
+      <section aria-label="Archived Funds" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex items-start justify-between gap-3"><div><h2 className="text-base font-bold text-slate-950">Archived Funds</h2><p className="mt-1 text-xs leading-5 text-slate-500">Saved full reports only. Archived Funds cannot be restored. Reports expire automatically after six months.</p></div><button type="button" onClick={() => void refreshArchivedFunds()} disabled={isLoadingArchivedFunds} className="min-h-9 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 disabled:opacity-50"><RefreshCw size={13} className={isLoadingArchivedFunds ? "mr-1 inline animate-spin" : "mr-1 inline"}/>Refresh</button></div>
+        {archivingError && <p role="alert" className="mt-3 rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{archivingError}</p>}
+        {isLoadingArchivedFunds ? <p className="mt-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Loading Archived Funds…</p> : archivedFunds.length === 0 ? <p className="mt-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No archived Funds yet.</p> : <div className="mt-3 space-y-2">{archivedFunds.map((archive) => <article key={archive.archive_id} className="rounded-xl border border-slate-200 p-3"><div className="min-w-0"><h3 className="break-words text-sm font-bold text-slate-900">{archive.fund_name}</h3><p className="mt-1 break-all text-xs text-slate-500">Fund ID · {archive.fund_id}</p><p className="mt-1 text-xs text-slate-500">Archived · {new Date(archive.archived_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })} · Expires · {new Date(archive.expires_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</p></div><div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={() => downloadArchivedFundReport(archive)} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg bg-violet-700 px-2 text-xs font-semibold text-white"><Download size={14}/> Download Full PDF Report</button><button type="button" onClick={() => void handleDeleteArchivedFund(archive)} disabled={deletingArchivedId === archive.archive_id} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2 text-xs font-semibold text-rose-800 disabled:opacity-50"><Trash2 size={14}/>{deletingArchivedId === archive.archive_id ? "Deleting…" : "Delete Archived Fund"}</button></div></article>)}</div>}
+      </section>
+
       <Modal isOpen={isFullFundReportOpen} title="Full Fund Report" description="Download a report file and open the full report in a separate browser tab. The report is mobile-friendly; use its own Print / Save as PDF control only if you need a PDF." size="large" onClose={() => setIsFullFundReportOpen(false)}>
         <div className="space-y-4">
-          <div className="sticky top-0 z-10 -mx-1 flex flex-wrap gap-2 border-b border-slate-100 bg-white px-1 py-2"><button type="button" onClick={printFullFundReport} disabled={!selectedFund || isLoadingFullFundReport || !!fullFundReportError} className="min-h-11 flex-1 rounded-xl bg-violet-700 px-4 text-sm font-semibold text-white disabled:opacity-40">Download PDF</button><button type="button" onClick={() => setIsFullFundReportOpen(false)} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Close</button></div>
+          <div className="sticky top-0 z-10 -mx-1 flex flex-wrap gap-2 border-b border-slate-100 bg-white px-1 py-2"><button type="button" onClick={printFullFundReport} disabled={!selectedFund || isLoadingFullFundReport || !!fullFundReportError || isArchivingFund} className="min-h-11 flex-1 rounded-xl bg-violet-700 px-4 text-sm font-semibold text-white disabled:opacity-40">Download PDF</button><button type="button" onClick={() => void archiveSelectedFund()} disabled={!selectedFund || isLoadingFullFundReport || isArchivingFund || !!fullFundReportError} className="min-h-11 flex-1 rounded-xl bg-amber-600 px-4 text-sm font-semibold text-white disabled:opacity-40">{isArchivingFund ? "Archiving…" : "Archive Fund"}</button><button type="button" onClick={() => setIsFullFundReportOpen(false)} disabled={isArchivingFund} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Close</button></div>
           {fullFundReportError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{fullFundReportError}</p>}
           {selectedFund && <div data-cfcf-full-fund-report className="space-y-4 text-slate-900">
             <section className="report-section rounded-xl border border-slate-200 bg-slate-50 p-4">
