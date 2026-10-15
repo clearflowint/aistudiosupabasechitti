@@ -128,6 +128,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [selectedShareId, setSelectedShareId] = useState<string | null>(null);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
   const [detailsError, setDetailsError] = useState<string | null>(null);
+  const detailsLoadedKey = useRef("");
   const [fundReloadKey, setFundReloadKey] = useState(0);
   const [detailReloadKey, setDetailReloadKey] = useState(0);
   const [isFundModalOpen, setIsFundModalOpen] = useState(false);
@@ -497,24 +498,33 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     }
   }, [workspace.tenantId, selectedFundId]);
 
-  // MIX: Every fund/tab transition clears fund-scoped client state before fetching.
-  // CFCF PRODUCT: Shares, contacts and ledger entries are loaded together for the selected Fund.
+  // MIX: Clear fund-scoped data only when the tenant/Fund changes.
+  // A same-Fund refresh must keep the existing Share list mounted so the mobile page
+  // does not collapse and reset the user's scroll position to the top.
   useEffect(() => {
-    let isCurrent = true;
-
+    const nextKey = workspace.tenantId + ":" + selectedFundId;
+    if (detailsLoadedKey.current === nextKey) return;
     setShares([]);
     setBills([]);
     setContacts([]);
     setLedgerItems([]);
     setSelectedShareId(null);
     setDetailsError(null);
+    setIsLoadingDetails(Boolean(selectedFundId));
+  }, [workspace.tenantId, selectedFundId]);
+
+  // CFCF PRODUCT: Refresh details without unmounting the current Fund's Share list.
+  useEffect(() => {
+    let isCurrent = true;
+    const detailsKey = workspace.tenantId + ":" + selectedFundId;
+    const alreadyLoadedForFund = detailsLoadedKey.current === detailsKey;
 
     if (!selectedFundId) {
       setIsLoadingDetails(false);
       return () => { isCurrent = false; };
     }
 
-    setIsLoadingDetails(true);
+    if (!alreadyLoadedForFund) setIsLoadingDetails(true);
     const loadDetails = async () => {
       try {
         const [shareRows, billRows, contactRows] = await Promise.all([
@@ -526,6 +536,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         setShares(shareRows);
         setBills(billRows);
         setContacts(contactRows);
+        detailsLoadedKey.current = detailsKey;
+        setDetailsError(null);
         // Keep an open Share statement aligned with the latest saved billing/payout fields.
         setStatementShare((currentStatement) => currentStatement
           ? shareRows.find((share) => share.share_id === currentStatement.share_id) ?? null
