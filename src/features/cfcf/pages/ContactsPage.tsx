@@ -81,12 +81,10 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
 
   const filteredContacts = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) return contacts;
-
     return contacts.filter((contact) =>
-      [contact.name, contact.phone, contact.email ?? ""]
+      !query || [contact.name, contact.phone, contact.email ?? ""]
         .some((value) => value.toLowerCase().includes(query)),
-    );
+    ).slice().sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }) || a.phone.localeCompare(b.phone));
   }, [contacts, search]);
 
   function closeModal() {
