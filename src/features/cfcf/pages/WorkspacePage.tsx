@@ -180,6 +180,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [cycleCommissionInput, setCycleCommissionInput] = useState("");
   const [cycleEditError, setCycleEditError] = useState<string | null>(null);
   const [cycleEditEnabled, setCycleEditEnabled] = useState(false);
+  const [cycleCreatedInFlow, setCycleCreatedInFlow] = useState(false);
+  const [cycleBulkBillInputs, setCycleBulkBillInputs] = useState<Record<"withdrawn" | "undrawn", string>>({ withdrawn: "", undrawn: "" });
   const [isSavingCycle, setIsSavingCycle] = useState(false);
   const [cycleReview, setCycleReview] = useState(false);
   const [billingShare, setBillingShare] = useState<CfcfShareRow | null>(null);
@@ -827,19 +829,37 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     }
   }
 
-  function openCycleEditor(cycleNumber: number) {
+  function openCycleEditor(cycleNumber: number, enableEditing = false, billRows: CfcfBillRow[] = bills, cycleRowsOverride: CfcfCycleRow[] = cycleRows) {
     setCycleReview(false);
     setCycleEditNumber(cycleNumber);
-    setCycleEditEnabled(false);
-    const cycle = cycleRows.find((row) => row.cycle_number === cycleNumber);
+    setCycleCreatedInFlow(enableEditing);
+    setCycleEditEnabled(enableEditing);
+    setCycleBulkBillInputs({ withdrawn: "", undrawn: "" });
+    const cycle = cycleRowsOverride.find((row) => row.cycle_number === cycleNumber);
     setCyclePayoutInput(cycle?.planned_payout_amount == null ? "" : String(cycle.planned_payout_amount));
     setCycleCommissionInput(cycle?.commission_amount == null ? "" : String(cycle.commission_amount));
     const nextInputs: Record<string, string> = {};
     for (const share of shares) {
-      const bill = billForShareCycle(share.share_id, cycleNumber);
+      const bill = billRows.find((row) => row.share_id === share.share_id && row.cycle_number === cycleNumber);
       nextInputs[share.share_id] = bill ? String(bill.amount) : "";
     }
     setCycleBillInputs(nextInputs);
+    setCycleEditError(null);
+  }
+
+  function applyCycleBillToGroup(section: "withdrawn" | "undrawn") {
+    const raw = cycleBulkBillInputs[section].trim();
+    const amount = Number(raw);
+    if (raw === "" || !Number.isSafeInteger(amount) || amount < 0 || amount > 2147483647) {
+      setCycleEditError("Enter a whole-rupee amount of zero or more before applying it.");
+      return;
+    }
+    const group = shares.filter((share) => share.status === "active" && (share.payout_status === "drawn" ? "withdrawn" : "undrawn") === section);
+    setCycleBillInputs((current) => {
+      const next = { ...current };
+      for (const share of group) next[share.share_id] = String(amount);
+      return next;
+    });
     setCycleEditError(null);
   }
 
@@ -1349,7 +1369,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               <div className="mt-3 grid grid-cols-2 gap-2"><button type="button" disabled={currentCycle === null || currentCycle !== Math.max(...cycleNumbers) || isCycleBusy} onClick={() => { if (currentCycle === null) return; setSelectedCycleNumber(currentCycle); setCycleDeleteTarget(currentCycle); setCycleDeleteError(null); }} className="min-h-10 rounded-xl border border-rose-200 bg-white px-2 text-sm font-semibold text-rose-700 disabled:opacity-40">Delete Cycle</button><button type="button" disabled={currentCycle === null} onClick={() => setIsCycleStatementOpen(true)} className="min-h-10 rounded-xl border border-violet-200 bg-white px-2 text-sm font-semibold text-violet-800 disabled:opacity-40">Cycle Statement</button><button type="button" disabled={currentCycle === null} onClick={() => { setPlannedPayoutCycle(currentCycle); setPlannedPayoutInput(payout == null ? "" : String(payout)); setPlannedPayoutError(null); }} className="min-h-10 rounded-xl border border-violet-200 bg-white px-2 text-sm font-semibold text-violet-800 disabled:opacity-40">Planned Payout</button><button type="button" disabled={currentCycle === null} onClick={() => currentCycle !== null && openCycleEditor(currentCycle)} className="min-h-10 rounded-xl bg-violet-700 px-2 text-sm font-semibold text-white disabled:opacity-40">Edit Cycle</button></div>
               {cycleError && <p role="alert" className="mt-2 text-sm text-rose-700">{cycleError}</p>}
             </article>; })()}
-            <button type="button" disabled={isCycleBusy || shares.length === 0} onClick={async () => { setIsCycleBusy(true); setCycleError(null); try { const row = await addCfcfCycle(workspace.tenantId, selectedFund.fund_id); const savedBills = await listCfcfBills(workspace.tenantId, selectedFund.fund_id); setBills(savedBills); setCycleRows((rows) => [...rows, row].sort((a,b)=>a.cycle_number-b.cycle_number)); setSelectedCycleNumber(row.cycle_number); } catch (e) { setCycleError(e instanceof Error ? e.message : "Unable to add Cycle."); } finally { setIsCycleBusy(false); } }} title={shares.length === 0 ? "Add at least one Share to this Fund before adding a Cycle." : undefined} className="min-h-12 w-full rounded-xl border border-violet-600 bg-violet-700 px-3 text-base font-bold text-white shadow-sm active:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-40">{isCycleBusy ? "Working…" : `Add Cycle ${Math.max(0,...cycleRows.map((row)=>row.cycle_number),...billedCycleNumbers())+1}`}</button>
+            <button type="button" disabled={isCycleBusy || shares.length === 0} onClick={async () => { setIsCycleBusy(true); setCycleError(null); try { const row = await addCfcfCycle(workspace.tenantId, selectedFund.fund_id); const savedBills = await listCfcfBills(workspace.tenantId, selectedFund.fund_id); const freshCycles = await listCfcfCycles(workspace.tenantId, selectedFund.fund_id); setBills(savedBills); setCycleRows(freshCycles); setSelectedCycleNumber(row.cycle_number); openCycleEditor(row.cycle_number, true, savedBills, freshCycles); } catch (e) { setCycleError(e instanceof Error ? e.message : "Unable to add Cycle."); } finally { setIsCycleBusy(false); } }} title={shares.length === 0 ? "Add at least one Share to this Fund before adding a Cycle." : undefined} className="min-h-12 w-full rounded-xl border border-violet-600 bg-violet-700 px-3 text-base font-bold text-white shadow-sm active:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-40">{isCycleBusy ? "Working…" : `Add Cycle ${Math.max(0,...cycleRows.map((row)=>row.cycle_number),...billedCycleNumbers())+1}`}</button>
 
             </div>
           </section>
@@ -1532,9 +1552,9 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
 
       <Modal
         isOpen={cycleEditNumber !== null}
-        title={"Edit Cycle " + cycleEditNumber}
-        description="Review every saved Share bill for this Cycle. Choose Edit to change bill amounts. Blank amounts are saved as ₹0; billing never creates payment transactions."
-        onClose={() => { if (!isSavingCycle) { setCycleEditNumber(null); setCycleEditError(null); } }}
+        title={(cycleCreatedInFlow ? "Add Cycle " : "Edit Cycle ") + cycleEditNumber}
+        description={cycleCreatedInFlow ? "Enter billing for each Share and set planned payout and commission. You can apply one amount to all Shares in a section, then edit individual amounts. Review before saving." : "Review every saved Share bill for this Cycle. Choose Edit to change bill amounts. Blank amounts are saved as ₹0; billing never creates payment transactions."}
+        onClose={() => { if (!isSavingCycle) { setCycleEditNumber(null); setCycleEditError(null); setCycleCreatedInFlow(false); setCycleEditEnabled(false); setCycleReview(false); } }}
       >
         <form id="cycle-values-form" onSubmit={(event) => void handleSaveCycleValues(event)} className="space-y-4">
 
@@ -1544,13 +1564,19 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             <div><label htmlFor="cycle-edit-commission" className="mb-1.5 block text-xs font-semibold text-slate-700">Commission (₹)</label><input id="cycle-edit-commission" type="number" min="0" max="2147483647" step="1" value={cycleCommissionInput} onChange={(event) => setCycleCommissionInput(event.target.value)} disabled={!cycleEditEnabled} placeholder="Not set" className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm disabled:bg-slate-50 disabled:text-slate-500" /></div>
           </div>
           {(["withdrawn", "undrawn"] as const).map((section) => {
-            const group = shares.filter((share) => share.status === "active" && (share.payout_status === "drawn" ? "withdrawn" : "undrawn") === section);
+            const group = shares.filter((share) => share.status === "active" && (share.payout_status === "drawn" ? "withdrawn" : "undrawn") === section).slice().sort((a, b) => (contactById.get(a.contact_id)?.name ?? "").localeCompare(contactById.get(b.contact_id)?.name ?? "", undefined, { sensitivity: "base" }) || (contactById.get(a.contact_id)?.phone ?? "").localeCompare(contactById.get(b.contact_id)?.phone ?? "") || a.share_id.localeCompare(b.share_id));
             return <section key={section} className="space-y-2">
-              <h4 className="text-sm font-bold text-slate-800">{section === "withdrawn" ? "Withdrawn Shares" : "Undrawn Shares"} <span className="font-normal text-slate-500">({group.length})</span></h4>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="flex items-center justify-between gap-2"><h4 className="text-sm font-bold text-slate-800">{section === "withdrawn" ? "Withdrawn Shares" : "Undrawn Shares"} <span className="font-normal text-slate-500">({group.length})</span></h4></div>
+                <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
+                  <label className="block min-w-0 text-xs font-medium text-slate-600">Amount for all {section} Shares (₹)<input aria-label={"Amount to apply to all " + section + " Shares"} type="number" inputMode="numeric" min="0" max="2147483647" step="1" value={cycleBulkBillInputs[section]} onChange={(event) => setCycleBulkBillInputs((current) => ({ ...current, [section]: event.target.value }))} disabled={!cycleEditEnabled || cycleReview || isSavingCycle || group.length === 0} placeholder="Enter amount" className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm disabled:bg-slate-100" /></label>
+                  <button type="button" onClick={() => applyCycleBillToGroup(section)} disabled={!cycleEditEnabled || cycleReview || isSavingCycle || group.length === 0} className="min-h-10 rounded-lg border border-violet-200 bg-white px-3 text-xs font-semibold text-violet-800 disabled:opacity-40">Apply to all</button>
+                </div>
+              </div>
               {group.length === 0 ? <p className="rounded-lg bg-slate-50 p-3 text-xs text-slate-500">No {section} Shares.</p> : group.map((share) => {
                 const contact = contactById.get(share.contact_id);
                 return <div key={share.share_id} className="grid grid-cols-[minmax(0,1fr)_112px] items-center gap-2 rounded-xl border border-slate-200 p-2.5">
-                  <div className="min-w-0"><p className="break-words text-sm font-semibold text-slate-900">{contact?.name || "Contact unavailable"}</p><p className="text-xs text-slate-500">Share {share.share_id}{share.payout_status === "drawn" ? " · Drawn in Cycle " + (share.payout_cycle_number ?? "unknown") : " · Undrawn"}</p></div>
+                  <div className="min-w-0"><p className="break-words text-sm font-semibold text-slate-900">{contact?.name || "Contact unavailable"}</p><p className="text-xs text-slate-500">{contact?.phone || "Phone unavailable"}</p><p className="text-xs text-slate-500">Share {share.share_id}{share.payout_status === "drawn" ? " · Drawn in Cycle " + (share.payout_cycle_number ?? "unknown") : " · Undrawn"}</p></div>
                   <div><label htmlFor={"cycle-bill-" + share.share_id} className="mb-1 block text-[11px] text-slate-500">Bill (₹)</label><input id={"cycle-bill-" + share.share_id} type="number" inputMode="numeric" min="0" max="2147483647" step="1" value={cycleBillInputs[share.share_id] ?? "0"} onChange={(event) => setCycleBillInputs((current) => ({ ...current, [share.share_id]: event.target.value }))} disabled={!cycleEditEnabled || cycleReview || isSavingCycle} placeholder="0" className="min-h-10 w-full rounded-lg border border-slate-200 px-2 text-sm disabled:bg-slate-50 disabled:text-slate-600" /></div>
                 </div>;
               })}
