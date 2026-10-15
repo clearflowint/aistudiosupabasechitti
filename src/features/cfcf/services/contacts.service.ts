@@ -9,11 +9,10 @@ export interface CreateContactInput {
   name: string;
   phone: string;
   email?: string;
-  remarks?: string;
 }
 
 const CONTACT_FIELDS =
-  "contact_id, product_id, tenant_id, name, phone, email, remarks, created_at, updated_at";
+  "contact_id, product_id, tenant_id, name, phone, email, created_at, updated_at";
 
 export async function listCfcfContacts(tenantId: string): Promise<CfcfContactRow[]> {
   const { data, error } = await supabase
@@ -49,7 +48,6 @@ export async function createCfcfContact(
     name,
     phone,
     email,
-    remarks: input.remarks?.trim() || null,
   };
 
   const { data, error } = await supabase
@@ -91,7 +89,6 @@ export async function updateCfcfContact(
       name,
       phone,
       email,
-      remarks: input.remarks?.trim() || null,
     })
     .eq("product_id", cfcfConfig.productId)
     .eq("tenant_id", tenantId)
