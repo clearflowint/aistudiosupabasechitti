@@ -109,6 +109,11 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [isArchiveConfirmOpen, setIsArchiveConfirmOpen] = useState(false);
   const [archivingError, setArchivingError] = useState<string | null>(null);
   const [deletingArchivedId, setDeletingArchivedId] = useState<string | null>(null);
+  const [archivedDeleteTarget, setArchivedDeleteTarget] = useState<CfcfArchivedFundRow | null>(null);
+  const [archivedDeleteStep, setArchivedDeleteStep] = useState(1);
+  const [archivedDeleteAcknowledged, setArchivedDeleteAcknowledged] = useState(false);
+  const [archivedDeleteTypedId, setArchivedDeleteTypedId] = useState("");
+  const [archivedDeleteError, setArchivedDeleteError] = useState<string | null>(null);
   const [initialSavedView] = useState(() => readSavedWorkspaceView(workspace.tenantId));
   const [selectedFundId, setSelectedFundId] = useState(initialSavedView.fundId);
   const [, setActiveTab] = useState<WorkspaceTab>("shares");
@@ -335,18 +340,37 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     }
   }
 
-  async function handleDeleteArchivedFund(archive: CfcfArchivedFundRow) {
+  function handleDeleteArchivedFund(archive: CfcfArchivedFundRow) {
     if (deletingArchivedId) return;
-    const confirmed = window.confirm("Permanently delete the archived report for " + archive.fund_name + " (Fund ID " + archive.fund_id + ")? This cannot be undone.");
-    if (!confirmed) return;
+    setArchivedDeleteTarget(archive);
+    setArchivedDeleteStep(1);
+    setArchivedDeleteAcknowledged(false);
+    setArchivedDeleteTypedId("");
+    setArchivedDeleteError(null);
+  }
+
+  async function confirmDeleteArchivedFund() {
+    const archive = archivedDeleteTarget;
+    if (!archive || deletingArchivedId || archivedDeleteStep !== 3 || !archivedDeleteAcknowledged) return;
+    const typedId = archivedDeleteTypedId.trim();
+    if (typedId !== workspace.tenantId && typedId !== workspace.personId) return;
+    if (!beginAction("delete-archived-fund")) return;
     setDeletingArchivedId(archive.archive_id);
+    setArchivedDeleteError(null);
     try {
       await deleteCfcfArchivedFund(workspace.tenantId, archive.archive_id);
       setArchivedFunds((current) => current.filter((item) => item.archive_id !== archive.archive_id));
-      showDatabaseResult("Archived Fund report deleted.");
+      setArchivedDeleteTarget(null);
+      setArchivedDeleteStep(1);
+      setArchivedDeleteAcknowledged(false);
+      setArchivedDeleteTypedId("");
+      showDatabaseResult("Archived Fund report permanently deleted. The archived Fund identity remains.");
     } catch (error) {
-      showDatabaseResult(error instanceof Error ? error.message : "Unable to delete archived report.", "error");
+      const message = error instanceof Error ? error.message : "Unable to delete archived report.";
+      setArchivedDeleteError(message);
+      showDatabaseResult(message, "error");
     } finally {
+      endAction("delete-archived-fund");
       setDeletingArchivedId(null);
     }
   }
@@ -1907,6 +1931,34 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             <button type="button" onClick={() => void confirmArchiveSelectedFund()} disabled={isArchivingFund || !archiveAcknowledged || (archiveTypedId.trim() !== workspace.tenantId && archiveTypedId.trim() !== workspace.personId)} className="min-h-11 w-full rounded-xl bg-amber-800 px-4 text-sm font-semibold text-white disabled:opacity-40">{isArchivingFund ? "Archiving and deleting records…" : "Archive Fund and permanently delete records"}</button>
           </div>}
           {archivingError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{archivingError}</p>}
+        </div>}
+      </Modal>
+
+      <Modal isOpen={Boolean(archivedDeleteTarget)} title="Danger Zone · Delete Archived Fund" description={"Step " + archivedDeleteStep + " of 3 · Permanent report deletion review"} onClose={() => { if (!deletingArchivedId) { setArchivedDeleteTarget(null); setArchivedDeleteStep(1); setArchivedDeleteAcknowledged(false); setArchivedDeleteTypedId(""); setArchivedDeleteError(null); } }}>
+        {archivedDeleteTarget && <div className="space-y-4">
+          <div className="rounded-xl border border-rose-300 bg-rose-50 p-3">
+            <p className="text-sm font-semibold text-rose-950">{archivedDeleteTarget.fund_name}</p>
+            <p className="mt-1 break-all text-xs text-rose-900">Fund ID: {archivedDeleteTarget.fund_id}</p>
+            <p className="mt-2 text-sm leading-5 text-rose-950">This permanently deletes the saved archived Fund report. The original operational Shares, Cycle bills, Cycles, payments and adjustments were already deleted when the Fund was archived. After deleting this report, its detailed financial history will no longer be available in ClearFlow. The minimal archived Fund identity remains. This cannot be undone.</p>
+          </div>
+          {archivedDeleteStep === 1 && <div className="space-y-3">
+            <p className="text-sm leading-5 text-slate-700">Review the archived Fund identity and understand that the saved report is the remaining detailed financial record.</p>
+            <button type="button" onClick={() => setArchivedDeleteStep(2)} className="min-h-11 w-full rounded-xl bg-rose-700 px-4 text-sm font-semibold text-white">I reviewed the archive details</button>
+          </div>}
+          {archivedDeleteStep === 2 && <div className="space-y-3">
+            <label className="flex items-start gap-3 rounded-xl border border-rose-300 p-3 text-sm leading-5 text-slate-700"><input type="checkbox" checked={archivedDeleteAcknowledged} onChange={(event) => setArchivedDeleteAcknowledged(event.target.checked)} className="mt-1 h-4 w-4 shrink-0"/><span>I understand that deleting this report permanently removes the remaining detailed financial history available in ClearFlow and cannot be undone.</span></label>
+            <button type="button" disabled={!archivedDeleteAcknowledged} onClick={() => { setArchivedDeleteTypedId(""); setArchivedDeleteStep(3); }} className="min-h-11 w-full rounded-xl bg-rose-700 px-4 text-sm font-semibold text-white disabled:opacity-40">Continue to final confirmation</button>
+          </div>}
+          {archivedDeleteStep === 3 && <div className="space-y-3">
+            <p className="text-sm leading-5 text-slate-700">To confirm, type either the current Tenant ID or your authorized Person ID exactly as shown below.</p>
+            <div className="space-y-2">
+              <div><p className="text-xs font-medium text-slate-500">Tenant ID</p><p className="break-all rounded-lg bg-slate-100 p-3 text-sm font-semibold text-slate-800">{workspace.tenantId}</p></div>
+              <div><p className="text-xs font-medium text-slate-500">Authorized Person ID</p><p className="break-all rounded-lg bg-slate-100 p-3 text-sm font-semibold text-slate-800">{workspace.personId}</p></div>
+            </div>
+            <input aria-label="Type Tenant ID or Person ID to confirm archived report deletion" value={archivedDeleteTypedId} onChange={(event) => setArchivedDeleteTypedId(event.target.value)} autoComplete="off" spellCheck={false} className="min-h-11 w-full rounded-xl border border-slate-300 px-3 text-sm" placeholder="Enter Tenant ID or Person ID"/>
+            <button type="button" onClick={() => void confirmDeleteArchivedFund()} disabled={!!deletingArchivedId || !archivedDeleteAcknowledged || (archivedDeleteTypedId.trim() !== workspace.tenantId && archivedDeleteTypedId.trim() !== workspace.personId)} className="min-h-11 w-full rounded-xl bg-rose-800 px-4 text-sm font-semibold text-white disabled:opacity-40">{deletingArchivedId === archivedDeleteTarget.archive_id ? "Deleting archived report…" : "Permanently delete archived report"}</button>
+          </div>}
+          {archivedDeleteError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{archivedDeleteError}</p>}
         </div>}
       </Modal>
 
