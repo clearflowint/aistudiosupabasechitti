@@ -1436,7 +1436,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                     </div>
                   </div>
                   <div className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1.5 rounded-xl bg-slate-50 p-2">
-                    <StoredValue label={"Current Cycle (" + selectedFund.current_cycle + ") Billing"} value={currentCycleBill === undefined ? "—" : displayStoredAmount(currentCycleBill.amount)}/>
+                    <StoredValue label={"Current Cycle (" + currentCycleNumber + ") Billing"} value={currentCycleBill === undefined ? "—" : displayStoredAmount(currentCycleBill.amount)}/>
                     <StoredValue label="Total Billed" value={formatINR(share.share_total_billed_amount)}/>
                     <StoredValue label="Total Paid" value={formatINR(share.share_net_payment_received)}/>
                     <StoredValue label="Advance Amount" value={formatINR(share.total_advance)}/>
