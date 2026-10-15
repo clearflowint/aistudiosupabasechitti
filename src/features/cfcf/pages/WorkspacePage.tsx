@@ -103,6 +103,10 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [archivedFunds, setArchivedFunds] = useState<CfcfArchivedFundRow[]>([]);
   const [isLoadingArchivedFunds, setIsLoadingArchivedFunds] = useState(false);
   const [isArchivingFund, setIsArchivingFund] = useState(false);
+  const [archiveStep, setArchiveStep] = useState(1);
+  const [archiveAcknowledged, setArchiveAcknowledged] = useState(false);
+  const [archiveTypedId, setArchiveTypedId] = useState("");
+  const [isArchiveConfirmOpen, setIsArchiveConfirmOpen] = useState(false);
   const [archivingError, setArchivingError] = useState<string | null>(null);
   const [deletingArchivedId, setDeletingArchivedId] = useState<string | null>(null);
   const [initialSavedView] = useState(() => readSavedWorkspaceView(workspace.tenantId));
@@ -250,13 +254,26 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setFullFundReportError("Open the complete Fund report and wait for it to load before archiving.");
       return;
     }
-    const confirmed = window.confirm(
-      "Archive " + selectedFund.fund_name + " (Fund ID " + selectedFund.fund_id + ")?\n\nA full report will be saved first. Then all Shares, bills, Cycles, payments, adjustments, and related Fund financial records will be permanently deleted. Only the Fund ID/status and saved report will remain. This cannot be undone."
-    );
-    if (!confirmed) return;
+    setArchiveStep(1);
+    setArchiveAcknowledged(false);
+    setArchiveTypedId("");
+    setArchivingError(null);
+    setIsArchiveConfirmOpen(true);
+  }
 
+  async function confirmArchiveSelectedFund() {
+    if (!selectedFund || isArchivingFund || archiveStep !== 3 || !archiveAcknowledged) return;
+    const typedId = archiveTypedId.trim();
+    if (typedId !== workspace.tenantId && typedId !== workspace.personId) return;
+    const source = document.querySelector("[data-cfcf-full-fund-report]");
+    if (!(source instanceof HTMLElement)) {
+      setFullFundReportError("Open the complete Fund report and wait for it to load before archiving.");
+      return;
+    }
+    if (!beginAction("archive-fund")) return;
     setIsArchivingFund(true);
     setFullFundReportError(null);
+
     try {
       const reportMarkup = source.innerHTML;
       const safeTitle = selectedFund.fund_name.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -265,6 +282,10 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         "</title><style>body{font-family:Arial,sans-serif;color:#0f172a;padding:20px;max-width:900px;margin:auto;line-height:1.45}button{display:none!important}.report-section{margin-bottom:16px;break-inside:auto}section,article{break-inside:avoid}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.rounded-xl{border-radius:12px}.border{border:1px solid #cbd5e1}.p-3,.p-4{padding:12px}.bg-slate-50{background:#f8fafc}.text-xs{font-size:12px}.text-sm{font-size:14px}.text-base{font-size:16px}.text-xl{font-size:22px}.font-bold,.font-semibold{font-weight:700}.text-slate-500{color:#64748b}.text-slate-600{color:#475569}.text-slate-900{color:#0f172a}.break-all,.break-words{overflow-wrap:anywhere;word-break:break-word}h1,h2,h3,p{margin-top:8px;margin-bottom:8px}@media print{body{padding:0}.report-section{break-inside:auto}}</style></head><body><header style=\"text-align:center;font-weight:800;padding-bottom:12px;border-bottom:1px solid #cbd5e1\">Powered by ClearFlow Automations · Archived Full Fund Report</header>" +
         reportMarkup + "<footer style=\"margin-top:20px;padding-top:8px;border-top:1px solid #cbd5e1;text-align:center;font-size:10px\">ClearFlow · Archived on " + new Date().toLocaleString("en-IN") + "</footer></body></html>";
       await archiveCfcfFundWithReport(workspace.tenantId, selectedFund.fund_id, reportHtml);
+      setIsArchiveConfirmOpen(false);
+      setArchiveStep(1);
+      setArchiveAcknowledged(false);
+      setArchiveTypedId("");
       setIsFullFundReportOpen(false);
       setSelectedFundId("");
       setShares([]);
@@ -276,9 +297,11 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       showDatabaseResult("Fund archived. Its full report is saved under Archived Funds, and all operational financial records were deleted.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to archive this Fund.";
+      setArchivingError(message);
       setFullFundReportError(message);
       showDatabaseResult(message, "error");
     } finally {
+      endAction("archive-fund");
       setIsArchivingFund(false);
     }
   }
@@ -1857,6 +1880,34 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           </div>}
 
         </div>
+      </Modal>
+
+      <Modal isOpen={isArchiveConfirmOpen} title="Danger Zone · Archive Fund" description={"Step " + archiveStep + " of 3 · Permanent archive and deletion review"} onClose={() => { if (!isArchivingFund) { setIsArchiveConfirmOpen(false); setArchiveStep(1); setArchiveAcknowledged(false); setArchiveTypedId(""); setArchivingError(null); } }}>
+        {selectedFund && <div className="space-y-4">
+          <div className="rounded-xl border border-amber-300 bg-amber-50 p-3">
+            <p className="text-sm font-semibold text-amber-950">{selectedFund.fund_name}</p>
+            <p className="mt-1 break-all text-xs text-amber-900">Fund ID: {selectedFund.fund_id}</p>
+            <p className="mt-2 text-sm leading-5 text-amber-950">Archiving saves the full Fund report, then permanently deletes all operational Shares, Cycle bills, Cycles, payments, adjustments and related Fund financial records. Only the minimal archived Fund identity/status and saved report remain. The report expires after six months. This Fund cannot be restored.</p>
+          </div>
+          {archiveStep === 1 && <div className="space-y-3">
+            <p className="text-sm leading-5 text-slate-700">Review the Fund identity and the permanent consequences before continuing.</p>
+            <button type="button" onClick={() => setArchiveStep(2)} className="min-h-11 w-full rounded-xl bg-amber-700 px-4 text-sm font-semibold text-white">I reviewed the archive details</button>
+          </div>}
+          {archiveStep === 2 && <div className="space-y-3">
+            <label className="flex items-start gap-3 rounded-xl border border-amber-300 p-3 text-sm leading-5 text-slate-700"><input type="checkbox" checked={archiveAcknowledged} onChange={(event) => setArchiveAcknowledged(event.target.checked)} className="mt-1 h-4 w-4 shrink-0"/><span>I understand this permanently deletes the Fund's operational financial records. The report is temporary, and the original Fund cannot be restored.</span></label>
+            <button type="button" disabled={!archiveAcknowledged} onClick={() => { setArchiveTypedId(""); setArchiveStep(3); }} className="min-h-11 w-full rounded-xl bg-amber-700 px-4 text-sm font-semibold text-white disabled:opacity-40">Continue to final confirmation</button>
+          </div>}
+          {archiveStep === 3 && <div className="space-y-3">
+            <p className="text-sm leading-5 text-slate-700">To confirm, type either the current Tenant ID or your authorized Person ID exactly as shown below.</p>
+            <div className="space-y-2">
+              <div><p className="text-xs font-medium text-slate-500">Tenant ID</p><p className="break-all rounded-lg bg-slate-100 p-3 text-sm font-semibold text-slate-800">{workspace.tenantId}</p></div>
+              <div><p className="text-xs font-medium text-slate-500">Authorized Person ID</p><p className="break-all rounded-lg bg-slate-100 p-3 text-sm font-semibold text-slate-800">{workspace.personId}</p></div>
+            </div>
+            <input aria-label="Type Tenant ID or Person ID to confirm archiving" value={archiveTypedId} onChange={(event) => setArchiveTypedId(event.target.value)} autoComplete="off" spellCheck={false} className="min-h-11 w-full rounded-xl border border-slate-300 px-3 text-sm" placeholder="Enter Tenant ID or Person ID"/>
+            <button type="button" onClick={() => void confirmArchiveSelectedFund()} disabled={isArchivingFund || !archiveAcknowledged || (archiveTypedId.trim() !== workspace.tenantId && archiveTypedId.trim() !== workspace.personId)} className="min-h-11 w-full rounded-xl bg-amber-800 px-4 text-sm font-semibold text-white disabled:opacity-40">{isArchivingFund ? "Archiving and deleting records…" : "Archive Fund and permanently delete records"}</button>
+          </div>}
+          {archivingError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{archivingError}</p>}
+        </div>}
       </Modal>
 
       <Modal isOpen={isFundReportOpen} title="Fund Summary" description="A concise view of saved Fund and Share values. Other Adjustments are separate and are not included in Fund financials." size="large" onClose={() => setIsFundReportOpen(false)}>
