@@ -311,7 +311,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     }
   }
 
-  async function downloadArchivedFundReport(archive: CfcfArchivedFundRow) {
+  async function downloadArchivedFundReport(archive: CfcfArchivedFundRow, reportResult = true): Promise<void> {
     let reportRoot: HTMLDivElement | null = null;
     try {
       const pdfModule = await import("html2pdf.js");
@@ -332,8 +332,9 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
         pagebreak: { mode: ["css", "legacy"], avoid: [".record", ".metric", "h2"] },
       }).from(reportRoot).save();
-      showDatabaseResult("Downloaded the archived Full Fund PDF report.");
+      if (reportResult) showDatabaseResult("Downloaded the archived Full Fund PDF report.");
     } catch (error) {
+      if (!reportResult) throw error;
       showDatabaseResult(error instanceof Error ? "Archived PDF download failed: " + error.message : "Archived PDF download failed.", "error");
     } finally {
       reportRoot?.remove();
@@ -358,13 +359,18 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     setDeletingArchivedId(archive.archive_id);
     setArchivedDeleteError(null);
     try {
+      // Preserve the only detailed financial record locally before deleting the archived report.
+      // If PDF generation/download fails, do not proceed with the destructive database deletion.
+      setArchivedDeleteError("Downloading the archive PDF before deletion…");
+      await downloadArchivedFundReport(archive, false);
+      setArchivedDeleteError("PDF download initiated. Deleting the archived report…");
       await deleteCfcfArchivedFund(workspace.tenantId, archive.archive_id);
       setArchivedFunds((current) => current.filter((item) => item.archive_id !== archive.archive_id));
       setArchivedDeleteTarget(null);
       setArchivedDeleteStep(1);
       setArchivedDeleteAcknowledged(false);
       setArchivedDeleteTypedId("");
-      showDatabaseResult("Archived Fund report permanently deleted. The archived Fund identity remains.");
+      showDatabaseResult("Archive PDF download was initiated, then the archived report was permanently deleted. The archived Fund identity remains.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to delete archived report.";
       setArchivedDeleteError(message);
