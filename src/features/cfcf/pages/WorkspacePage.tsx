@@ -1681,7 +1681,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       <Modal
         isOpen={Boolean(billingShare)}
         title="Share bill · Existing Cycle"
-        description={billingShare ? "Review this Share’s saved bill for an existing Cycle. Choose Edit to change it. This never creates a Cycle or a payment transaction." : "Review a saved Share bill."}
+        description={billingShare ? "Saved bill amounts are shown per Cycle. Choose Edit this Cycle to enter a corrected amount, compare it with the saved value, then review and confirm the update." : "Review a saved Share bill."}
         onClose={() => { if (!isSavingBilling) { setBillingShare(null); setBillingError(null); } }}
       >
         <form id="share-cycle-billing-form" onSubmit={(event) => void handleSaveCycleBilling(event)} className="space-y-4">
@@ -1690,9 +1690,14 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">Saved bills for this Share</h4>
             {savedCycleNumbers().length === 0 ? <p className="text-sm text-slate-500">No saved Cycles yet.</p> : savedCycleNumbers().map((cycle) => {
               const savedBill = billingShare ? billForShareCycle(billingShare.share_id, cycle) : undefined;
-              return <button key={cycle} type="button" onClick={() => { if (!billingEditEnabled) { setBillingCycleNumber(String(cycle)); setBillingAmount(String(savedBill?.amount ?? 0)); } }} className={`flex min-h-10 w-full items-center justify-between gap-3 rounded-lg px-2 text-left text-sm ${Number(billingCycleNumber) === cycle ? "bg-sky-50 text-sky-800" : "bg-slate-50 text-slate-700"}`}>
-                <span>Cycle {cycle}</span><span className="font-semibold tabular-nums">₹{savedBill?.amount ?? 0}{savedBill ? "" : " · default"}</span>
-              </button>;
+              const isSelected = Number(billingCycleNumber) === cycle;
+              return <article key={cycle} className={`rounded-lg border p-3 ${isSelected ? "border-sky-300 bg-sky-50" : "border-slate-200 bg-white"}`}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0"><p className="font-semibold text-slate-900">Cycle {cycle}</p><p className="mt-1 text-xs text-slate-500">{savedBill ? "Saved bill" : "No bill row · default amount ₹0"}</p></div>
+                  <div className="text-right"><p className="text-lg font-bold tabular-nums text-slate-900">{formatINR(savedBill?.amount ?? 0)}</p><button type="button" disabled={isSavingBilling || billingReview} onClick={() => { setBillingCycleNumber(String(cycle)); setBillingAmount(String(savedBill?.amount ?? 0)); setBillingEditEnabled(true); setBillingReview(false); setBillingError(null); }} className="mt-1 min-h-9 rounded-lg border border-sky-200 bg-white px-3 text-xs font-semibold text-sky-800 disabled:opacity-50">{isSelected && billingEditEnabled ? "Editing this bill" : "Edit this Cycle"}</button></div>
+                </div>
+                {isSelected && billingEditEnabled && <div className="mt-3 grid grid-cols-2 gap-2"><div className="rounded-lg border border-slate-200 bg-white p-3"><p className="text-xs text-slate-500">Currently saved</p><p className="mt-1 font-bold tabular-nums text-slate-800">{formatINR(savedBill?.amount ?? 0)}</p></div><div className="rounded-lg border border-sky-200 bg-white p-3"><p className="text-xs text-sky-700">Corrected bill</p><p className="mt-1 font-bold tabular-nums text-sky-900">{billingAmount.trim() ? formatINR(Number(billingAmount)) : "Enter amount below"}</p></div></div>}
+              </article>;
             })}
           </section>
           <div className={billingReview ? "pointer-events-none opacity-60" : ""}>
@@ -1700,10 +1705,10 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             <select id="cycle-billing-cycle" value={billingCycleNumber} onChange={(event) => { setBillingCycleNumber(event.target.value); const saved = billForShareCycle(billingShare?.share_id ?? "", Number(event.target.value)); setBillingAmount(saved ? String(saved.amount) : "0"); setBillingEditEnabled(false); }} required disabled={savedCycleNumbers().length === 0 || billingEditEnabled} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 disabled:bg-slate-100">
               {savedCycleNumbers().length === 0 ? <option value="">Add a Cycle first</option> : savedCycleNumbers().map((cycle) => <option key={cycle} value={String(cycle)}>Cycle {cycle}</option>)}
             </select>
-            <p className="mt-1 text-xs text-slate-500">One current bill per Share per saved Cycle. Selecting an existing Cycle loads its current bill for editing.</p>
+            <p className="mt-1 text-xs text-slate-500">Choose Edit this Cycle beside the saved bill you want to correct. The saved amount stays visible for comparison until you confirm the change.</p>
           </div>
           <div className={billingReview ? "pointer-events-none opacity-60" : ""}>
-            <label htmlFor="cycle-billing-amount" className="mb-1.5 block text-sm font-medium text-slate-700">Billing amount (₹)</label>
+            <label htmlFor="cycle-billing-amount" className="mb-1.5 block text-sm font-medium text-slate-700">Corrected billing amount (₹)</label>
             <input
               id="cycle-billing-amount"
               type="number"
@@ -1718,12 +1723,12 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               placeholder="0"
               className="min-h-11 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 disabled:bg-slate-50 disabled:text-slate-600"
             />
-            <p className="mt-1.5 text-xs leading-5 text-slate-500">₹0 is a saved bill amount. Changing a bill does not create a credit, debit, payment, or withdrawal.</p>
+            <p className="mt-1.5 text-xs leading-5 text-slate-500">Enter the corrected whole-rupee amount, compare it with the saved amount above, then choose Review changes. No payment or withdrawal is created.</p>
           </div>
           {billingError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm leading-5 text-rose-800">{billingError}</div>}
           <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
             <button type="button" onClick={() => setBillingShare(null)} disabled={isSavingBilling} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">Close</button>
-            {!billingEditEnabled ? <button type="button" disabled={savedCycleNumbers().length === 0} onClick={() => { setBillingEditEnabled(true); setBillingError(null); }} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">Edit bill</button> : <button type="submit" disabled={isSavingBilling || savedCycleNumbers().length === 0 || !billingAmount.trim() || !Number.isSafeInteger(Number(billingAmount)) || Number(billingAmount) < 0 || Number(billingAmount) > 2147483647} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"><CalendarDays size={16} /> {isSavingBilling ? <><RefreshCw size={16} className="animate-spin" /> Waiting for Supabase…</> : billingReview ? "Confirm and save bill" : "Review bill"}</button>}
+            {!billingEditEnabled ? <button type="button" disabled={savedCycleNumbers().length === 0} onClick={() => { setBillingEditEnabled(true); setBillingError(null); }} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">Edit bill</button> : <button type="submit" disabled={isSavingBilling || savedCycleNumbers().length === 0 || !billingAmount.trim() || !Number.isSafeInteger(Number(billingAmount)) || Number(billingAmount) < 0 || Number(billingAmount) > 2147483647} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"><CalendarDays size={16} /> {isSavingBilling ? <><RefreshCw size={16} className="animate-spin" /> Waiting for Supabase…</> : "Review changes"}</button>}
           </div>
         </form>
       </Modal>
@@ -1821,7 +1826,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       </Modal>
 
       <Modal isOpen={billingReview && Boolean(billingShare)} title="Review Share Bill" description="Verify the bill amount and Cycle before saving." onClose={() => { if (!isSavingBilling) setBillingReview(false); }}>
-        <div className="mb-4 rounded-xl border border-violet-200 bg-violet-50 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-violet-800">Review details</p><p className="mt-2 text-sm text-slate-600">Fund</p><p className="font-semibold text-slate-900">{selectedFund?.fund_name ?? "—"}</p><div className="mt-3 grid grid-cols-2 gap-3"><StoredValue label="Share ID" value={billingShare?.share_id ?? "—"} /><StoredValue label="Cycle" value={billingCycleNumber || "Not selected"} /><StoredValue label="Bill amount" value={billingAmount.trim() ? formatINR(Number(billingAmount)) : "Not entered"} /></div><p className="mt-3 text-xs leading-5 text-slate-600">Saving billing changes the bill record only. It does not record a payment, debit, credit or withdrawal.</p></div>
+        <div className="mb-4 rounded-xl border border-violet-200 bg-violet-50 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-violet-800">Review details</p><p className="mt-2 text-sm text-slate-600">Fund</p><p className="font-semibold text-slate-900">{selectedFund?.fund_name ?? "—"}</p><div className="mt-3 grid grid-cols-2 gap-3"><StoredValue label="Share ID" value={billingShare?.share_id ?? "—"} /><StoredValue label="Cycle" value={billingCycleNumber || "Not selected"} /><StoredValue label="Currently saved" value={formatINR(billForShareCycle(billingShare?.share_id ?? "", Number(billingCycleNumber))?.amount ?? 0)} /><StoredValue label="Corrected amount" value={billingAmount.trim() ? formatINR(Number(billingAmount)) : "Not entered"} /></div><p className="mt-3 text-xs leading-5 text-slate-600">Saving billing changes the bill record only. It does not record a payment, debit, credit or withdrawal.</p></div>
         <div className="flex justify-end gap-2">
           <button type="button" onClick={() => setBillingReview(false)} disabled={isSavingBilling} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm disabled:opacity-50">Cancel</button>
           <button type="submit" form="share-cycle-billing-form" disabled={isSavingBilling} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingBilling ? "Saving…" : "Confirm"}</button>
