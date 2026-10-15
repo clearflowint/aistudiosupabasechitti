@@ -17,6 +17,47 @@ import type {
 const MAX_CFCF_CYCLES = 100;
 export type CfcfCycleRow = CfcfCycleRowType;
 
+
+export interface CfcfArchivedFundRow {
+  archive_id: string;
+  product_id: "CFCF";
+  tenant_id: string;
+  fund_id: string;
+  fund_name: string;
+  archived_at: string;
+  expires_at: string;
+  report_html: string;
+}
+
+export async function listCfcfArchivedFunds(tenantId: string): Promise<CfcfArchivedFundRow[]> {
+  const { data, error } = await supabase.from("cfcf_archived_funds")
+    .select("archive_id, product_id, tenant_id, fund_id, fund_name, archived_at, expires_at, report_html")
+    .eq("product_id", cfcfConfig.productId)
+    .eq("tenant_id", tenantId)
+    .gt("expires_at", new Date().toISOString())
+    .order("archived_at", { ascending: false });
+  if (error) throw new Error("Unable to load Archived Funds: " + error.message);
+  return (data ?? []) as CfcfArchivedFundRow[];
+}
+
+export async function archiveCfcfFundWithReport(tenantId: string, fundId: string, reportHtml: string): Promise<CfcfArchivedFundRow> {
+  const { data, error } = await supabase.rpc("cfcf_archive_fund_with_report", {
+    p_tenant_id: tenantId,
+    p_fund_id: fundId,
+    p_report_html: reportHtml,
+  });
+  if (error) throw new Error("Unable to archive Fund: " + error.message);
+  return data as CfcfArchivedFundRow;
+}
+
+export async function deleteCfcfArchivedFund(tenantId: string, archiveId: string): Promise<void> {
+  const { error } = await supabase.rpc("cfcf_delete_archived_fund", {
+    p_tenant_id: tenantId,
+    p_archive_id: archiveId,
+  });
+  if (error) throw new Error("Unable to delete archived Fund: " + error.message);
+}
+
 export async function listCfcfCycles(tenantId: string, fundId: string): Promise<CfcfCycleRow[]> {
   const { data, error } = await supabase.from("cfcf_cycles")
     .select("cycle_id, product_id, tenant_id, fund_id, cycle_number, planned_payout_amount, commission_amount, created_at, updated_at")
