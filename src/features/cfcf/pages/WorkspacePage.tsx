@@ -843,7 +843,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     setCycleCommissionInput(cycle?.commission_amount == null ? "" : String(cycle.commission_amount));
     const nextInputs: Record<string, string> = {};
     for (const share of shares) {
-      const bill = billRows.find((row) => row.share_id === share.share_id && row.cycle_number === cycleNumber);
+      const bill = billRows.find((row) => row.share_id === share.share_id && row.cycle_id === cycle?.cycle_id);
       nextInputs[share.share_id] = bill ? String(bill.amount) : "";
     }
     setCycleBillInputs(nextInputs);
@@ -1266,11 +1266,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     [contacts],
   );
 
-  const sortedShares = useMemo(
-    () => shares.slice().sort((a, b) => (contactById.get(a.contact_id)?.name ?? "").localeCompare(contactById.get(b.contact_id)?.name ?? "", undefined, { sensitivity: "base" }) || (contactById.get(a.contact_id)?.phone ?? "").localeCompare(contactById.get(b.contact_id)?.phone ?? "") || a.share_id.localeCompare(b.share_id)),
-    [shares, contactById],
-  );
-
   const filteredShares = useMemo(() => {
     const query = shareSearch.trim().toLocaleLowerCase();
     return shares.filter((share) => {
@@ -1518,7 +1513,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             <StoredValue label="Cycle created" value={cycleRows.find((row) => row.cycle_number === (selectedCycleNumber ?? cycleRows.at(-1)?.cycle_number))?.created_at ? formatDate(cycleRows.find((row) => row.cycle_number === (selectedCycleNumber ?? cycleRows.at(-1)?.cycle_number))!.created_at) : "Date unavailable"} />
           </div>
           <section className="space-y-2"><h4 className="text-sm font-bold text-slate-900">Withdrawn Shares</h4>
-            {cycleSummary?.withdrawn_shares.length ? cycleSummary.withdrawn_sortedShares.map((item) => <div key={item.share_id} className="flex min-w-0 items-start justify-between gap-3 rounded-xl border border-slate-200 p-3"><div className="min-w-0"><p className="break-words text-sm font-semibold text-slate-900">{item.contact_name || "Contact unavailable"}</p><p className="text-xs text-slate-500">Share {item.share_id}</p></div><strong className="shrink-0 text-sm text-slate-900">{formatINR(item.withdrawn_amount)}</strong></div>) : <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-500">{cycleSummary ? "No Shares have been withdrawn against this Cycle." : "Loading withdrawal details…"}</p>}
+            {cycleSummary?.withdrawn_shares.length ? cycleSummary.withdrawn_shares.map((item) => <div key={item.share_id} className="flex min-w-0 items-start justify-between gap-3 rounded-xl border border-slate-200 p-3"><div className="min-w-0"><p className="break-words text-sm font-semibold text-slate-900">{item.contact_name || "Contact unavailable"}</p><p className="text-xs text-slate-500">Share {item.share_id}</p></div><strong className="shrink-0 text-sm text-slate-900">{formatINR(item.withdrawn_amount)}</strong></div>) : <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-500">{cycleSummary ? "No Shares have been withdrawn against this Cycle." : "Loading withdrawal details…"}</p>}
           </section>
           <p className="rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600">Actual withdrawals are Share payout records linked to this Cycle. Shareholder payments received remain in the separate Payments ledger.</p>
           <div className="flex justify-end border-t border-slate-100 pt-3"><button type="button" onClick={() => setIsCycleStatementOpen(false)} className="min-h-11 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white">Close statement</button></div>
@@ -1546,7 +1541,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               </div>
               <section className="space-y-2">
                 <h4 className="text-sm font-semibold text-slate-900">Shares that will be set to Undrawn</h4>
-                {cycleSummary?.withdrawn_shares.length ? cycleSummary.withdrawn_sortedShares.map((item) => (
+                {cycleSummary?.withdrawn_shares.length ? cycleSummary.withdrawn_shares.map((item) => (
                   <div key={item.share_id} className="flex items-start justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
                     <div className="min-w-0"><p className="break-words text-sm font-semibold text-slate-900">{item.contact_name || "Contact unavailable"}</p><p className="text-xs text-slate-600">Share {item.share_id}</p><p className="text-xs font-semibold text-amber-800">Drawn · Cycle {cycleDeleteTarget} → Undrawn</p></div>
                     <strong className="shrink-0 text-sm text-slate-900">{formatINR(item.withdrawn_amount)}</strong>
