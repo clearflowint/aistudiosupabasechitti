@@ -32,7 +32,6 @@ import {
   createCfcfFund,
   createCfcfShare,
   deleteCfcfShareWithHistory,
-  deleteCfcfFundIfEmpty,
   recordCfcfSharePayment,
   recordCfcfFundOtherEntry,
   getCfcfFundOtherAdjustmentSummary,
@@ -189,7 +188,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   function showDatabaseResult(message: string, status: "success" | "error" = "success"): void {
     setDatabaseResult({ status, message });
   }
-  const [deleteTarget, setDeleteTarget] = useState<{ kind: "share" | "fund"; id: string; label: string; fundId?: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ kind: "share"; id: string; label: string; fundId?: string } | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteStep, setDeleteStep] = useState(1);
   const [deleteAcknowledged, setDeleteAcknowledged] = useState(false);
@@ -942,10 +941,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         const result = await deleteCfcfShareWithHistory(workspace.tenantId, deleteTarget.fundId ?? selectedFundId, deleteTarget.id);
         showDatabaseResult("Share " + result.share_id + " deleted with " + result.deleted_bills + " bill record(s) and " + result.deleted_payments + " payment record(s). Fund totals refreshed.");
         setDeleteTarget(null); setDeleteStep(1); setDeleteAcknowledged(false); setDeleteTypedId(""); setDetailReloadKey((n) => n + 1); setFundReloadKey((n) => n + 1);
-      } else {
-        await deleteCfcfFundIfEmpty(workspace.tenantId, deleteTarget.id);
-        showDatabaseResult("Empty Fund deleted."); setDeleteTarget(null); setDeleteStep(1); setDeleteAcknowledged(false); setDeleteTypedId(""); setSelectedFundId("");
-        setFundReloadKey((n) => n + 1); setDetailReloadKey((n) => n + 1);
       }
     } catch (error) { setDeleteError(error instanceof Error ? error.message : "Unable to delete this record."); showDatabaseResult(error instanceof Error ? error.message : "Unable to delete this record.", "error"); }
     finally { endAction("delete-record"); setIsDeleting(false); }
@@ -1367,13 +1362,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             </button>
             <p className="text-center text-xs text-slate-500">Opens the 40 most recent payment and Fund adjustment records.</p>
           </section>
-          <section className="mt-5 rounded-2xl border-2 border-rose-200 bg-rose-50/60 p-4">
-            <p className="text-xs font-bold uppercase tracking-wider text-rose-800">Danger Zone</p>
-            <h3 className="mt-1 text-base font-semibold text-slate-900">Permanent deletion</h3>
-            <p className="mt-1 text-sm leading-5 text-slate-600">Only empty records can be deleted. Every request requires three confirmations and the database blocks records with financial history.</p>
-            <button type="button" onClick={() => { if (!selectedFund) return; setDeleteStep(1); setDeleteAcknowledged(false); setDeleteTypedId(""); setDeleteError(null); setDeleteTarget({ kind: "fund", id: selectedFund.fund_id, label: selectedFund.fund_name }); }} disabled={!selectedFund} className="mt-3 min-h-11 w-full rounded-xl border border-rose-300 bg-white px-3 text-sm font-semibold text-rose-800 disabled:opacity-40">Delete selected Fund · {selectedFund.fund_name}</button>
-
-          </section>
         </>
       ) : null}
 
@@ -1694,7 +1682,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         })()}
       </Modal>
 
-      <Modal isOpen={Boolean(deleteTarget)} title={deleteTarget?.kind === "fund" ? "Danger Zone · Delete Fund" : "Danger Zone · Delete Share"} description={"Step " + deleteStep + " of 3 · Permanent deletion review"} onClose={() => { if (!isDeleting) { setDeleteTarget(null); setDeleteError(null); setDeleteStep(1); setDeleteAcknowledged(false); setDeleteTypedId(""); setShareDeleteRecords(null); } }}>
+      <Modal isOpen={Boolean(deleteTarget)} title="Danger Zone · Delete Share" description={"Step " + deleteStep + " of 3 · Permanent deletion review"} onClose={() => { if (!isDeleting) { setDeleteTarget(null); setDeleteError(null); setDeleteStep(1); setDeleteAcknowledged(false); setDeleteTypedId(""); setShareDeleteRecords(null); } }}>
         {deleteTarget && <div className="space-y-4">
           <div className="rounded-xl border border-rose-200 bg-rose-50 p-3">
             <p className="text-sm font-semibold text-rose-900">{deleteTarget.label}</p>
@@ -1704,7 +1692,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               <p className="mt-1 text-xs text-rose-800">Phone: {(() => { const targetShare = shares.find((share) => share.share_id === deleteTarget.id); const targetContact = targetShare ? contactById.get(targetShare.contact_id) : undefined; return targetContact?.phone ?? "No phone saved"; })()}</p>
               {(() => { const targetShare = shares.find((share) => share.share_id === deleteTarget.id); if (!targetShare) return null; return <p className="mt-1 text-xs text-rose-800">Payout: {targetShare.payout_status === "drawn" ? "Drawn · " + formatINR(targetShare.withdrawn_amount) + (targetShare.payout_cycle_number !== null ? " · Cycle " + targetShare.payout_cycle_number : "") : "Undrawn"}</p>; })()}
             </>}
-            <p className="mt-2 text-sm leading-5 text-rose-800">{deleteTarget.kind === "fund" ? "Fund deletion is blocked if it has any Shares, Payments, Fund adjustments, or saved Cycle payout/commission values." : "This permanently deletes this Share, its Cycle bill rows, shareholder payment ledger rows, and recorded payout data. The Fund, its Cycles, and other Shares remain."}</p>
+            <p className="mt-2 text-sm leading-5 text-rose-800">This permanently deletes this Share, its Cycle bill rows, shareholder payment ledger rows, and recorded payout data. The Fund, its Cycles, and other Shares remain.</p>
             {deleteTarget.kind === "share" && <p className="mt-2 text-xs leading-5 text-rose-800">Audit records are retained to document the deletion. Only this Share and its related bill/payment rows are removed.</p>}
           </div>
           {deleteTarget.kind === "share" && <section className="space-y-2 rounded-xl border border-slate-200 p-3">
@@ -1727,12 +1715,12 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             <button type="button" disabled={deleteTarget.kind === "share" && (isLoadingShareDeleteRecords || !shareDeleteRecords)} onClick={() => setDeleteStep(2)} className="min-h-11 w-full rounded-xl bg-rose-700 px-4 text-sm font-semibold text-white disabled:opacity-40">I reviewed these records</button>
           </div>}
           {deleteStep === 2 && <div className="space-y-3">
-            <label className="flex items-start gap-3 rounded-xl border border-rose-200 p-3 text-sm leading-5 text-slate-700"><input type="checkbox" checked={deleteAcknowledged} onChange={(event) => setDeleteAcknowledged(event.target.checked)} className="mt-1 h-4 w-4 shrink-0"/><span>{deleteTarget.kind === "share" ? "I understand the Share, its bills, all credit/debit payment entries, and payout data will be permanently deleted. The Fund, Cycles, other Shares, and audit records remain." : "I understand Fund deletion is permanent and the database will block it if related records remain."}</span></label>
+            <label className="flex items-start gap-3 rounded-xl border border-rose-200 p-3 text-sm leading-5 text-slate-700"><input type="checkbox" checked={deleteAcknowledged} onChange={(event) => setDeleteAcknowledged(event.target.checked)} className="mt-1 h-4 w-4 shrink-0"/><span>I understand the Share, its bills, all credit/debit payment entries, and payout data will be permanently deleted. The Fund, Cycles, other Shares, and audit records remain.</span></label>
             <button type="button" disabled={!deleteAcknowledged} onClick={() => { setDeleteTypedId(""); setDeleteStep(3); }} className="min-h-11 w-full rounded-xl bg-rose-700 px-4 text-sm font-semibold text-white disabled:opacity-40">Continue to final confirmation</button>
           </div>}
           {deleteStep === 3 && <div className="space-y-3">
             <label className="block text-sm font-medium text-slate-700">To confirm, type the email address of the currently logged-in account<p className="mt-2 break-all rounded-lg bg-slate-100 p-3 text-sm font-semibold text-slate-800">{workspace.email}</p><input value={deleteTypedId} onChange={(event) => setDeleteTypedId(event.target.value)} autoComplete="email" spellCheck={false} inputMode="email" className="mt-2 min-h-11 w-full rounded-xl border border-slate-300 px-3 text-sm" placeholder="Enter your logged-in email address"/></label>
-            <button type="button" onClick={() => void handleConfirmDelete()} disabled={isDeleting || !deleteAcknowledged || deleteTypedId.trim().toLowerCase() !== workspace.email.trim().toLowerCase() || (deleteTarget.kind === "share" && !shareDeleteRecords)} className="min-h-11 w-full rounded-xl bg-rose-800 px-4 text-sm font-semibold text-white disabled:opacity-40">{isDeleting ? "Deleting…" : deleteTarget.kind === "share" ? "Permanently delete Share + history" : "Permanently delete Fund"}</button>
+            <button type="button" onClick={() => void handleConfirmDelete()} disabled={isDeleting || !deleteAcknowledged || deleteTypedId.trim().toLowerCase() !== workspace.email.trim().toLowerCase() || !shareDeleteRecords} className="min-h-11 w-full rounded-xl bg-rose-800 px-4 text-sm font-semibold text-white disabled:opacity-40">{isDeleting ? "Deleting…" : "Permanently delete Share + history"}</button>
           </div>}
           {deleteError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{deleteError}</p>}
         </div>}
