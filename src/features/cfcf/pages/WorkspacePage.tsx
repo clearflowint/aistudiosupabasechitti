@@ -1294,7 +1294,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                 <div className="mt-3 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 sm:grid-cols-4">
                   <button type="button" onClick={() => setIsFundReportOpen(true)} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-1 text-xs font-semibold text-sky-800"><FileText size={14}/> Fund Summary</button>
                   <button type="button" onClick={() => void openFullFundReport()} disabled={isLoadingFullFundReport} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-1 text-xs font-semibold text-violet-800 disabled:opacity-50"><FileText size={14}/> {isLoadingFullFundReport ? "Loading…" : "Full Report"}</button>
-                  <button type="button" onClick={() => void openFullFundReport()} disabled={isLoadingFullFundReport} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-1 text-xs font-semibold text-amber-800 disabled:opacity-50"><Archive size={14}/> Archive Fund</button>
                   <button type="button" onClick={() => void openAdjustmentsLedger()} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-1 text-xs font-semibold text-emerald-800"><IndianRupee size={14}/> Adjustments</button>
                   <button type="button" onClick={() => { setFundEditForm({ fundName: selectedFund.fund_name ?? "", startDate: selectedFund.start_date ?? "", numberOfCycles: selectedFund.number_of_cycles == null ? "" : String(selectedFund.number_of_cycles) }); setFundEditError(null); setIsFundEditOpen(true); }} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-slate-200 px-1 text-xs font-semibold text-slate-700"><Pencil size={14}/> Edit Fund</button>
                 </div>
@@ -1414,6 +1413,13 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               <CreditCard size={17} /> Fund Payment Record Ledger
             </button>
             <p className="text-center text-xs text-slate-500">Opens the 40 most recent payment and Fund adjustment records.</p>
+          </section>
+
+          <section className="space-y-2 border-t border-slate-200 pt-4">
+            <button type="button" onClick={() => void openFullFundReport()} disabled={isLoadingFullFundReport} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 text-sm font-semibold text-amber-900 shadow-sm hover:bg-amber-100 disabled:opacity-50">
+              <Archive size={17}/> {isLoadingFullFundReport ? "Preparing report…" : "Archive Fund"}
+            </button>
+            <p className="text-center text-xs leading-5 text-slate-500">Danger zone · Archive only when you are ready to remove this Fund’s operational records after saving its full report.</p>
           </section>
         </>
       ) : null}
