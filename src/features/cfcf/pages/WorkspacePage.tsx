@@ -221,6 +221,9 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [plannedPayoutReview, setPlannedPayoutReview] = useState(false);
   const [cycleDeleteTarget, setCycleDeleteTarget] = useState<number | null>(null);
   const [cycleDeleteError, setCycleDeleteError] = useState<string | null>(null);
+  const [cycleDeleteStep, setCycleDeleteStep] = useState(1);
+  const [cycleDeleteAcknowledged, setCycleDeleteAcknowledged] = useState(false);
+  const [cycleDeleteTypedEmail, setCycleDeleteTypedEmail] = useState("");
   const [plannedPayoutCycle, setPlannedPayoutCycle] = useState<number | null>(null);
   const [plannedPayoutInput, setPlannedPayoutInput] = useState("");
   const [plannedPayoutError, setPlannedPayoutError] = useState<string | null>(null);
@@ -864,7 +867,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   }
 
   async function handleConfirmDeleteCycle() {
-    if (!selectedFund || cycleDeleteTarget === null || isCycleBusy) return;
+    if (!selectedFund || cycleDeleteTarget === null || isCycleBusy || cycleDeleteStep !== 3 || !cycleDeleteAcknowledged || cycleDeleteTypedEmail.trim().toLowerCase() !== workspace.email.trim().toLowerCase()) return;
     if (!beginAction("delete-cycle")) return;
     setIsCycleBusy(true);
     setCycleDeleteError(null);
@@ -874,6 +877,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setCycleRows(remaining);
       setSelectedCycleNumber(remaining.at(-1)?.cycle_number ?? null);
       setCycleDeleteTarget(null);
+      setCycleDeleteStep(1); setCycleDeleteAcknowledged(false); setCycleDeleteTypedEmail("");
       showDatabaseResult("Cycle deleted. Its bills, planned payout and commission were removed; withdrawals assigned to it were reset to Undrawn. Shareholder payment records were not changed.");
       setDetailReloadKey((value) => value + 1);
       setFundReloadKey((value) => value + 1);
@@ -1518,36 +1522,61 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
 
       <Modal
         isOpen={cycleDeleteTarget !== null}
-        title={cycleDeleteTarget === null ? "Delete Cycle" : "Delete Cycle " + cycleDeleteTarget}
-        description="Review the financial data that will be removed and withdrawals that will be reset before confirming."
-        onClose={() => { if (!isCycleBusy) { setCycleDeleteTarget(null); setCycleDeleteError(null); } }}
+        title={cycleDeleteTarget === null ? "Delete Cycle" : "Danger Zone · Delete Cycle " + cycleDeleteTarget}
+        description={"Step " + cycleDeleteStep + " of 3 · Permanent Cycle deletion review"}
+        onClose={() => { if (!isCycleBusy) { setCycleDeleteTarget(null); setCycleDeleteError(null); setCycleDeleteStep(1); setCycleDeleteAcknowledged(false); setCycleDeleteTypedEmail(""); } }}
       >
         {cycleDeleteTarget !== null && (
           <div className="space-y-4">
-            <div className="rounded-xl border border-rose-200 bg-rose-50 p-3">
-              <p className="font-semibold text-rose-900">This operation cannot be undone.</p>
-              <p className="mt-1 text-sm leading-5 text-rose-800">Cycle {cycleDeleteTarget} bills, its planned payout and commission will be deleted. Every Share currently marked Drawn against this Cycle will become Undrawn and its stored withdrawn amount will be reset to zero. Shareholder payments and Fund payment history will remain untouched.</p>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <StoredValue label="Cycle billing to remove" value={cycleSummary ? formatINR(cycleSummary.total_billed) : "Loading…"} />
-              <StoredValue label="Planned payout to remove" value={displayStoredAmount(cycleSummary?.planned_payout_amount)} />
-              <StoredValue label="Commission to remove" value={displayStoredAmount(cycleSummary?.commission_amount)} />
-              <StoredValue label="Withdrawals to reset" value={cycleSummary ? String(cycleSummary.withdrawn_shares.length) : "Loading…"} />
-            </div>
-            <section className="space-y-2">
-              <h4 className="text-sm font-semibold text-slate-900">Shares that will be set to Undrawn</h4>
-              {cycleSummary?.withdrawn_shares.length ? cycleSummary.withdrawn_sortedShares.map((item) => (
-                <div key={item.share_id} className="flex items-start justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
-                  <div className="min-w-0"><p className="break-words text-sm font-semibold text-slate-900">{item.contact_name || "Contact unavailable"}</p><p className="text-xs text-slate-600">Share {item.share_id}</p><p className="text-xs font-semibold text-amber-800">Drawn · Cycle {cycleDeleteTarget} → Undrawn</p></div>
-                  <strong className="shrink-0 text-sm text-slate-900">{formatINR(item.withdrawn_amount)}</strong>
-                </div>
-              )) : cycleSummary ? <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">No Shares are currently drawn against this Cycle.</p> : <p className="text-sm text-slate-500">Loading withdrawal details…</p>}
-            </section>
-            {cycleDeleteError && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{cycleDeleteError}</p>}
-            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
-              <button type="button" onClick={() => setCycleDeleteTarget(null)} disabled={isCycleBusy} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button>
-              <button type="button" onClick={() => void handleConfirmDeleteCycle()} disabled={isCycleBusy || !cycleSummary} className="min-h-11 rounded-xl bg-rose-700 px-4 text-sm font-semibold text-white disabled:opacity-50">{isCycleBusy ? "Deleting…" : "Confirm and delete Cycle"}</button>
-            </div>
+            {cycleDeleteStep === 1 && <>
+              <div className="rounded-xl border border-rose-200 bg-rose-50 p-3">
+                <p className="font-semibold text-rose-900">This operation cannot be undone.</p>
+                <p className="mt-1 text-sm leading-5 text-rose-800">Deleting Cycle {cycleDeleteTarget} permanently removes its billing records, planned payout and commission. Shares drawn against this Cycle will become Undrawn and their stored withdrawal amounts will reset to zero. Shareholder payment records and Fund payment history remain untouched. Only the latest Cycle can be deleted.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <StoredValue label="Cycle billing to remove" value={cycleSummary ? formatINR(cycleSummary.total_billed) : "Loading…"} />
+                <StoredValue label="Planned payout to remove" value={displayStoredAmount(cycleSummary?.planned_payout_amount)} />
+                <StoredValue label="Commission to remove" value={displayStoredAmount(cycleSummary?.commission_amount)} />
+                <StoredValue label="Withdrawals to reset" value={cycleSummary ? String(cycleSummary.withdrawn_shares.length) : "Loading…"} />
+              </div>
+              <section className="space-y-2">
+                <h4 className="text-sm font-semibold text-slate-900">Shares that will be set to Undrawn</h4>
+                {cycleSummary?.withdrawn_shares.length ? cycleSummary.withdrawn_sortedShares.map((item) => (
+                  <div key={item.share_id} className="flex items-start justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                    <div className="min-w-0"><p className="break-words text-sm font-semibold text-slate-900">{item.contact_name || "Contact unavailable"}</p><p className="text-xs text-slate-600">Share {item.share_id}</p><p className="text-xs font-semibold text-amber-800">Drawn · Cycle {cycleDeleteTarget} → Undrawn</p></div>
+                    <strong className="shrink-0 text-sm text-slate-900">{formatINR(item.withdrawn_amount)}</strong>
+                  </div>
+                )) : cycleSummary ? <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">No Shares are currently drawn against this Cycle.</p> : <p className="text-sm text-slate-500">Loading withdrawal details…</p>}
+              </section>
+              <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
+                <button type="button" onClick={() => setCycleDeleteTarget(null)} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button>
+                <button type="button" onClick={() => { setCycleDeleteStep(2); setCycleDeleteError(null); }} disabled={!cycleSummary} className="min-h-11 rounded-xl bg-rose-700 px-4 text-sm font-semibold text-white disabled:opacity-40">Review permanent deletion</button>
+              </div>
+            </>}
+            {cycleDeleteStep === 2 && <div className="space-y-4">
+              <div className="rounded-xl border border-rose-200 bg-rose-50 p-3">
+                <p className="font-semibold text-rose-900">Confirm you understand the impact</p>
+                <p className="mt-1 text-sm leading-5 text-rose-800">Cycle {cycleDeleteTarget} and its billing, planned payout and commission will be permanently deleted. Any Drawn Shares assigned to it will be reset to Undrawn. This cannot be undone.</p>
+              </div>
+              <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-3 text-sm text-slate-700"><input type="checkbox" checked={cycleDeleteAcknowledged} onChange={(event) => setCycleDeleteAcknowledged(event.target.checked)} className="mt-1 h-4 w-4 accent-rose-700"/><span>I understand the Cycle's financial records will be deleted and any withdrawals assigned to it will be reset.</span></label>
+              <div className="flex justify-between gap-2 border-t border-slate-100 pt-3">
+                <button type="button" onClick={() => setCycleDeleteStep(1)} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Back</button>
+                <button type="button" disabled={!cycleDeleteAcknowledged} onClick={() => { setCycleDeleteTypedEmail(""); setCycleDeleteStep(3); }} className="min-h-11 rounded-xl bg-rose-700 px-4 text-sm font-semibold text-white disabled:opacity-40">Continue to final confirmation</button>
+              </div>
+            </div>}
+            {cycleDeleteStep === 3 && <div className="space-y-4">
+              <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm leading-5 text-rose-900">Final confirmation · Cycle {cycleDeleteTarget} will be permanently deleted.</div>
+              <label className="block text-sm font-medium text-slate-700">Type the email address of the currently logged-in account exactly as shown below.
+                <p className="mt-2 break-all rounded-lg bg-slate-100 p-3 text-sm font-semibold text-slate-800">{workspace.email}</p>
+                <input value={cycleDeleteTypedEmail} onChange={(event) => setCycleDeleteTypedEmail(event.target.value)} autoComplete="email" spellCheck={false} inputMode="email" className="mt-2 min-h-11 w-full rounded-xl border border-slate-300 px-3 text-sm" placeholder="Enter your logged-in email address"/>
+              </label>
+              {cycleDeleteError && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{cycleDeleteError}</p>}
+              <div className="flex justify-between gap-2 border-t border-slate-100 pt-3">
+                <button type="button" onClick={() => setCycleDeleteStep(2)} disabled={isCycleBusy} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Back</button>
+                <button type="button" onClick={() => void handleConfirmDeleteCycle()} disabled={isCycleBusy || !cycleDeleteAcknowledged || cycleDeleteTypedEmail.trim().toLowerCase() !== workspace.email.trim().toLowerCase() || !cycleSummary} className="min-h-11 rounded-xl bg-rose-800 px-4 text-sm font-semibold text-white disabled:opacity-40">{isCycleBusy ? "Deleting…" : "Permanently delete Cycle"}</button>
+              </div>
+            </div>}
+            {cycleDeleteError && cycleDeleteStep !== 3 && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{cycleDeleteError}</p>}
           </div>
         )}
       </Modal>
