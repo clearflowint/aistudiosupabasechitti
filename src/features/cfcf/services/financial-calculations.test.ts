@@ -13,7 +13,7 @@ import type {
 const fund: CfcfFundRow = {
   fund_id: "fund-1", product_id: "CFCF", tenant_id: "tenant-1", person_id: "owner-1",
   fund_name: "Test Fund", start_date: null, number_of_cycles: 10, number_of_shares: 999,
-  current_cycle: 2, cycle_payout_amounts: [], cycle_commissions: [],
+  current_cycle: 2,
   fund_net_balance: 0, fund_total_billed_amount: 0, fund_total_pending_amount: 0,
   fund_total_advance: 0, fund_total_withdrawn: 0, fund_total_commissions: 0,
   other_amount: 0, status: "active", created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z",
