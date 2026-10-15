@@ -192,7 +192,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [isSavingBilling, setIsSavingBilling] = useState(false);
   const [billingReview, setBillingReview] = useState(false);
   const [payoutShare, setPayoutShare] = useState<CfcfShareRow | null>(null);
-  const [payoutCycleNumber, setPayoutCycleNumber] = useState("1");
+  const [payoutCycleNumber, setPayoutCycleNumber] = useState("");
   const [withdrawnAmount, setWithdrawnAmount] = useState("");
   const [payoutError, setPayoutError] = useState<string | null>(null);
   const [isSavingPayout, setIsSavingPayout] = useState(false);
@@ -710,22 +710,11 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   }
 
   function openPayoutModal(share: CfcfShareRow) {
-    // If this Share is already drawn, keep its recorded Cycle and actual withdrawn amount,
-    // including an intentional zero. Otherwise default to the highest existing Cycle.
-    const availableCycles = savedCycleNumbers();
-    const cycle = share.payout_status === "drawn"
-      && share.payout_cycle_number !== null
-      && availableCycles.includes(share.payout_cycle_number)
-      ? share.payout_cycle_number
-      : Math.max(1, highestCycleNumber(selectedFund));
-    const cyclePayout = cycleRows.find((row) => row.cycle_number === cycle)?.planned_payout_amount;
+    // Require an explicit Cycle choice every time the payout form opens.
+    // Existing payout details remain visible in the Share card, but are not silently preselected.
     setPayoutShare(share);
-    setPayoutCycleNumber(String(cycle));
-    setWithdrawnAmount(
-      share.payout_status === "drawn"
-        ? String(share.withdrawn_amount)
-        : typeof cyclePayout === "number" ? String(cyclePayout) : "",
-    );
+    setPayoutCycleNumber("");
+    setWithdrawnAmount(share.payout_status === "drawn" ? String(share.withdrawn_amount) : "");
     setPayoutError(null);
     setPayoutReview(false);
     setUndrawnReview(false);
@@ -1799,35 +1788,40 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         </div>
       </Modal>
 
-      <Modal isOpen={plannedPayoutReview && plannedPayoutCycle !== null} title="" onClose={() => { if (!isCycleBusy) setPlannedPayoutReview(false); }}>
+      <Modal isOpen={plannedPayoutReview && plannedPayoutCycle !== null} title="Review Planned Payout" description="Confirm the planned amount for this Cycle. This does not record an actual withdrawal or payment." onClose={() => { if (!isCycleBusy) setPlannedPayoutReview(false); }}>
+        <div className="mb-4 rounded-xl border border-sky-200 bg-sky-50 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-sky-800">Review details</p><p className="mt-2 text-sm text-slate-600">Fund</p><p className="font-semibold text-slate-900">{selectedFund?.fund_name ?? "—"}</p><div className="mt-3 grid grid-cols-2 gap-3"><StoredValue label="Cycle" value={plannedPayoutCycle === null ? "—" : String(plannedPayoutCycle)} /><StoredValue label="Planned payout" value={plannedPayoutInput.trim() ? formatINR(Number(plannedPayoutInput)) : "Not set"} /></div><p className="mt-3 text-xs leading-5 text-slate-600">No Share payout status, payment record or Fund balance is changed by this planned value.</p></div>
         <div className="flex justify-end gap-2">
           <button type="button" onClick={() => setPlannedPayoutReview(false)} disabled={isCycleBusy} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm disabled:opacity-50">Cancel</button>
           <button type="submit" form="planned-payout-form" disabled={isCycleBusy} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isCycleBusy ? "Saving…" : "Confirm"}</button>
         </div>
       </Modal>
 
-      <Modal isOpen={cycleReview && cycleEditNumber !== null} title="" onClose={() => { if (!isSavingCycle) setCycleReview(false); }}>
+      <Modal isOpen={cycleReview && cycleEditNumber !== null} title="Review Cycle Changes" description="Verify the Cycle billing and planned values before saving." onClose={() => { if (!isSavingCycle) setCycleReview(false); }}>
+        <div className="mb-4 rounded-xl border border-violet-200 bg-violet-50 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-violet-800">Review details</p><p className="mt-2 text-sm text-slate-600">Fund</p><p className="font-semibold text-slate-900">{selectedFund?.fund_name ?? "—"}</p><div className="mt-3 grid grid-cols-2 gap-3"><StoredValue label="Cycle" value={cycleEditNumber === null ? "—" : String(cycleEditNumber)} /><StoredValue label="Active Shares" value={String(shares.filter((share) => share.status === "active").length)} /><StoredValue label="Total billing" value={formatINR(shares.filter((share) => share.status === "active").reduce((total, share) => total + (Number(cycleBillInputs[share.share_id] ?? "0") || 0), 0))} /><StoredValue label="Planned payout" value={cyclePayoutInput.trim() ? formatINR(Number(cyclePayoutInput)) : "Not set"} /><StoredValue label="Commission" value={cycleCommissionInput.trim() ? formatINR(Number(cycleCommissionInput)) : "Not set"} /></div><p className="mt-3 text-xs leading-5 text-slate-600">Only Cycle values and bills are saved. Shareholder payment history is not changed.</p></div>
         <div className="flex justify-end gap-2">
           <button type="button" onClick={() => setCycleReview(false)} disabled={isSavingCycle} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm disabled:opacity-50">Cancel</button>
           <button type="submit" form="cycle-values-form" disabled={isSavingCycle} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingCycle ? "Saving…" : "Confirm"}</button>
         </div>
       </Modal>
 
-      <Modal isOpen={payoutReview && Boolean(payoutShare)} title="" onClose={() => { if (!isSavingPayout) setPayoutReview(false); }}>
+      <Modal isOpen={payoutReview && Boolean(payoutShare)} title="Review Share Payout" description="Confirm the Share payout details before changing its status." onClose={() => { if (!isSavingPayout) setPayoutReview(false); }}>
+        <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Review details</p><p className="mt-2 text-sm text-slate-600">Fund</p><p className="font-semibold text-slate-900">{selectedFund?.fund_name ?? "—"}</p><div className="mt-3 grid grid-cols-2 gap-3"><StoredValue label="Share ID" value={payoutShare?.share_id ?? "—"} /><StoredValue label="Payout Cycle" value={payoutCycleNumber ? payoutCycleNumber : "Not selected"} /><StoredValue label="Withdrawn amount" value={withdrawnAmount.trim() ? formatINR(Number(withdrawnAmount)) : "Not entered"} /><StoredValue label="Current status" value={payoutShare?.payout_status === "drawn" ? "Drawn" : "Undrawn"} /></div><p className="mt-3 text-xs leading-5 text-slate-600">This updates payout status and withdrawn amount only. It does not create a Payment transaction.</p></div>
         <div className="flex justify-end gap-2">
           <button type="button" onClick={() => setPayoutReview(false)} disabled={isSavingPayout} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm disabled:opacity-50">Cancel</button>
           <button type="submit" form="share-payout-form" disabled={isSavingPayout} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingPayout ? "Saving…" : "Confirm"}</button>
         </div>
       </Modal>
 
-      <Modal isOpen={undrawnReview && Boolean(payoutShare)} title="" onClose={() => { if (!isSavingPayout) setUndrawnReview(false); }}>
+      <Modal isOpen={undrawnReview && Boolean(payoutShare)} title="Review Mark as Undrawn" description="Confirm that this Share should no longer be marked as withdrawn." onClose={() => { if (!isSavingPayout) setUndrawnReview(false); }}>
+        <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-4"><p className="font-semibold text-rose-900">Payout status will be reset</p><p className="mt-2 text-sm leading-5 text-rose-800">Share {payoutShare?.share_id ?? "—"} in {selectedFund?.fund_name ?? "the selected Fund"} will become Undrawn. Its payout Cycle and withdrawn amount will reset to empty/₹0. Existing Payment records are not deleted or changed.</p><div className="mt-3 grid grid-cols-2 gap-3"><StoredValue label="Current payout Cycle" value={payoutShare?.payout_cycle_number == null ? "—" : String(payoutShare.payout_cycle_number)} /><StoredValue label="Current withdrawn amount" value={formatINR(payoutShare?.withdrawn_amount ?? 0)} /></div></div>
         <div className="flex justify-end gap-2">
           <button type="button" onClick={() => setUndrawnReview(false)} disabled={isSavingPayout} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm disabled:opacity-50">Cancel</button>
           <button type="button" onClick={() => void handleMarkUndrawn()} disabled={isSavingPayout} className="min-h-11 rounded-xl bg-rose-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingPayout ? "Saving…" : "Confirm"}</button>
         </div>
       </Modal>
 
-      <Modal isOpen={billingReview && Boolean(billingShare)} title="" onClose={() => { if (!isSavingBilling) setBillingReview(false); }}>
+      <Modal isOpen={billingReview && Boolean(billingShare)} title="Review Share Bill" description="Verify the bill amount and Cycle before saving." onClose={() => { if (!isSavingBilling) setBillingReview(false); }}>
+        <div className="mb-4 rounded-xl border border-violet-200 bg-violet-50 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-violet-800">Review details</p><p className="mt-2 text-sm text-slate-600">Fund</p><p className="font-semibold text-slate-900">{selectedFund?.fund_name ?? "—"}</p><div className="mt-3 grid grid-cols-2 gap-3"><StoredValue label="Share ID" value={billingShare?.share_id ?? "—"} /><StoredValue label="Cycle" value={billingCycleNumber || "Not selected"} /><StoredValue label="Bill amount" value={billingAmount.trim() ? formatINR(Number(billingAmount)) : "Not entered"} /></div><p className="mt-3 text-xs leading-5 text-slate-600">Saving billing changes the bill record only. It does not record a payment, debit, credit or withdrawal.</p></div>
         <div className="flex justify-end gap-2">
           <button type="button" onClick={() => setBillingReview(false)} disabled={isSavingBilling} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm disabled:opacity-50">Cancel</button>
           <button type="submit" form="share-cycle-billing-form" disabled={isSavingBilling} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingBilling ? "Saving…" : "Confirm"}</button>
