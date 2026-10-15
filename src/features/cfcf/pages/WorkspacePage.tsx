@@ -1936,11 +1936,10 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           {archiveStep === 3 && <div className="space-y-3">
             <p className="text-sm leading-5 text-slate-700">To confirm, type the email address of the currently logged-in person exactly as shown below.</p>
             <div className="space-y-2">
-              <div><p className="text-xs font-medium text-slate-500">Tenant ID</p><p className="break-all rounded-lg bg-slate-100 p-3 text-sm font-semibold text-slate-800">{workspace.tenantId}</p></div>
-              <div><p className="text-xs font-medium text-slate-500">Authorized Person ID</p><p className="break-all rounded-lg bg-slate-100 p-3 text-sm font-semibold text-slate-800">{workspace.personId}</p></div>
+              <div><p className="text-xs font-medium text-slate-500">Logged-in email ID — type this exact address</p><p className="break-all rounded-lg bg-slate-100 p-3 text-sm font-semibold text-slate-800">{workspace.email}</p></div>
             </div>
-            <input aria-label="Type Tenant ID or Person ID to confirm archiving" value={archiveTypedId} onChange={(event) => setArchiveTypedId(event.target.value)} autoComplete="off" spellCheck={false} className="min-h-11 w-full rounded-xl border border-slate-300 px-3 text-sm" placeholder="Enter Tenant ID or Person ID"/>
-            <button type="button" onClick={() => void confirmArchiveSelectedFund()} disabled={isArchivingFund || !archiveAcknowledged || (archiveTypedId.trim() !== workspace.tenantId && archiveTypedId.trim() !== workspace.personId)} className="min-h-11 w-full rounded-xl bg-amber-800 px-4 text-sm font-semibold text-white disabled:opacity-40">{isArchivingFund ? "Archiving and deleting records…" : "Archive Fund and permanently delete records"}</button>
+            <input aria-label="Type logged-in email ID to confirm archiving" value={archiveTypedId} onChange={(event) => setArchiveTypedId(event.target.value)} autoComplete="email" spellCheck={false} inputMode="email" className="min-h-11 w-full rounded-xl border border-slate-300 px-3 text-sm" placeholder="Enter the email ID shown above"/>
+            <button type="button" onClick={() => void confirmArchiveSelectedFund()} disabled={isArchivingFund || !archiveAcknowledged || archiveTypedId.trim().toLowerCase() !== workspace.email.trim().toLowerCase()} className="min-h-11 w-full rounded-xl bg-amber-800 px-4 text-sm font-semibold text-white disabled:opacity-40">{isArchivingFund ? "Archiving and deleting records…" : "Archive Fund and permanently delete records"}</button>
           </div>}
           {archivingError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{archivingError}</p>}
         </div>}
