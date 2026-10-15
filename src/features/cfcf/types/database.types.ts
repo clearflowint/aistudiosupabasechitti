@@ -44,7 +44,6 @@ export interface CfcfContactRow {
   name: string;
   phone: string;
   email: string | null;
-  remarks: string | null;
   created_at: string;
   updated_at: string;
 }
