@@ -252,7 +252,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       return;
     }
     const confirmed = window.confirm(
-      "Archive " + selectedFund.fund_name + " (Fund ID " + selectedFund.fund_id + ")?\n\nA full report will be saved first. The Fund will be hidden from the active workspace, but all financial records will be preserved in the database. This cannot be restored to the active workspace."
+      "Archive " + selectedFund.fund_name + " (Fund ID " + selectedFund.fund_id + ")?\n\nA full report will be saved first. Then all Shares, bills, Cycles, payments, adjustments, and related Fund financial records will be permanently deleted. Only the Fund ID/status and saved report will remain. This cannot be undone."
     );
     if (!confirmed) return;
 
@@ -274,7 +274,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setCycleRows([]);
       setFundReloadKey((current) => current + 1);
       await refreshArchivedFunds();
-      showDatabaseResult("Fund archived. The full report is saved under Archived Funds. All financial records remain preserved in the database.");
+      showDatabaseResult("Fund archived. Its full report is saved under Archived Funds, and all operational financial records were deleted.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to archive this Fund.";
       setFullFundReportError(message);
@@ -1791,7 +1791,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       </Modal>
 
       <section aria-label="Archived Funds" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex items-start justify-between gap-3"><div><h2 className="text-base font-bold text-slate-950">Archived Funds</h2><p className="mt-1 text-xs leading-5 text-slate-500">Saved report snapshots. Archived Funds cannot be restored to the active workspace. Reports expire after six months; underlying financial records are preserved pending a separate deletion decision.</p></div><button type="button" onClick={() => void refreshArchivedFunds()} disabled={isLoadingArchivedFunds} className="min-h-9 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 disabled:opacity-50"><RefreshCw size={13} className={isLoadingArchivedFunds ? "mr-1 inline animate-spin" : "mr-1 inline"}/>Refresh</button></div>
+        <div className="flex items-start justify-between gap-3"><div><h2 className="text-base font-bold text-slate-950">Archived Funds</h2><p className="mt-1 text-xs leading-5 text-slate-500">Archived Fund IDs remain for status/reference only. Shares, bills, Cycles, payments, adjustments, and related operational records are deleted during archiving. Reports expire after six months; deleting a report does not remove the retained Fund ID.</p></div><button type="button" onClick={() => void refreshArchivedFunds()} disabled={isLoadingArchivedFunds} className="min-h-9 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 disabled:opacity-50"><RefreshCw size={13} className={isLoadingArchivedFunds ? "mr-1 inline animate-spin" : "mr-1 inline"}/>Refresh</button></div>
         {archivingError && <p role="alert" className="mt-3 rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{archivingError}</p>}
         {isLoadingArchivedFunds ? <p className="mt-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Loading Archived Funds…</p> : archivedFunds.length === 0 ? <p className="mt-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No archived Funds yet.</p> : <div className="mt-3 space-y-2">{archivedFunds.map((archive) => <article key={archive.archive_id} className="rounded-xl border border-slate-200 p-3"><div className="min-w-0"><h3 className="break-words text-sm font-bold text-slate-900">{archive.fund_name}</h3><p className="mt-1 break-all text-xs text-slate-500">Fund ID · {archive.fund_id}</p><p className="mt-1 text-xs text-slate-500">Archived · {new Date(archive.archived_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })} · Expires · {new Date(archive.expires_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</p></div><div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={() => downloadArchivedFundReport(archive)} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg bg-violet-700 px-2 text-xs font-semibold text-white"><Download size={14}/> Download Full PDF Report</button><button type="button" onClick={() => void handleDeleteArchivedFund(archive)} disabled={deletingArchivedId === archive.archive_id} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2 text-xs font-semibold text-rose-800 disabled:opacity-50"><Trash2 size={14}/>{deletingArchivedId === archive.archive_id ? "Deleting…" : "Delete Archived Fund"}</button></div></article>)}</div>}
       </section>
