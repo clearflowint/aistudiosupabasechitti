@@ -124,6 +124,8 @@ export async function listCfcfFunds(tenantId: string): Promise<CfcfFundRow[]> {
     .select(FUND_FIELDS)
     .eq("product_id", cfcfConfig.productId)
     .eq("tenant_id", tenantId)
+    // Workspace Funds tabs must show active Funds only; archived reports load separately.
+    .eq("status", "active")
     .is("archived_at", null)
     .order("created_at", { ascending: false });
 
@@ -307,7 +309,6 @@ export async function listCfcfLedgerItems(
 }
 
 
-
 /** CFCF PRODUCT: Explicitly confirmed atomic deletion of one Share and its own bill/payment rows. */
 export interface CfcfShareDeletionResult {
   share_id: string;
@@ -449,6 +450,7 @@ export async function saveCfcfCycleValues(
   }
 }
 
+
 // CFCF PRODUCT: Bulk-edit all current bills plus Cycle-owned planned values in one database transaction.
 export async function saveCfcfCycleWorkspace(
   tenantId: string,
@@ -487,6 +489,7 @@ export async function saveCfcfCycleWorkspace(
     throw new Error("Unable to save Cycle workspace: " + error.message);
   }
 }
+
 
 // CFCF PRODUCT: Edit descriptive Fund setup fields only; never touch stored financial fields.
 export async function updateCfcfFundDetails(tenantId: string, fundId: string, input: { fundName: string; startDate: string | null; numberOfCycles: number | null }): Promise<void> {
