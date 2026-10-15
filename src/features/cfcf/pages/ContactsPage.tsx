@@ -13,7 +13,7 @@ interface ContactsPageProps {
   workspace: AuthorizedWorkspace;
 }
 
-const emptyForm = { name: "", phone: "", email: "", remarks: "" };
+const emptyForm = { name: "", phone: "", email: "" };
 
 export function ContactsPage({ workspace }: ContactsPageProps) {
   const [contacts, setContacts] = useState<CfcfContactRow[]>([]);
@@ -84,7 +84,7 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
     if (!query) return contacts;
 
     return contacts.filter((contact) =>
-      [contact.name, contact.phone, contact.email ?? "", contact.remarks ?? ""]
+      [contact.name, contact.phone, contact.email ?? ""]
         .some((value) => value.toLowerCase().includes(query)),
     );
   }, [contacts, search]);
@@ -113,7 +113,6 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
       name: contact.name,
       phone: contact.phone,
       email: contact.email ?? "",
-      remarks: contact.remarks ?? "",
     });
     setIsModalOpen(true);
   }
@@ -316,7 +315,7 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search name, phone, email or notes"
+            placeholder="Search name, phone or email"
             className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
           />
         </label>
@@ -346,7 +345,7 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
           </h3>
           <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
             {search.trim()
-              ? "Try another name, phone number, email address or note."
+              ? "Try another name, phone number or email address."
               : "Add your first contact. Their details will be saved to this authorized workspace."}
           </p>
           {!search.trim() && (
@@ -464,18 +463,6 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
               className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
             />
           </div>
-          <div>
-            <label htmlFor="contact-remarks" className="mb-1.5 block text-sm font-medium text-slate-700">Notes <span className="text-slate-400">(optional)</span></label>
-            <textarea
-              id="contact-remarks"
-              value={form.remarks}
-              onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))}
-              rows={3}
-              maxLength={1000}
-              placeholder="Add any useful context"
-              className="w-full resize-y rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-            />
-          </div>
 
           {formError && (
             <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm leading-5 text-rose-800">
@@ -487,7 +474,7 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
             <button type="button" onClick={closeModal} disabled={isSaving} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
               Cancel
             </button>
-            <button type="submit" disabled={isSaving || !form.name.trim() || !/^[6-9]\d{9}$/.test(form.phone.replace(/\D/g, "").replace(/^91(?=\d{10}$)/, "").replace(/^0(?=\d{10}$)/, "")) className="inline-flex items-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60">
+            <button type="submit" disabled={isSaving || !form.name.trim() || !/^[6-9]\d{9}$/.test(form.phone.replace(/\D/g, "").replace(/^91(?=\d{10}$)/, "").replace(/^0(?=\d{10}$)/, ""))} className="inline-flex items-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60">
               {editingContact ? <Pencil size={16} /> : <Plus size={16} />} {isSaving ? <><RefreshCw size={16} className="animate-spin" /> Waiting for Supabase…</> : editingContact ? "Save changes" : "Save contact"}
             </button>
           </div>
