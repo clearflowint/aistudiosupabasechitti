@@ -928,6 +928,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setSelectedCycleNumber(cycleNumber);
       setCycleEditNumber(null);
       setCycleEditEnabled(false);
+      setCycleCreatedInFlow(false);
+      setCycleBulkBillInputs({ withdrawn: "", undrawn: "" });
       setCycleReview(false);
       showDatabaseResult("Cycle " + cycleNumber + " saved. Shareholder payments were not changed.");
       setFundReloadKey((n) => n + 1);
@@ -1584,7 +1586,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           })}
           {cycleEditError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{cycleEditError}</div>}
           <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
-            <button type="button" onClick={() => setCycleEditNumber(null)} disabled={isSavingCycle} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Close</button>
+            <button type="button" onClick={() => { setCycleEditNumber(null); setCycleEditEnabled(false); setCycleCreatedInFlow(false); setCycleReview(false); setCycleEditError(null); }} disabled={isSavingCycle} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Close</button>
             {cycleEditEnabled && <button type="submit" disabled={isSavingCycle || cycleReview} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingCycle ? <><RefreshCw size={16} className="animate-spin" /> Waiting for Supabase…</> : cycleReview ? "Confirm and save Cycle" : "Review Cycle changes"}</button>}
           </div>
         </form>
