@@ -1023,7 +1023,16 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     let created = 0;
     try {
       for (const [contactId, count] of assignments) {
-        for (let n = 0; n < count; n += 1) { await createCfcfShare(workspace.tenantId, selectedFund.fund_id, workspace.personId, contactId); created += 1; }
+        for (let n = 0; n < count; n += 1) {
+          await createCfcfShare(workspace.tenantId, selectedFund.fund_id, workspace.personId, contactId);
+          created += 1;
+          setShareAssignments((current) => {
+            const remaining = (current[contactId] ?? 0) - 1;
+            const next = { ...current };
+            if (remaining <= 0) delete next[contactId]; else next[contactId] = remaining;
+            return next;
+          });
+        }
       }
       setIsShareModalOpen(false);
       showDatabaseResult("Added " + created + " new Share record(s) to " + selectedFund.fund_name + " for " + assignments.length + " Contact(s).");
