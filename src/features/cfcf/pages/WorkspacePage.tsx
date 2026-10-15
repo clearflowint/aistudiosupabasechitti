@@ -1690,41 +1690,21 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">Saved bills for this Share</h4>
             {savedCycleNumbers().length === 0 ? <p className="text-sm text-slate-500">No saved Cycles yet.</p> : savedCycleNumbers().map((cycle) => {
               const savedBill = billingShare ? billForShareCycle(billingShare.share_id, cycle) : undefined;
-              const isSelected = Number(billingCycleNumber) === cycle;
-              return <article key={cycle} className={`rounded-lg border p-3 ${isSelected ? "border-sky-300 bg-sky-50" : "border-slate-200 bg-white"}`}>
+              const isSelected = Number(billingCycleNumber) === cycle && billingEditEnabled;
+              return <div key={cycle} className="border-b border-slate-100 py-3 last:border-b-0">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0"><p className="font-semibold text-slate-900">Cycle {cycle}</p><p className="mt-1 text-xs text-slate-500">{savedBill ? "Saved bill" : "No bill row · default amount ₹0"}</p></div>
-                  <div className="text-right"><p className="text-lg font-bold tabular-nums text-slate-900">{formatINR(savedBill?.amount ?? 0)}</p><button type="button" disabled={isSavingBilling || billingReview} onClick={() => { setBillingCycleNumber(String(cycle)); setBillingAmount(String(savedBill?.amount ?? 0)); setBillingEditEnabled(true); setBillingReview(false); setBillingError(null); }} className="mt-1 min-h-9 rounded-lg border border-sky-200 bg-white px-3 text-xs font-semibold text-sky-800 disabled:opacity-50">{isSelected && billingEditEnabled ? "Editing this bill" : "Edit this Cycle"}</button></div>
+                  <p className="min-w-0 text-sm font-medium text-slate-800">Cycle {cycle} <span className="mx-1 text-slate-400">—</span> <span className="font-bold tabular-nums">{formatINR(savedBill?.amount ?? 0)}</span></p>
+                  <button type="button" disabled={isSavingBilling || billingReview} onClick={() => { setBillingCycleNumber(String(cycle)); setBillingAmount(String(savedBill?.amount ?? 0)); setBillingEditEnabled(true); setBillingReview(false); setBillingError(null); }} className="min-h-9 shrink-0 rounded-lg border border-sky-200 bg-white px-3 text-xs font-semibold text-sky-800 disabled:opacity-50">{isSelected ? "Selected" : "Edit"}</button>
                 </div>
-                {isSelected && billingEditEnabled && <div className="mt-3 grid grid-cols-2 gap-2"><div className="rounded-lg border border-slate-200 bg-white p-3"><p className="text-xs text-slate-500">Currently saved</p><p className="mt-1 font-bold tabular-nums text-slate-800">{formatINR(savedBill?.amount ?? 0)}</p></div><div className="rounded-lg border border-sky-200 bg-white p-3"><p className="text-xs text-sky-700">Corrected bill</p><p className="mt-1 font-bold tabular-nums text-sky-900">{billingAmount.trim() ? formatINR(Number(billingAmount)) : "Enter amount below"}</p></div></div>}
-              </article>;
+                {isSelected && <div className="mt-3 grid grid-cols-2 gap-2">
+                  <div className="min-w-0 rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-500">Saved bill</p><p className="mt-1 break-words font-bold tabular-nums text-slate-800">{formatINR(savedBill?.amount ?? 0)}</p></div>
+                  <div className="min-w-0 rounded-lg border border-sky-200 bg-sky-50 p-3"><label htmlFor="cycle-billing-amount" className="block text-xs text-sky-800">Corrected bill (₹)</label><input id="cycle-billing-amount" type="number" inputMode="numeric" min="0" max="2147483647" step="1" required value={billingAmount} onChange={(event) => setBillingAmount(event.target.value)} disabled={billingReview} placeholder="Enter amount" className="mt-1 min-h-10 w-full min-w-0 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-900" /></div>
+                </div>}
+              </div>;
             })}
           </section>
-          <div className={billingReview ? "pointer-events-none opacity-60" : ""}>
-            <label htmlFor="cycle-billing-cycle" className="mb-1.5 block text-sm font-medium text-slate-700">Cycle</label>
-            <select id="cycle-billing-cycle" value={billingCycleNumber} onChange={(event) => { setBillingCycleNumber(event.target.value); const saved = billForShareCycle(billingShare?.share_id ?? "", Number(event.target.value)); setBillingAmount(saved ? String(saved.amount) : "0"); setBillingEditEnabled(false); }} required disabled={savedCycleNumbers().length === 0 || billingEditEnabled} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 disabled:bg-slate-100">
-              {savedCycleNumbers().length === 0 ? <option value="">Add a Cycle first</option> : savedCycleNumbers().map((cycle) => <option key={cycle} value={String(cycle)}>Cycle {cycle}</option>)}
-            </select>
-            <p className="mt-1 text-xs text-slate-500">Choose Edit this Cycle beside the saved bill you want to correct. The saved amount stays visible for comparison until you confirm the change.</p>
-          </div>
-          <div className={billingReview ? "pointer-events-none opacity-60" : ""}>
-            <label htmlFor="cycle-billing-amount" className="mb-1.5 block text-sm font-medium text-slate-700">Corrected billing amount (₹)</label>
-            <input
-              id="cycle-billing-amount"
-              type="number"
-              inputMode="numeric"
-              min="0"
-              max="2147483647"
-              step="1"
-              required
-              value={billingAmount}
-              onChange={(event) => setBillingAmount(event.target.value)}
-              disabled={!billingEditEnabled}
-              placeholder="0"
-              className="min-h-11 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 disabled:bg-slate-50 disabled:text-slate-600"
-            />
-            <p className="mt-1.5 text-xs leading-5 text-slate-500">Enter the corrected whole-rupee amount, compare it with the saved amount above, then choose Review changes. No payment or withdrawal is created.</p>
-          </div>
+          {!billingEditEnabled && <p className="text-xs leading-5 text-slate-500">Tap Edit on a Cycle row. Its saved amount will remain visible beside the corrected amount field.</p>}
+          {billingEditEnabled && <p className="text-xs leading-5 text-slate-500">Compare the saved bill with the corrected amount. Choose Review changes to inspect the update before saving. No payment or withdrawal is created.</p>}
           {billingError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm leading-5 text-rose-800">{billingError}</div>}
           <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
             <button type="button" onClick={() => setBillingShare(null)} disabled={isSavingBilling} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">Close</button>
