@@ -487,7 +487,7 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
             <button type="button" onClick={closeModal} disabled={isSaving} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
               Cancel
             </button>
-            <button type="submit" disabled={isSaving || !form.name.trim() || !/^[6-9]\\d{9}$/.test(form.phone.replace(/\\D/g, "").replace(/^91(?=\\d{10}$)/, "").replace(/^0(?=\\d{10}$)/, ""))} className="inline-flex items-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60">
+            <button type="submit" disabled={isSaving || !form.name.trim() || !/^[6-9]\d{9}$/.test(form.phone.replace(/\D/g, "").replace(/^91(?=\d{10}$)/, "").replace(/^0(?=\d{10}$)/, "")) className="inline-flex items-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60">
               {editingContact ? <Pencil size={16} /> : <Plus size={16} />} {isSaving ? <><RefreshCw size={16} className="animate-spin" /> Waiting for Supabase…</> : editingContact ? "Save changes" : "Save contact"}
             </button>
           </div>
