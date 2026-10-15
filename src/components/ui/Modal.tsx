@@ -115,7 +115,7 @@ export function Modal({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
-        className={"relative z-10 my-auto max-h-[calc(100dvh-1rem)] w-full overflow-y-auto overscroll-contain " + panelWidth + (size === "full" ? " min-h-[calc(100dvh-1rem)] rounded-xl" : " rounded-2xl border border-slate-200 shadow-2xl shadow-slate-950/25 sm:max-h-[calc(100dvh-3rem)]") + " bg-white"}
+        className={"relative z-10 my-auto max-h-[calc(100dvh-1rem)] w-full overflow-y-auto overscroll-contain border border-slate-300 " + panelWidth + (size === "full" ? " min-h-[calc(100dvh-1rem)] rounded-xl" : " rounded-2xl shadow-2xl shadow-slate-950/25 sm:max-h-[calc(100dvh-3rem)]") + " bg-white"}
       >
         <header className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 sm:px-6">
           <div>
@@ -128,7 +128,7 @@ export function Modal({
             type="button"
             onClick={onClose}
             aria-label="Close dialog"
-            className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+            className="rounded-lg p-2 text-red-600 transition hover:bg-red-50 hover:text-red-700"
           >
             <X size={18} />
           </button>
