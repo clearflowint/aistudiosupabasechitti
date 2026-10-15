@@ -13,7 +13,7 @@ interface ModalProps {
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
-  size?: "medium" | "large";
+  size?: "medium" | "large" | "full";
   closeOnOverlayClick?: boolean;
   closeOnEscape?: boolean;
 }
@@ -26,7 +26,7 @@ export function Modal({
   children,
   footer,
   size = "medium",
-  closeOnOverlayClick = true,
+  closeOnOverlayClick = false,
   closeOnEscape = true,
 }: ModalProps) {
   const titleId = useId();
@@ -68,7 +68,7 @@ export function Modal({
 
   if (!isOpen) return null;
 
-  const panelWidth = size === "large" ? "max-w-2xl" : "max-w-lg";
+  const panelWidth = size === "full" ? "max-w-none" : size === "large" ? "max-w-2xl" : "max-w-lg";
 
   return (
     <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto overscroll-contain px-3 py-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:items-center sm:p-6">
@@ -85,7 +85,7 @@ export function Modal({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
-        className={"relative z-10 my-auto max-h-[calc(100dvh-1.5rem)] w-full overflow-y-auto overscroll-contain " + panelWidth + " rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-950/25 sm:max-h-[calc(100dvh-3rem)]"}
+        className={"relative z-10 my-auto max-h-[calc(100dvh-1rem)] w-full overflow-y-auto overscroll-contain " + panelWidth + (size === "full" ? " min-h-[calc(100dvh-1rem)] rounded-xl" : " rounded-2xl border border-slate-200 shadow-2xl shadow-slate-950/25 sm:max-h-[calc(100dvh-3rem)]") + " bg-white"}
       >
         <header className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 sm:px-6">
           <div>
