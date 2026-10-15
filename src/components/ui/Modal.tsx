@@ -4,7 +4,16 @@ import { X } from "lucide-react";
 
 // Shared lock avoids stale scroll styles when one modal replaces another in the same render.
 let activeModalLocks = 0;
-let originalBodyStyles: { overflow: string; overscrollBehavior: string } | null = null;
+let originalBodyStyles: {
+  overflow: string;
+  overscrollBehavior: string;
+  position: string;
+  top: string;
+  left: string;
+  right: string;
+  width: string;
+} | null = null;
+let lockedScrollY = 0;
 
 interface ModalProps {
   isOpen: boolean;
@@ -41,14 +50,28 @@ export function Modal({
     // when a result modal replaces a form modal in one React render.
     const body = document.body;
     if (activeModalLocks === 0) {
+      lockedScrollY = window.scrollY;
       originalBodyStyles = {
         overflow: body.style.overflow,
         overscrollBehavior: body.style.overscrollBehavior,
+        position: body.style.position,
+        top: body.style.top,
+        left: body.style.left,
+        right: body.style.right,
+        width: body.style.width,
       };
+      // iOS Safari can reset the document to the top when body scrolling is
+      // merely set to overflow:hidden. Fix the body in place at the current
+      // offset, then restore the exact offset when the final modal closes.
+      body.style.position = "fixed";
+      body.style.top = `-${lockedScrollY}px`;
+      body.style.left = "0";
+      body.style.right = "0";
+      body.style.width = "100%";
+      body.style.overflow = "hidden";
+      body.style.overscrollBehavior = "none";
     }
     activeModalLocks += 1;
-    body.style.overflow = "hidden";
-    body.style.overscrollBehavior = "none";
 
     function handleKeyDown(event: KeyboardEvent) {
       if (closeOnEscape && event.key === "Escape") onCloseRef.current();
@@ -61,7 +84,14 @@ export function Modal({
       if (activeModalLocks === 0 && originalBodyStyles) {
         body.style.overflow = originalBodyStyles.overflow;
         body.style.overscrollBehavior = originalBodyStyles.overscrollBehavior;
+        body.style.position = originalBodyStyles.position;
+        body.style.top = originalBodyStyles.top;
+        body.style.left = originalBodyStyles.left;
+        body.style.right = originalBodyStyles.right;
+        body.style.width = originalBodyStyles.width;
         originalBodyStyles = null;
+        // Restore after layout has applied the body's original positioning.
+        window.requestAnimationFrame(() => window.scrollTo(0, lockedScrollY));
       }
     };
   }, [isOpen, closeOnEscape]);
