@@ -924,18 +924,23 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     setIsSavingCycle(true);
     setCycleEditError(null);
     try {
-      await saveCfcfCycleWorkspace(workspace.tenantId, selectedFund.fund_id, cycleNumber, payout, commission, billPayload);
+      let targetCycleNumber = cycleNumber;
+      if (cycleCreatedInFlow) {
+        const createdCycle = await addCfcfCycle(workspace.tenantId, selectedFund.fund_id);
+        targetCycleNumber = createdCycle.cycle_number;
+      }
+      await saveCfcfCycleWorkspace(workspace.tenantId, selectedFund.fund_id, targetCycleNumber, payout, commission, billPayload);
       const freshBills = await listCfcfBills(workspace.tenantId, selectedFund.fund_id);
       const freshCycles = await listCfcfCycles(workspace.tenantId, selectedFund.fund_id);
       setBills(freshBills);
       setCycleRows(freshCycles);
-      setSelectedCycleNumber(cycleNumber);
+      setSelectedCycleNumber(targetCycleNumber);
       setCycleEditNumber(null);
       setCycleEditEnabled(false);
       setCycleCreatedInFlow(false);
       setCycleBulkBillInputs({ withdrawn: "", undrawn: "" });
       setCycleReview(false);
-      showDatabaseResult("Cycle " + cycleNumber + " saved. Shareholder payments were not changed.");
+      showDatabaseResult("Cycle " + targetCycleNumber + " saved. Shareholder payments were not changed.");
       setFundReloadKey((n) => n + 1);
       setDetailReloadKey((n) => n + 1);
       if (isAdjustmentsLedgerOpen) void openAdjustmentsLedger();
@@ -1375,7 +1380,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               <div className="mt-3 grid grid-cols-2 gap-2"><button type="button" disabled={currentCycle === null || currentCycle !== Math.max(...cycleNumbers) || isCycleBusy} onClick={() => { if (currentCycle === null) return; setSelectedCycleNumber(currentCycle); setCycleDeleteTarget(currentCycle); setCycleDeleteStep(1); setCycleDeleteAcknowledged(false); setCycleDeleteTypedEmail(""); setCycleDeleteError(null); }} className="min-h-10 rounded-xl border border-rose-200 bg-white px-2 text-sm font-semibold text-rose-700 disabled:opacity-40">Delete Cycle</button><button type="button" disabled={currentCycle === null} onClick={() => setIsCycleStatementOpen(true)} className="min-h-10 rounded-xl border border-violet-200 bg-white px-2 text-sm font-semibold text-violet-800 disabled:opacity-40">Cycle Statement</button><button type="button" disabled={currentCycle === null} onClick={() => { setPlannedPayoutCycle(currentCycle); setPlannedPayoutInput(payout == null ? "" : String(payout)); setPlannedPayoutError(null); }} className="min-h-10 rounded-xl border border-violet-200 bg-white px-2 text-sm font-semibold text-violet-800 disabled:opacity-40">Planned Payout</button><button type="button" disabled={currentCycle === null} onClick={() => currentCycle !== null && openCycleEditor(currentCycle)} className="min-h-10 rounded-xl bg-violet-700 px-2 text-sm font-semibold text-white disabled:opacity-40">Edit Cycle</button></div>
               {cycleError && <p role="alert" className="mt-2 text-sm text-rose-700">{cycleError}</p>}
             </article>; })()}
-            <button type="button" disabled={isCycleBusy || shares.length === 0} onClick={async () => { setIsCycleBusy(true); setCycleError(null); try { const row = await addCfcfCycle(workspace.tenantId, selectedFund.fund_id); const savedBills = await listCfcfBills(workspace.tenantId, selectedFund.fund_id); const freshCycles = await listCfcfCycles(workspace.tenantId, selectedFund.fund_id); setBills(savedBills); setCycleRows(freshCycles); setSelectedCycleNumber(row.cycle_number); openCycleEditor(row.cycle_number, true, savedBills, freshCycles); } catch (e) { setCycleError(e instanceof Error ? e.message : "Unable to add Cycle."); } finally { setIsCycleBusy(false); } }} title={shares.length === 0 ? "Add at least one Share to this Fund before adding a Cycle." : undefined} className="min-h-12 w-full rounded-xl border border-violet-600 bg-violet-700 px-3 text-base font-bold text-white shadow-sm active:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-40">{isCycleBusy ? "Working…" : `Add Cycle ${Math.max(0,...cycleRows.map((row)=>row.cycle_number),...billedCycleNumbers())+1}`}</button>
+            <button type="button" disabled={isCycleBusy || shares.length === 0} onClick={() => { const nextCycleNumber = Math.max(0, ...cycleRows.map((row) => row.cycle_number), ...billedCycleNumbers()) + 1; setCycleError(null); openCycleEditor(nextCycleNumber, true, bills, cycleRows); }} title={shares.length === 0 ? "Add at least one Share to this Fund before adding a Cycle." : undefined} className="min-h-12 w-full rounded-xl border border-violet-600 bg-violet-700 px-3 text-base font-bold text-white shadow-sm active:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-40">{isCycleBusy ? "Working…" : `Add Cycle ${Math.max(0,...cycleRows.map((row)=>row.cycle_number),...billedCycleNumbers())+1}`}</button>
 
             </div>
           </section>
@@ -1592,17 +1597,17 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             <h3 className="text-base font-bold text-violet-950">Review Cycle {cycleEditNumber} before saving</h3>
             <p className="text-sm leading-5 text-violet-900">Check the billing and payout values below. Nothing is saved until you choose Confirm and save Cycle.</p>
             <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-lg bg-white p-3"><p className="text-xs text-slate-500">Planned payout</p><p className="mt-1 font-semibold text-slate-900">{cyclePayoutInput.trim() === "" ? "Not set" : formatINR(Number(cyclePayoutInput))}</p></div>
-              <div className="rounded-lg bg-white p-3"><p className="text-xs text-slate-500">Commission</p><p className="mt-1 font-semibold text-slate-900">{cycleCommissionInput.trim() === "" ? "Not set" : formatINR(Number(cycleCommissionInput))}</p></div>
-              <div className="rounded-lg bg-white p-3"><p className="text-xs text-slate-500">Total Cycle billing</p><p className="mt-1 font-semibold text-slate-900">{formatINR(shares.filter((share) => share.status === "active").reduce((total, share) => total + (Number(cycleBillInputs[share.share_id] ?? "0") || 0), 0))}</p></div>
-              <div className="rounded-lg bg-white p-3"><p className="text-xs text-slate-500">Active Shares</p><p className="mt-1 font-semibold text-slate-900">{shares.filter((share) => share.status === "active").length}</p></div>
+              <div className="rounded-lg bg-white p-3"><p className="text-xs text-slate-500">Planned payout</p><p className="mt-1 font-extrabold text-slate-950">{cyclePayoutInput.trim() === "" ? "Not set" : formatINR(Number(cyclePayoutInput))}</p></div>
+              <div className="rounded-lg bg-white p-3"><p className="text-xs text-slate-500">Commission</p><p className="mt-1 font-extrabold text-slate-950">{cycleCommissionInput.trim() === "" ? "Not set" : formatINR(Number(cycleCommissionInput))}</p></div>
+              <div className="rounded-lg bg-white p-3"><p className="text-xs text-slate-500">Total Cycle billing</p><p className="mt-1 text-lg font-extrabold text-slate-950">{formatINR(shares.filter((share) => share.status === "active").reduce((total, share) => total + (Number(cycleBillInputs[share.share_id] ?? "0") || 0), 0))}</p></div>
+              <div className="rounded-lg bg-white p-3"><p className="text-xs text-slate-500">Active Shares</p><p className="mt-1 text-lg font-extrabold text-slate-950">{shares.filter((share) => share.status === "active").length}</p></div>
             </div>
             <h4 className="font-semibold text-slate-900">Share billing summary</h4>
             <div className="max-h-64 space-y-2 overflow-y-auto">
               {shares.filter((share) => share.status === "active").slice().sort((a, b) => (contactById.get(a.contact_id)?.name ?? "").localeCompare(contactById.get(b.contact_id)?.name ?? "", undefined, { sensitivity: "base" }) || (contactById.get(a.contact_id)?.phone ?? "").localeCompare(contactById.get(b.contact_id)?.phone ?? "") || a.share_id.localeCompare(b.share_id)).map((share) => {
                 const contact = contactById.get(share.contact_id);
                 const amount = Number(cycleBillInputs[share.share_id] ?? "0") || 0;
-                return <div key={share.share_id} className="flex items-center justify-between gap-3 rounded-lg border border-violet-100 bg-white p-3"><div className="min-w-0"><p className="break-words text-sm font-semibold text-slate-900">{contact?.name || "Contact unavailable"}</p><p className="text-xs text-slate-500">{contact?.phone || "Phone unavailable"} · Share {share.share_id}</p></div><strong className="shrink-0 text-sm text-slate-900">{formatINR(amount)}</strong></div>;
+                return <div key={share.share_id} className="flex items-center justify-between gap-3 rounded-lg border border-violet-100 bg-white p-3"><div className="min-w-0"><p className="break-words text-sm font-semibold text-slate-900">{contact?.name || "Contact unavailable"}</p><p className="text-xs text-slate-500">{contact?.phone || "Phone unavailable"} · Share {share.share_id}</p></div><strong className="shrink-0 text-base font-extrabold text-slate-950">{formatINR(amount)}</strong></div>;
               })}
             </div>
           </section>}
