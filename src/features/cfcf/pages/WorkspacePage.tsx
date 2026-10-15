@@ -284,17 +284,33 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     }
   }
 
-  function downloadArchivedFundReport(archive: CfcfArchivedFundRow) {
-    const printWindow = window.open("", "_blank", "width=900,height=700");
-    if (!printWindow) {
-      showDatabaseResult("Allow pop-ups to download the archived report as PDF.", "error");
-      return;
+  async function downloadArchivedFundReport(archive: CfcfArchivedFundRow) {
+    let reportRoot: HTMLDivElement | null = null;
+    try {
+      const pdfModule = await import("html2pdf.js");
+      const parsed = new DOMParser().parseFromString(archive.report_html, "text/html");
+      reportRoot = document.createElement("div");
+      reportRoot.style.cssText = "position:fixed;left:-10000px;top:0;width:794px;background:#fff;color:#0f172a;font-family:Arial,sans-serif;font-size:12px;line-height:1.45;padding:28px;box-sizing:border-box;overflow-wrap:anywhere";
+      const storedStyle = parsed.querySelector("style");
+      if (storedStyle) reportRoot.appendChild(storedStyle.cloneNode(true));
+      const contentRoot = document.createElement("div");
+      contentRoot.innerHTML = parsed.body.innerHTML;
+      reportRoot.appendChild(contentRoot);
+      document.body.appendChild(reportRoot);
+      await pdfModule.default().set({
+        margin: [8, 8, 10, 8],
+        filename: "ClearFlow-Archived-Fund-" + archive.fund_id + ".pdf",
+        image: { type: "jpeg", quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: "#ffffff", windowWidth: 794 },
+        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+        pagebreak: { mode: ["css", "legacy"], avoid: [".record", ".metric", "h2"] },
+      }).from(reportRoot).save();
+      showDatabaseResult("Downloaded the archived Full Fund PDF report.");
+    } catch (error) {
+      showDatabaseResult(error instanceof Error ? "Archived PDF download failed: " + error.message : "Archived PDF download failed.", "error");
+    } finally {
+      reportRoot?.remove();
     }
-    printWindow.document.open();
-    printWindow.document.write(archive.report_html);
-    printWindow.document.close();
-    printWindow.focus();
-    window.setTimeout(() => printWindow.print(), 300);
   }
 
   async function handleDeleteArchivedFund(archive: CfcfArchivedFundRow) {
