@@ -20,7 +20,7 @@ export async function listCfcfContacts(tenantId: string): Promise<CfcfContactRow
     .select(CONTACT_FIELDS)
     .eq("product_id", cfcfConfig.productId)
     .eq("tenant_id", tenantId)
-    .order("name", { ascending: true });
+    .order("name", { ascending: true }).order("phone", { ascending: true });
 
   if (error) throw new Error("Unable to load contacts: " + error.message);
   return (data ?? []) as CfcfContactRow[];
