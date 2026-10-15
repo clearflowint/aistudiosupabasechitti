@@ -1388,7 +1388,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                 <span className="text-base font-bold tabular-nums">{shares.length}</span>
               </div>
             </div>
-            </div>
 
             <section className="space-y-3">
               <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
