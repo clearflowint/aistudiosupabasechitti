@@ -1530,7 +1530,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             </div>
             <section className="space-y-2">
               <h4 className="text-sm font-semibold text-slate-900">Shares that will be set to Undrawn</h4>
-              {cycleSummary?.withdrawn_shares.length ? cycleSummary.withdrawn_shares.map((item) => (
+              {cycleSummary?.withdrawn_shares.length ? cycleSummary.withdrawn_sortedShares.map((item) => (
                 <div key={item.share_id} className="flex items-start justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
                   <div className="min-w-0"><p className="break-words text-sm font-semibold text-slate-900">{item.contact_name || "Contact unavailable"}</p><p className="text-xs text-slate-600">Share {item.share_id}</p><p className="text-xs font-semibold text-amber-800">Drawn · Cycle {cycleDeleteTarget} → Undrawn</p></div>
                   <strong className="shrink-0 text-sm text-slate-900">{formatINR(item.withdrawn_amount)}</strong>
