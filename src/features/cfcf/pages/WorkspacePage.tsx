@@ -269,7 +269,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   async function confirmArchiveSelectedFund() {
     if (!selectedFund || isArchivingFund || archiveStep !== 3 || !archiveAcknowledged) return;
     const typedId = archiveTypedId.trim();
-    if (typedId !== workspace.tenantId && typedId !== workspace.personId) return;
+    if (typedId !== workspace.email) return;
     const source = document.querySelector("[data-cfcf-full-fund-report]");
     if (!(source instanceof HTMLElement)) {
       setFullFundReportError("Open the complete Fund report and wait for it to load before archiving.");
@@ -1928,7 +1928,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             <button type="button" disabled={!archiveAcknowledged} onClick={() => { setArchiveTypedId(""); setArchiveStep(3); }} className="min-h-11 w-full rounded-xl bg-amber-700 px-4 text-sm font-semibold text-white disabled:opacity-40">Continue to final confirmation</button>
           </div>}
           {archiveStep === 3 && <div className="space-y-3">
-            <p className="text-sm leading-5 text-slate-700">To confirm, type either the current Tenant ID or your authorized Person ID exactly as shown below.</p>
+            <p className="text-sm leading-5 text-slate-700">To confirm, type the email address of the currently logged-in person exactly as shown below.</p>
             <div className="space-y-2">
               <div><p className="text-xs font-medium text-slate-500">Tenant ID</p><p className="break-all rounded-lg bg-slate-100 p-3 text-sm font-semibold text-slate-800">{workspace.tenantId}</p></div>
               <div><p className="text-xs font-medium text-slate-500">Authorized Person ID</p><p className="break-all rounded-lg bg-slate-100 p-3 text-sm font-semibold text-slate-800">{workspace.personId}</p></div>
@@ -1958,11 +1958,10 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           {archivedDeleteStep === 3 && <div className="space-y-3">
             <p className="text-sm leading-5 text-slate-700">To confirm, type either the current Tenant ID or your authorized Person ID exactly as shown below.</p>
             <div className="space-y-2">
-              <div><p className="text-xs font-medium text-slate-500">Tenant ID</p><p className="break-all rounded-lg bg-slate-100 p-3 text-sm font-semibold text-slate-800">{workspace.tenantId}</p></div>
-              <div><p className="text-xs font-medium text-slate-500">Authorized Person ID</p><p className="break-all rounded-lg bg-slate-100 p-3 text-sm font-semibold text-slate-800">{workspace.personId}</p></div>
+              <div><p className="text-xs font-medium text-slate-500">Logged-in email ID — type this exact address</p><p className="break-all rounded-lg bg-slate-100 p-3 text-sm font-semibold text-slate-800">{workspace.email}</p></div>
             </div>
-            <input aria-label="Type Tenant ID or Person ID to confirm archived report deletion" value={archivedDeleteTypedId} onChange={(event) => setArchivedDeleteTypedId(event.target.value)} autoComplete="off" spellCheck={false} className="min-h-11 w-full rounded-xl border border-slate-300 px-3 text-sm" placeholder="Enter Tenant ID or Person ID"/>
-            <button type="button" onClick={() => void confirmDeleteArchivedFund()} disabled={!!deletingArchivedId || !archivedDeleteAcknowledged || (archivedDeleteTypedId.trim() !== workspace.tenantId && archivedDeleteTypedId.trim() !== workspace.personId)} className="min-h-11 w-full rounded-xl bg-rose-800 px-4 text-sm font-semibold text-white disabled:opacity-40">{deletingArchivedId === archivedDeleteTarget.archive_id ? "Deleting archived report…" : "Permanently delete archived report"}</button>
+            <input aria-label="Type logged-in email ID to confirm archived report deletion" value={archivedDeleteTypedId} onChange={(event) => setArchivedDeleteTypedId(event.target.value)} autoComplete="off" spellCheck={false} inputMode="email" className="min-h-11 w-full rounded-xl border border-slate-300 px-3 text-sm" placeholder="Enter the email ID shown above"/>
+            <button type="button" onClick={() => void confirmDeleteArchivedFund()} disabled={!!deletingArchivedId || !archivedDeleteAcknowledged || archivedDeleteTypedId.trim() !== workspace.email} className="min-h-11 w-full rounded-xl bg-rose-800 px-4 text-sm font-semibold text-white disabled:opacity-40">{deletingArchivedId === archivedDeleteTarget.archive_id ? "Deleting archived report…" : "Permanently delete archived report"}</button>
           </div>}
           {archivedDeleteError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{archivedDeleteError}</p>}
         </div>}
