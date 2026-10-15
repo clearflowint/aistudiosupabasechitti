@@ -1588,6 +1588,25 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         onClose={() => { if (!isSavingCycle) { setCycleEditNumber(null); setCycleEditError(null); setCycleCreatedInFlow(false); setCycleEditEnabled(false); setCycleReview(false); } }}
       >
         <form id="cycle-values-form" onSubmit={(event) => void handleSaveCycleValues(event)} className="space-y-4">
+          {cycleReview && <section className="space-y-3 rounded-xl border border-violet-200 bg-violet-50 p-4">
+            <h3 className="text-base font-bold text-violet-950">Review Cycle {cycleEditNumber} before saving</h3>
+            <p className="text-sm leading-5 text-violet-900">Check the billing and payout values below. Nothing is saved until you choose Confirm and save Cycle.</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-lg bg-white p-3"><p className="text-xs text-slate-500">Planned payout</p><p className="mt-1 font-semibold text-slate-900">{cyclePayoutInput.trim() === "" ? "Not set" : formatINR(Number(cyclePayoutInput))}</p></div>
+              <div className="rounded-lg bg-white p-3"><p className="text-xs text-slate-500">Commission</p><p className="mt-1 font-semibold text-slate-900">{cycleCommissionInput.trim() === "" ? "Not set" : formatINR(Number(cycleCommissionInput))}</p></div>
+              <div className="rounded-lg bg-white p-3"><p className="text-xs text-slate-500">Total Cycle billing</p><p className="mt-1 font-semibold text-slate-900">{formatINR(shares.filter((share) => share.status === "active").reduce((total, share) => total + (Number(cycleBillInputs[share.share_id] ?? "0") || 0), 0))}</p></div>
+              <div className="rounded-lg bg-white p-3"><p className="text-xs text-slate-500">Active Shares</p><p className="mt-1 font-semibold text-slate-900">{shares.filter((share) => share.status === "active").length}</p></div>
+            </div>
+            <h4 className="font-semibold text-slate-900">Share billing summary</h4>
+            <div className="max-h-64 space-y-2 overflow-y-auto">
+              {shares.filter((share) => share.status === "active").slice().sort((a, b) => (contactById.get(a.contact_id)?.name ?? "").localeCompare(contactById.get(b.contact_id)?.name ?? "", undefined, { sensitivity: "base" }) || (contactById.get(a.contact_id)?.phone ?? "").localeCompare(contactById.get(b.contact_id)?.phone ?? "") || a.share_id.localeCompare(b.share_id)).map((share) => {
+                const contact = contactById.get(share.contact_id);
+                const amount = Number(cycleBillInputs[share.share_id] ?? "0") || 0;
+                return <div key={share.share_id} className="flex items-center justify-between gap-3 rounded-lg border border-violet-100 bg-white p-3"><div className="min-w-0"><p className="break-words text-sm font-semibold text-slate-900">{contact?.name || "Contact unavailable"}</p><p className="text-xs text-slate-500">{contact?.phone || "Phone unavailable"} · Share {share.share_id}</p></div><strong className="shrink-0 text-sm text-slate-900">{formatINR(amount)}</strong></div>;
+              })}
+            </div>
+          </section>}
+
 
           <div className="flex items-center justify-between gap-2 rounded-xl bg-violet-50 p-3"><div className="text-sm font-semibold text-violet-900">Cycle {cycleEditNumber ?? ""} · {shares.filter((share) => share.status === "active").length} active Shares</div><button type="button" onClick={() => setCycleEditEnabled((value) => !value)} disabled={cycleReview || isSavingCycle} className="min-h-9 rounded-lg border border-violet-200 bg-white px-3 text-xs font-semibold text-violet-800">{cycleEditEnabled ? "Review" : "Edit"}</button></div>
           <div className="grid grid-cols-2 gap-2">
