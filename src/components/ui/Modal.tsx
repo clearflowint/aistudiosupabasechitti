@@ -115,7 +115,7 @@ export function Modal({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
-        className={"relative z-10 my-auto max-h-[calc(100dvh-1rem)] w-full overflow-y-auto overscroll-contain border border-slate-300 " + panelWidth + (size === "full" ? " min-h-[calc(100dvh-1rem)] rounded-xl" : " rounded-2xl shadow-2xl shadow-slate-950/25 sm:max-h-[calc(100dvh-3rem)]") + " bg-white"}
+        className={"relative z-10 my-auto max-h-[calc(100dvh-1rem)] w-full overflow-y-auto overscroll-contain border-2 border-[#CBD5E1] ring-1 ring-[#94A3B8]/50 " + panelWidth + (size === "full" ? " min-h-[calc(100dvh-1rem)] rounded-xl" : " rounded-2xl shadow-2xl shadow-slate-950/25 sm:max-h-[calc(100dvh-3rem)]") + " bg-white"}
       >
         <header className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 sm:px-6">
           <div>
