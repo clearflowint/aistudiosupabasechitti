@@ -132,7 +132,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [detailReloadKey, setDetailReloadKey] = useState(0);
   const [isFundModalOpen, setIsFundModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
-  const [newShareContactId, setNewShareContactId] = useState("");
   const [shareFormError, setShareFormError] = useState<string | null>(null);
   const [isSavingShare, setIsSavingShare] = useState(false);
   const [shareContactSearch, setShareContactSearch] = useState("");
@@ -1008,7 +1007,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   }
 
   function openShareModal() {
-    setNewShareContactId(""); setShareFormError(null); setShareContactSearch(""); setShareAssignments({});
+    setShareFormError(null); setShareContactSearch(""); setShareAssignments({});
     setShareAssignmentReview(false); setIsInlineContactOpen(false); setInlineContactName(""); setInlineContactPhone(""); setInlineContactError(null);
     setIsShareModalOpen(true);
   }
