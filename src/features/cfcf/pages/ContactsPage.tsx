@@ -437,12 +437,14 @@ export function ContactsPage({ workspace }: ContactsPageProps) {
               <input
                 id="contact-phone"
                 type="tel"
-                inputMode="tel"
+                inputMode="numeric"
                 autoComplete="tel-national"
                 value={form.phone}
-                onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))}
+                onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value.replace(/\D/g, "").slice(0, 10) }))}
                 required
-                maxLength={16}
+                maxLength={10}
+                pattern="[6-9][0-9]{9}"
+                title="Enter exactly 10 digits for an Indian mobile number"
                 placeholder="98765 43210"
                 className="min-w-0 flex-1 px-3 py-2.5 text-sm outline-none"
               />
