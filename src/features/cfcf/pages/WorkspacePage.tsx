@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import type { AuthorizedWorkspace } from "../../../core/workspace/workspace.types";
 import { Modal } from "../../../components/ui/Modal";
-import { listCfcfContacts } from "../services/contacts.service";
+import { createCfcfContact, listCfcfContacts } from "../services/contacts.service";
 import {
   createCfcfFund,
   createCfcfShare,
@@ -135,6 +135,14 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [newShareContactId, setNewShareContactId] = useState("");
   const [shareFormError, setShareFormError] = useState<string | null>(null);
   const [isSavingShare, setIsSavingShare] = useState(false);
+  const [shareContactSearch, setShareContactSearch] = useState("");
+  const [shareAssignments, setShareAssignments] = useState<Record<string, number>>({});
+  const [shareAssignmentReview, setShareAssignmentReview] = useState(false);
+  const [isInlineContactOpen, setIsInlineContactOpen] = useState(false);
+  const [inlineContactName, setInlineContactName] = useState("");
+  const [inlineContactPhone, setInlineContactPhone] = useState("");
+  const [inlineContactError, setInlineContactError] = useState<string | null>(null);
+  const [isSavingInlineContact, setIsSavingInlineContact] = useState(false);
   const [paymentShare, setPaymentShare] = useState<CfcfShareRow | null>(null);
   const [paymentEntryType, setPaymentEntryType] = useState<"credit" | "debit">("credit");
   const [paymentAmount, setPaymentAmount] = useState("");
@@ -1000,27 +1008,51 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   }
 
   function openShareModal() {
-    setNewShareContactId("");
-    setShareFormError(null);
+    setNewShareContactId(""); setShareFormError(null); setShareContactSearch(""); setShareAssignments({});
+    setShareAssignmentReview(false); setIsInlineContactOpen(false); setInlineContactName(""); setInlineContactPhone(""); setInlineContactError(null);
     setIsShareModalOpen(true);
   }
 
   async function handleCreateShare(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedFund || isSavingShare) return;
-    if (!newShareContactId) { setShareFormError("Choose a Contact."); return; }
+    const assignments = Object.entries(shareAssignments).filter(([, count]) => count > 0);
+    if (!assignments.length) { setShareFormError("Select at least one Contact and assign one or more Shares."); return; }
+    if (!shareAssignmentReview) { setShareAssignmentReview(true); setShareFormError(null); return; }
     if (!beginAction("create-share")) return;
-    setIsSavingShare(true);
-    setShareFormError(null);
+    setIsSavingShare(true); setShareFormError(null);
+    let created = 0;
     try {
-      await createCfcfShare(workspace.tenantId, selectedFund.fund_id, workspace.personId, newShareContactId);
+      for (const [contactId, count] of assignments) {
+        for (let n = 0; n < count; n += 1) { await createCfcfShare(workspace.tenantId, selectedFund.fund_id, workspace.personId, contactId); created += 1; }
+      }
       setIsShareModalOpen(false);
-      showDatabaseResult("Share added to " + selectedFund.fund_name + ".");
-      setDetailReloadKey((n) => n + 1);
-      setFundReloadKey((n) => n + 1);
+      showDatabaseResult("Added " + created + " new Share record(s) to " + selectedFund.fund_name + " for " + assignments.length + " Contact(s).");
+      setDetailReloadKey((n) => n + 1); setFundReloadKey((n) => n + 1);
     } catch (error) {
-      setShareFormError(error instanceof Error ? error.message : "Unable to add Share."); showDatabaseResult(error instanceof Error ? error.message : "Unable to add Share.", "error");
+      const message = error instanceof Error ? error.message : "Unable to add all Shares.";
+      const total = assignments.reduce((sum, [, count]) => sum + count, 0);
+      setShareFormError(created > 0 ? "Only " + created + " of " + total + " Shares were saved before an error. " + message + " Review the Fund before retrying to avoid duplicates." : message);
+      showDatabaseResult(created > 0 ? "Partial result: " + created + " Share(s) saved. " + message : message, "error");
+      if (created > 0) { setDetailReloadKey((n) => n + 1); setFundReloadKey((n) => n + 1); }
     } finally { endAction("create-share"); setIsSavingShare(false); }
+  }
+
+  async function handleCreateInlineContact(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (isSavingInlineContact) return;
+    const digits = inlineContactPhone.replace(/\D/g, "");
+    if (!inlineContactName.trim()) { setInlineContactError("Enter the contact full name."); return; }
+    if (!/^[6-9]\d{9}$/.test(digits)) { setInlineContactError("Enter exactly 10 digits for an Indian mobile number."); return; }
+    setIsSavingInlineContact(true); setInlineContactError(null);
+    try {
+      const existing = contacts.find((contact) => contact.phone.replace(/\D/g, "").replace(/^91/, "").replace(/^0/, "") === digits);
+      const contact = existing ?? await createCfcfContact(workspace.tenantId, { name: inlineContactName.trim(), phone: digits });
+      if (!existing) setContacts((current) => [...current, contact].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }) || a.phone.localeCompare(b.phone)));
+      setShareAssignments((current) => ({ ...current, [contact.contact_id]: current[contact.contact_id] ?? 1 }));
+      setShareContactSearch(""); setIsInlineContactOpen(false); setInlineContactName(""); setInlineContactPhone("");
+      setShareFormError(existing ? "This mobile number already exists; the existing Contact has been selected." : null);
+    } catch (error) { setInlineContactError(error instanceof Error ? error.message : "Unable to add Contact."); }
+    finally { setIsSavingInlineContact(false); }
   }
 
   function openPaymentModal(share: CfcfShareRow) {
@@ -1205,7 +1237,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       const contact = contactById.get(share.contact_id);
       return [contact?.name ?? "", contact?.phone ?? "", share.share_id]
         .some((value) => value.toLocaleLowerCase().includes(query));
-    });
+    }).sort((a, b) => (contactById.get(a.contact_id)?.name ?? "").localeCompare(contactById.get(b.contact_id)?.name ?? "", undefined, { sensitivity: "base" }) || (contactById.get(a.contact_id)?.phone ?? "").localeCompare(contactById.get(b.contact_id)?.phone ?? "") || a.share_id.localeCompare(b.share_id));
   }, [shares, contactById, shareSearch, shareFilter]);
 
   const shareFilterOptions: { id: ShareFilter; label: string; count: number }[] = [
