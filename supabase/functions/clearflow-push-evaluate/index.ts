@@ -3,7 +3,6 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const headers = { "content-type": "application/json", "cache-control": "no-store" };
 const reply = (status: number, body: Record<string, unknown>) =>
   new Response(JSON.stringify(body), { status, headers });
-const safeText = (v: unknown) => typeof v === "string" ? v : "";
 
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return reply(405, { error: "POST required" });
@@ -25,7 +24,7 @@ Deno.serve(async (req: Request) => {
   if (!origins?.length) return reply(200, { ok: true, queued: 0, skipped: "CFCF push is disabled." });
 
   const { data: funds, error: fundsError } = await admin.from("cfcf_funds")
-    .select("fund_id, tenant_id, fund_name, fund_total_pending_amount, status, archived_at")
+    .select("fund_id, tenant_id, fund_total_pending_amount, status, archived_at")
     .eq("product_id", "CFCF").eq("status", "active").is("archived_at", null);
   if (fundsError) return reply(500, { error: "Unable to load active CFCF funds." });
 
@@ -64,10 +63,13 @@ Deno.serve(async (req: Request) => {
       }
     }
     for (const share of shares as any[]) {
-      const previousCycles = (cycles as any[]).filter((c: any) => new Date(c.created_at).getTime() <= new Date(share.created_at).getTime());
-      if (previousCycles.some((c: any) => !bills.some((b: any) => b.cycle_id === c.cycle_id && b.share_id === share.share_id))) {
-        tenantHasAlerts.add(fund.tenant_id);
-      }
+      // Match the existing NotificationsPanel rule exactly.
+      const previousCycles = (cycles as any[]).filter((c: any) =>
+        new Date(c.created_at).getTime() <= new Date(share.created_at).getTime()
+      );
+      if (previousCycles.some((c: any) =>
+        !bills.some((b: any) => b.cycle_id === c.cycle_id && b.share_id === share.share_id)
+      )) tenantHasAlerts.add(fund.tenant_id);
     }
   }
 
@@ -75,7 +77,7 @@ Deno.serve(async (req: Request) => {
   let queued = 0;
   for (const tenantId of tenantHasAlerts) {
     for (const origin of origins) {
-      const { error } = await admin.from("clearflow_push_outbox").upsert({
+      const { data, error } = await admin.from("clearflow_push_outbox").upsert({
         product_id: "CFCF",
         tenant_id: tenantId,
         origin_id: origin.origin_id,
@@ -88,13 +90,12 @@ Deno.serve(async (req: Request) => {
         delivery_status: "pending",
         available_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-      }, { onConflict: "product_id,tenant_id,event_key", ignoreDuplicates: true });
-      if (error) {
-        // A daily event already exists; do not create duplicates or overwrite delivery state.
-        if (error.code !== "23505") return reply(500, { error: "Unable to queue manager alert." });
-      } else {
-        queued++;
-      }
+      }, {
+        onConflict: "product_id,tenant_id,origin_id,event_key",
+        ignoreDuplicates: true,
+      }).select("notification_id");
+      if (error) return reply(500, { error: "Unable to queue manager alert." });
+      if (data?.length) queued++;
     }
   }
   return reply(200, { ok: true, tenants_with_alerts: tenantHasAlerts.size, queued, date: eventDate });
