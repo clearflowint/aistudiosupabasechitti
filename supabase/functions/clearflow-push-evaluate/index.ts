@@ -28,21 +28,25 @@ Deno.serve(async (req: Request) => {
     .eq("product_id", "CFCF").eq("status", "active").is("archived_at", null);
   if (fundsError) return reply(500, { error: "Unable to load active CFCF funds." });
 
-  const tenantHasAlerts = new Set<string>();
-  const fundIds = (funds ?? []).map((f: any) => f.fund_id).filter(Boolean);
-  for (const fund of (funds ?? []) as any[]) {
-    if (Number(fund.fund_total_pending_amount ?? 0) > 0) tenantHasAlerts.add(fund.tenant_id);
-  }
+  // A tenant's current alert set is persisted per product origin. Daily evaluation
+  // compares the set and only queues alerts that have appeared since the last run.
+  const tenantAlertKeys = new Map<string, Set<string>>();
+  const addAlert = (tenantId: string, key: string) => {
+    if (!tenantAlertKeys.has(tenantId)) tenantAlertKeys.set(tenantId, new Set<string>());
+    tenantAlertKeys.get(tenantId)!.add(key);
+  };
 
-  for (const fundId of fundIds) {
-    const fund = (funds ?? []).find((f: any) => f.fund_id === fundId) as any;
+  for (const fund of (funds ?? []) as any[]) {
+    if (!tenantAlertKeys.has(fund.tenant_id)) tenantAlertKeys.set(fund.tenant_id, new Set<string>());
+    if (Number(fund.fund_total_pending_amount ?? 0) > 0) addAlert(fund.tenant_id, `fund:${fund.fund_id}:pending`);
+
     const [sharesResult, billsResult, cyclesResult] = await Promise.all([
       admin.from("cfcf_shares").select("share_id, tenant_id, fund_id, total_pending, created_at, status")
-        .eq("product_id", "CFCF").eq("tenant_id", fund.tenant_id).eq("fund_id", fundId),
+        .eq("product_id", "CFCF").eq("tenant_id", fund.tenant_id).eq("fund_id", fund.fund_id),
       admin.from("cfcf_bills").select("bill_id, tenant_id, fund_id, cycle_id, share_id, amount")
-        .eq("product_id", "CFCF").eq("tenant_id", fund.tenant_id).eq("fund_id", fundId),
+        .eq("product_id", "CFCF").eq("tenant_id", fund.tenant_id).eq("fund_id", fund.fund_id),
       admin.from("cfcf_cycles").select("cycle_id, tenant_id, fund_id, cycle_number, planned_payout_amount, commission_amount, created_at")
-        .eq("product_id", "CFCF").eq("tenant_id", fund.tenant_id).eq("fund_id", fundId),
+        .eq("product_id", "CFCF").eq("tenant_id", fund.tenant_id).eq("fund_id", fund.fund_id),
     ]);
     if (sharesResult.error || billsResult.error || cyclesResult.error) {
       return reply(500, { error: "Unable to evaluate saved CFCF alert records." });
@@ -50,43 +54,68 @@ Deno.serve(async (req: Request) => {
     const shares = sharesResult.data ?? [];
     const bills = billsResult.data ?? [];
     const cycles = cyclesResult.data ?? [];
-    if (shares.some((s: any) => Number(s.total_pending ?? 0) > 0)) tenantHasAlerts.add(fund.tenant_id);
+
+    for (const share of shares as any[]) {
+      if (Number(share.total_pending ?? 0) > 0) addAlert(fund.tenant_id, `share:${share.share_id}:pending`);
+    }
 
     for (const cycle of cycles as any[]) {
-      if (cycle.planned_payout_amount == null || Number(cycle.planned_payout_amount) === 0 ||
-          cycle.commission_amount == null || Number(cycle.commission_amount) === 0) {
-        tenantHasAlerts.add(fund.tenant_id);
+      if (cycle.planned_payout_amount == null || Number(cycle.planned_payout_amount) === 0) {
+        addAlert(fund.tenant_id, `cycle:${cycle.cycle_id}:payout`);
+      }
+      if (cycle.commission_amount == null || Number(cycle.commission_amount) === 0) {
+        addAlert(fund.tenant_id, `cycle:${cycle.cycle_id}:commission`);
       }
       for (const share of shares as any[]) {
         const bill = bills.find((b: any) => b.cycle_id === cycle.cycle_id && b.share_id === share.share_id);
-        if (!bill || Number(bill.amount) === 0) tenantHasAlerts.add(fund.tenant_id);
+        if (!bill || Number(bill.amount) === 0) addAlert(fund.tenant_id, `bill:${cycle.cycle_id}:${share.share_id}`);
       }
     }
+
     for (const share of shares as any[]) {
-      // Match the existing NotificationsPanel rule exactly.
-      const previousCycles = (cycles as any[]).filter((c: any) =>
-        new Date(c.created_at).getTime() <= new Date(share.created_at).getTime()
+      // Preserve the NotificationsPanel's existing previous-cycle rule.
+      const previousCycles = (cycles as any[]).filter((cycle: any) =>
+        new Date(cycle.created_at).getTime() <= new Date(share.created_at).getTime()
       );
-      if (previousCycles.some((c: any) =>
-        !bills.some((b: any) => b.cycle_id === c.cycle_id && b.share_id === share.share_id)
-      )) tenantHasAlerts.add(fund.tenant_id);
+      for (const cycle of previousCycles) {
+        if (!bills.some((bill: any) => bill.cycle_id === cycle.cycle_id && bill.share_id === share.share_id)) {
+          addAlert(fund.tenant_id, `bill:${cycle.cycle_id}:${share.share_id}`);
+        }
+      }
     }
   }
 
-  const eventDate = new Date().toISOString().slice(0, 10);
   let queued = 0;
-  for (const tenantId of tenantHasAlerts) {
+  for (const [tenantId, currentKeys] of tenantAlertKeys) {
     for (const origin of origins) {
+      const { data: previous, error: stateReadError } = await admin.from("clearflow_push_alert_state")
+        .select("active_alert_keys").eq("product_id", "CFCF").eq("tenant_id", tenantId)
+        .eq("origin_id", origin.origin_id).maybeSingle();
+      if (stateReadError) return reply(500, { error: "Unable to read manager alert state." });
+
+      const previousKeys = new Set<string>((previous?.active_alert_keys ?? []) as string[]);
+      const newlyAdded = Array.from(currentKeys).filter((key) => !previousKeys.has(key)).sort();
+      const { error: stateWriteError } = await admin.from("clearflow_push_alert_state").upsert({
+        product_id: "CFCF", tenant_id: tenantId, origin_id: origin.origin_id,
+        active_alert_keys: Array.from(currentKeys).sort(), updated_at: new Date().toISOString(),
+      }, { onConflict: "product_id,tenant_id,origin_id" });
+      if (stateWriteError) return reply(500, { error: "Unable to update manager alert state." });
+
+      // First run records a baseline, preventing a burst for alerts that already existed.
+      if (!previous || newlyAdded.length === 0) continue;
+
+      const digestBytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(newlyAdded.join("\n")));
+      const digest = Array.from(new Uint8Array(digestBytes)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
       const { data, error } = await admin.from("clearflow_push_outbox").upsert({
         product_id: "CFCF",
         tenant_id: tenantId,
         origin_id: origin.origin_id,
-        event_key: "manager-alerts:" + eventDate,
+        event_key: "manager-alerts:" + digest,
         notification_type: "manager_alerts",
         title: "ClearFlow manager alerts",
-        body: "Open ClearFlow to review outstanding items.",
+        body: newlyAdded.length === 1 ? "A new manager alert needs your attention." : newlyAdded.length + " new manager alerts need your attention.",
         target_url: "/",
-        payload: { source: "cfcf-manager-alerts", date: eventDate },
+        payload: { source: "cfcf-manager-alerts", alert_count: newlyAdded.length },
         delivery_status: "pending",
         available_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -98,5 +127,5 @@ Deno.serve(async (req: Request) => {
       if (data?.length) queued++;
     }
   }
-  return reply(200, { ok: true, tenants_with_alerts: tenantHasAlerts.size, queued, date: eventDate });
+  return reply(200, { ok: true, tenants_evaluated: tenantAlertKeys.size, queued });
 });
