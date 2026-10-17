@@ -52,6 +52,30 @@ export function NotificationsPanel({ workspace, onNavigate }: NotificationsPanel
   const [previousBillAlerts, setPreviousBillAlerts] = useState<PreviousBillAlert[]>([]);
   const [billAlertsError, setBillAlertsError] = useState<string | null>(null);
   const [managerAlerts, setManagerAlerts] = useState<Array<{ key: string; label: string; fundId: string; fundName: string; detail: string; shareId?: string; cycleNumber?: number; kind: "fund-dues" | "share-dues" | "bill" | "cycle" }>>([]);
+  const [dismissedNotificationIds, setDismissedNotificationIds] = useState<string[]>(() => {
+    try {
+      const saved = window.localStorage.getItem("clearflow:cfcf-dismissed-notifications:v1:" + workspace.tenantId);
+      const parsed: unknown = saved ? JSON.parse(saved) : [];
+      return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : [];
+    } catch { return []; }
+  });
+  const notificationKey = (item: CfcfNotification, index: number) => String(item.id ?? item.campaign_id ?? [item.type, item.title, item.created_at, index].join(":"));
+  const dismissNotification = (key: string) => {
+    setDismissedNotificationIds((current) => {
+      const next = current.includes(key) ? current : [...current, key];
+      try { window.localStorage.setItem("clearflow:cfcf-dismissed-notifications:v1:" + workspace.tenantId, JSON.stringify(next)); } catch { /* Current-session dismiss still works if storage is unavailable. */ }
+      return next;
+    });
+  };
+  const clearInformationalNotifications = () => {
+    const keys = items.map((item, index) => notificationKey(item, index));
+    setDismissedNotificationIds((current) => {
+      const next = Array.from(new Set([...current, ...keys]));
+      try { window.localStorage.setItem("clearflow:cfcf-dismissed-notifications:v1:" + workspace.tenantId, JSON.stringify(next)); } catch { /* Current-session clear still works if storage is unavailable. */ }
+      return next;
+    });
+  };
+
 
   const refresh = useCallback(async () => {
     setError(null);
