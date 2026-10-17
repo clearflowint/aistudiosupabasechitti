@@ -206,6 +206,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [fundForm, setFundForm] = useState(emptyFundForm);
   const [fundFormError, setFundFormError] = useState<string | null>(null);
   const [databaseResult, setDatabaseResult] = useState<{ status: "success" | "error"; message: string } | null>(null);
+  const [previousBillSuccess, setPreviousBillSuccess] = useState<{ fundId: string; fundName: string; shares: Array<{ shareId: string; cycleNumbers: number[] }> } | null>(null);
 
   function showDatabaseResult(message: string, status: "success" | "error" = "success"): void {
     setDatabaseResult({ status, message });
@@ -421,6 +422,41 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     return () => { cancelled = true; };
   }, [workspace.tenantId, selectedFund?.fund_id, detailReloadKey, fundReloadKey]);
 
+  // CFCF PRODUCT: Header previous-bill alerts deep-link into the existing Share Bills modal.
+  useEffect(() => {
+    const storageKey = "clearflow:cfcf-open-previous-bills:v1:" + workspace.tenantId;
+    const consumeRequest = () => {
+      try {
+        const raw = window.localStorage.getItem(storageKey);
+        if (!raw) return;
+        const target = JSON.parse(raw) as { fundId?: string; shareId?: string; cycleNumbers?: number[] };
+        if (!target.fundId || !target.shareId || !Array.isArray(target.cycleNumbers)) return;
+        if (selectedFundId !== target.fundId) {
+          setSelectedFundId(target.fundId);
+          return;
+        }
+        const share = shares.find((item) => item.share_id === target.shareId);
+        if (!share || !cycleRows.length) return;
+        setActiveSectionTab("shares");
+        setSelectedShareId(share.share_id);
+        setBillingShare(share);
+        setBillingEditEnabled(false);
+        setBillingCycleNumber(String(target.cycleNumbers[0] ?? highestCycleNumber(selectedFund) ?? 1));
+        const existing = billForShareCycle(share.share_id, target.cycleNumbers[0] ?? highestCycleNumber(selectedFund));
+        setBillingAmount(existing ? String(existing.amount) : "0");
+        setBillingError(null);
+        setBillingReview(false);
+        window.localStorage.removeItem(storageKey);
+      } catch {
+        // Keep malformed or unavailable requests from breaking the workspace.
+      }
+    };
+    const onOpenPreviousBills = () => consumeRequest();
+    window.addEventListener("clearflow:cfcf-open-previous-bills", onOpenPreviousBills);
+    consumeRequest();
+    return () => window.removeEventListener("clearflow:cfcf-open-previous-bills", onOpenPreviousBills);
+  }, [workspace.tenantId, selectedFundId, selectedFund, shares, cycleRows, bills]);
+
   // CFCF PRODUCT: Clear Fund-specific filters, unsaved inputs, and open financial modals on Fund/tenant changes.
   // This prevents a modal opened for one Fund from being accidentally submitted against another selected Fund.
   useEffect(() => {
@@ -429,6 +465,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     setSelectedShareId(null);
     setPaymentShare(null);
     setBillingShare(null);
+    setPreviousBillSuccess(null);
     setPayoutShare(null);
     setStatementShare(null);
     setIsShareModalOpen(false);
@@ -1059,6 +1096,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     if (!beginAction("create-share")) return;
     setIsSavingShare(true); setShareFormError(null);
     let created = 0;
+    const existingShareIds = new Set(shares.map((share) => share.share_id));
     try {
       for (const [contactId, count] of assignments) {
         for (let n = 0; n < count; n += 1) {
@@ -1072,9 +1110,27 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           });
         }
       }
+      const [freshShares, freshBills, freshCycles] = await Promise.all([
+        listCfcfShares(workspace.tenantId, selectedFund.fund_id),
+        listCfcfBills(workspace.tenantId, selectedFund.fund_id),
+        listCfcfCycles(workspace.tenantId, selectedFund.fund_id),
+      ]);
+      const affectedShares = freshShares.filter((share) => !existingShareIds.has(share.share_id)).map((share) => {
+        const cycleNumbers = freshCycles.filter((cycle) =>
+          new Date(cycle.created_at).getTime() <= new Date(share.created_at).getTime()
+        ).filter((cycle) => {
+          const bill = freshBills.find((item) => item.cycle_id === cycle.cycle_id && item.share_id === share.share_id);
+          return !bill || Number(bill.amount) === 0;
+        }).map((cycle) => cycle.cycle_number).sort((a, b) => a - b);
+        return { shareId: share.share_id, cycleNumbers };
+      }).filter((share) => share.cycleNumbers.length > 0);
       setIsShareModalOpen(false);
-      showDatabaseResult("Added " + created + " new Share record(s) to " + selectedFund.fund_name + " for " + assignments.length + " Contact(s).");
       setDetailReloadKey((n) => n + 1); setFundReloadKey((n) => n + 1);
+      if (affectedShares.length > 0) {
+        setPreviousBillSuccess({ fundId: selectedFund.fund_id, fundName: selectedFund.fund_name, shares: affectedShares });
+      } else {
+        showDatabaseResult("Added " + created + " new Share record(s) to " + selectedFund.fund_name + " for " + assignments.length + " Contact(s).");
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to add all Shares.";
       const total = assignments.reduce((sum, [, count]) => sum + count, 0);
@@ -1751,6 +1807,50 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             </div>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        isOpen={previousBillSuccess !== null}
+        title="Share Added Successfully"
+        description="Previous Cycle bills need attention for the newly added Share."
+        onClose={() => setPreviousBillSuccess(null)}
+      >
+        {previousBillSuccess && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+              <p className="font-semibold">Added to {previousBillSuccess.fundName}</p>
+              <p className="mt-1 text-xs leading-5">The following Share(s) have zero or missing bills in Cycles that existed before the Share was added.</p>
+            </div>
+            <div className="max-h-[45dvh] space-y-2 overflow-y-auto">
+              {previousBillSuccess.shares.map((share) => (
+                <article key={share.shareId} className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                  <p className="break-all text-sm font-semibold text-slate-900">Share ID · {share.shareId}</p>
+                  <p className="mt-1 text-xs leading-5 text-amber-900">Bills to review: {share.cycleNumbers.map((number) => "Cycle " + number).join(", ")}</p>
+                </article>
+              ))}
+            </div>
+            <p className="text-xs leading-5 text-slate-500">Enter the correct amounts in the existing Bills modal. No amounts are guessed and no financial calculations are changed.</p>
+            <div className="flex flex-col gap-2 border-t border-slate-100 pt-3">
+              <button type="button" onClick={() => {
+                const target = previousBillSuccess.shares[0];
+                const share = shares.find((item) => item.share_id === target?.shareId);
+                if (share) {
+                  setActiveSectionTab("shares");
+                  setSelectedShareId(share.share_id);
+                  setBillingShare(share);
+                  setBillingEditEnabled(false);
+                  setBillingCycleNumber(String(target.cycleNumbers[0] ?? 1));
+                  const existing = billForShareCycle(share.share_id, target.cycleNumbers[0] ?? 1);
+                  setBillingAmount(existing ? String(existing.amount) : "0");
+                  setBillingError(null);
+                  setBillingReview(false);
+                }
+                setPreviousBillSuccess(null);
+              }} className="min-h-11 w-full rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white">Add Previous Cycle Bills</button>
+              <button type="button" onClick={() => setPreviousBillSuccess(null)} className="min-h-11 w-full rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700">Done for now</button>
+            </div>
+          </div>
+        )}
       </Modal>
 
       <Modal
