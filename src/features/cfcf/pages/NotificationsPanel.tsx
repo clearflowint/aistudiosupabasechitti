@@ -2,7 +2,7 @@
 // MIX: Rendered by the universal shell through the product's optional notification slot.
 
 import { useCallback, useEffect, useState } from "react";
-import { Bell, RefreshCw, CheckCircle2, CircleAlert, Clock3, XCircle } from "lucide-react";
+import { Bell, RefreshCw, CircleAlert } from "lucide-react";
 import type { AuthorizedWorkspace } from "../../../core/workspace/workspace.types";
 import { listCfcfNotifications, type CfcfNotification } from "../services/notifications.service";
 import { listCfcfFunds, listCfcfShares, listCfcfBills, listCfcfCycles } from "../services/workspace.service";
@@ -17,20 +17,6 @@ interface PreviousBillAlert {
   fundName: string;
   shareId: string;
   cycleNumbers: number[];
-}
-
-function statusStyle(status: string) {
-  if (status === "sent") return "bg-emerald-50 text-emerald-800";
-  if (status === "partial") return "bg-amber-50 text-amber-900";
-  if (status === "failed") return "bg-rose-50 text-rose-800";
-  return "bg-sky-50 text-sky-800";
-}
-
-function StatusIcon({ status }: { status: string }) {
-  if (status === "sent") return <CheckCircle2 size={16} />;
-  if (status === "partial") return <CircleAlert size={16} />;
-  if (status === "failed") return <XCircle size={16} />;
-  return <Clock3 size={16} className={status === "submitting" || status === "accepted" || status === "ack_timeout" ? "animate-pulse" : ""} />;
 }
 
 function statusLabel(status: string) {
