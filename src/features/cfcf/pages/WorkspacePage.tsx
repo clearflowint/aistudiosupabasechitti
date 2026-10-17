@@ -1855,39 +1855,59 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
 
       <Modal
         isOpen={Boolean(billingShare)}
-        title="Share bill · Existing Cycle"
-        description={billingShare ? "Saved bill amounts are shown per Cycle. Choose Edit this Cycle to enter a corrected amount, compare it with the saved value, then review and confirm the update." : "Review a saved Share bill."}
-        onClose={() => { if (!isSavingBilling) { setBillingShare(null); setBillingError(null); } }}
+        title="Share Bills · Existing Cycles"
+        description="Edit one or more Cycle bills in this session. Review all changed Cycles together before saving."
+        onClose={() => { if (!isSavingBilling) { setBillingShare(null); setBillingError(null); setBillingReview(false); } }}
       >
         <form id="share-cycle-billing-form" onSubmit={(event) => void handleSaveCycleBilling(event)} className="space-y-4">
-
+          <section className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Share details</p>
+            <p className="mt-1 break-words text-base font-bold text-slate-900">{selectedFund?.fund_name ?? "Fund unavailable"}</p>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <StoredValue label="Fund ID" value={selectedFund?.fund_id ?? "—"} />
+              <StoredValue label="Share ID" value={billingShare?.share_id ?? "—"} />
+              <StoredValue label="Share status" value={billingShare?.payout_status === "drawn" || billingShare?.payout_cycle_number !== null ? "Drawn" : "Undrawn"} />
+              <StoredValue label="Payout Cycle" value={billingShare?.payout_cycle_number == null ? "—" : String(billingShare.payout_cycle_number)} />
+            </div>
+          </section>
           <section className="space-y-2 rounded-xl border border-slate-200 p-3">
-            <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">Saved bills for this Share</h4>
+            <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">Bills for this Share</h4>
             {savedCycleNumbers().length === 0 ? <p className="text-sm text-slate-500">No saved Cycles yet.</p> : savedCycleNumbers().map((cycle) => {
               const savedBill = billingShare ? billForShareCycle(billingShare.share_id, cycle) : undefined;
-              const isSelected = Number(billingCycleNumber) === cycle && billingEditEnabled;
+              const isSelected = billingEditedCycles.includes(cycle);
               return <div key={cycle} className="border-b border-slate-100 py-3 last:border-b-0">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="min-w-0 text-sm font-medium text-slate-800">Cycle {cycle} <span className="mx-1 text-slate-400">—</span> <span className="font-bold tabular-nums">{formatINR(savedBill?.amount ?? 0)}</span></p>
-                  <button type="button" disabled={isSavingBilling || billingReview} onClick={() => { setBillingCycleNumber(String(cycle)); setBillingAmount(String(savedBill?.amount ?? 0)); setBillingEditEnabled(true); setBillingReview(false); setBillingError(null); }} className="min-h-9 shrink-0 rounded-lg border border-sky-200 bg-white px-3 text-xs font-semibold text-sky-800 disabled:opacity-50">{isSelected ? "Selected" : "Edit"}</button>
+                <div className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-slate-800">Cycle {cycle}</p>
+                    <p className="mt-1 text-xs text-slate-500">{savedBill ? "Bill record saved" : "Bill record missing"}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-xs text-slate-500">Old amount</p>
+                    <p className="font-bold tabular-nums text-slate-800">{savedBill ? formatINR(savedBill.amount) : "No record"}</p>
+                  </div>
+                  <button type="button" aria-label={isSelected ? `Stop editing Cycle ${cycle}` : `Edit Cycle ${cycle} bill`} title={isSelected ? "Stop editing" : "Edit bill"} disabled={isSavingBilling || billingReview} onClick={() => {
+                    setBillingEditedCycles((current) => isSelected ? current.filter((item) => item !== cycle) : [...current, cycle].sort((a, b) => a - b));
+                    setBillingDrafts((current) => isSelected ? current : { ...current, [cycle]: current[cycle] ?? (savedBill ? String(savedBill.amount) : "") });
+                    setBillingEditEnabled(true);
+                    setBillingError(null);
+                  }} className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg border ${isSelected ? "border-sky-300 bg-sky-100 text-sky-800" : "border-slate-200 bg-white text-slate-700"} disabled:opacity-50`}><Pencil size={16}/></button>
                 </div>
                 {isSelected && <div className="mt-3 grid grid-cols-2 gap-2">
-                  <div className="min-w-0 rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-500">Saved bill</p><p className="mt-1 break-words font-bold tabular-nums text-slate-800">{formatINR(savedBill?.amount ?? 0)}</p></div>
-                  <div className="min-w-0 rounded-lg border border-sky-200 bg-sky-50 p-3"><label htmlFor="cycle-billing-amount" className="block text-xs text-sky-800">Corrected bill (₹)</label><input id="cycle-billing-amount" type="number" inputMode="numeric" min="0" max="2147483647" step="1" required value={billingAmount} onChange={(event) => setBillingAmount(event.target.value)} disabled={billingReview} placeholder="Enter amount" className="mt-1 min-h-10 w-full min-w-0 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-900" /></div>
+                  <div className="min-w-0 rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-500">Saved bill</p><p className="mt-1 break-words font-bold tabular-nums text-slate-800">{savedBill ? formatINR(savedBill.amount) : "No bill record"}</p></div>
+                  <div className="min-w-0 rounded-lg border border-sky-200 bg-sky-50 p-3"><label htmlFor={`cycle-billing-amount-${cycle}`} className="block text-xs text-sky-800">Corrected bill (₹)</label><input id={`cycle-billing-amount-${cycle}`} type="number" inputMode="numeric" min="0" max="2147483647" step="1" required value={billingDrafts[cycle] ?? ""} onChange={(event) => setBillingDrafts((current) => ({ ...current, [cycle]: event.target.value }))} disabled={billingReview} placeholder="Enter amount" className="mt-1 min-h-10 w-full min-w-0 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-900"/></div>
                 </div>}
               </div>;
             })}
           </section>
-          {!billingEditEnabled && <p className="text-xs leading-5 text-slate-500">Tap Edit on a Cycle row. Its saved amount will remain visible beside the corrected amount field.</p>}
-          {billingEditEnabled && <p className="text-xs leading-5 text-slate-500">Compare the saved bill with the corrected amount. Choose Review changes to inspect the update before saving. No payment or withdrawal is created.</p>}
+          <p className="text-xs leading-5 text-slate-500">Tap the pencil beside each Cycle you want to change. Each saved amount stays visible, and drafts for other Cycles are preserved. Drawn/Undrawn status is informational; editing bills does not change it.</p>
+          {billingEditedCycles.length > 0 && <p className="rounded-lg bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-900">Selected: {billingEditedCycles.map((cycle) => `Cycle ${cycle}`).join(", ")}</p>}
           {billingError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm leading-5 text-rose-800">{billingError}</div>}
           <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
-            <button type="button" onClick={() => setBillingShare(null)} disabled={isSavingBilling} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">Close</button>
-            {!billingEditEnabled ? <button type="button" disabled={savedCycleNumbers().length === 0} onClick={() => { setBillingEditEnabled(true); setBillingError(null); }} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">Edit bill</button> : <button type="submit" disabled={isSavingBilling || savedCycleNumbers().length === 0 || !billingAmount.trim() || !Number.isSafeInteger(Number(billingAmount)) || Number(billingAmount) < 0 || Number(billingAmount) > 2147483647} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"><CalendarDays size={16} /> {isSavingBilling ? <><RefreshCw size={16} className="animate-spin" /> Waiting for Supabase…</> : "Review changes"}</button>}
+            <button type="button" onClick={() => { setBillingShare(null); setBillingError(null); setBillingReview(false); }} disabled={isSavingBilling} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">Close</button>
+            <button type="submit" disabled={isSavingBilling || billingEditedCycles.length === 0 || billingEditedCycles.some((cycle) => { const value = billingDrafts[cycle] ?? ""; const amount = Number(value); return !value.trim() || !Number.isSafeInteger(amount) || amount < 0 || amount > 2147483647; })} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"><CalendarDays size={16}/> {isSavingBilling ? <><RefreshCw size={16} className="animate-spin"/> Saving bills…</> : "Review all changes"}</button>
           </div>
         </form>
       </Modal>
-
 
       <Modal isOpen={isShareModalOpen} title={shareAssignmentReview ? "Review Share Assignments" : isInlineContactOpen ? "Add Contact" : "Add Shares to Fund"} description={selectedFund ? "Fund: " + selectedFund.fund_name + " · Contacts and Shares are listed alphabetically." : "Select Contacts and assign Shares."} size="full" onClose={() => { if (!isSavingShare && !isSavingInlineContact) { if (isInlineContactOpen) setIsInlineContactOpen(false); else setIsShareModalOpen(false); } }}>
         {isInlineContactOpen ? (
@@ -1980,11 +2000,32 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         </div>
       </Modal>
 
-      <Modal isOpen={billingReview && Boolean(billingShare)} title="Review Share Bill" description="Verify the bill amount and Cycle before saving." onClose={() => { if (!isSavingBilling) setBillingReview(false); }}>
-        <div className="mb-4 rounded-xl border border-violet-200 bg-violet-50 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-violet-800">Review details</p><p className="mt-2 text-sm text-slate-600">Fund</p><p className="font-semibold text-slate-900">{selectedFund?.fund_name ?? "—"}</p><div className="mt-3 grid grid-cols-2 gap-3"><StoredValue label="Share ID" value={billingShare?.share_id ?? "—"} /><StoredValue label="Cycle" value={billingCycleNumber || "Not selected"} /><StoredValue label="Currently saved" value={formatINR(billForShareCycle(billingShare?.share_id ?? "", Number(billingCycleNumber))?.amount ?? 0)} /><StoredValue label="Corrected amount" value={billingAmount.trim() ? formatINR(Number(billingAmount)) : "Not entered"} /></div><p className="mt-3 text-xs leading-5 text-slate-600">Saving billing changes the bill record only. It does not record a payment, debit, credit or withdrawal.</p></div>
+      <Modal isOpen={billingReview && Boolean(billingShare)} title="Review Share Bills" description="Verify every changed Cycle before confirming the bill updates." onClose={() => { if (!isSavingBilling) setBillingReview(false); }}>
+        <div className="mb-4 rounded-xl border border-violet-200 bg-violet-50 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-violet-800">Review details</p>
+          <p className="mt-2 text-sm text-slate-600">Fund</p>
+          <p className="font-semibold text-slate-900">{selectedFund?.fund_name ?? "—"} · ID {selectedFund?.fund_id ?? "—"}</p>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <StoredValue label="Share ID" value={billingShare?.share_id ?? "—"} />
+            <StoredValue label="Share status" value={billingShare?.payout_status === "drawn" || billingShare?.payout_cycle_number !== null ? "Drawn" : "Undrawn"} />
+          </div>
+          <div className="mt-4 space-y-2">
+            {billingEditedCycles.slice().sort((a, b) => a - b).map((cycle) => {
+              const savedBill = billingShare ? billForShareCycle(billingShare.share_id, cycle) : undefined;
+              return <div key={cycle} className="rounded-lg border border-violet-200 bg-white p-3">
+                <p className="font-semibold text-slate-900">Cycle {cycle}</p>
+                <div className="mt-2 grid grid-cols-2 gap-3">
+                  <StoredValue label="Old amount" value={savedBill ? formatINR(savedBill.amount) : "No bill record"} />
+                  <StoredValue label="Corrected amount" value={billingDrafts[cycle]?.trim() ? formatINR(Number(billingDrafts[cycle])) : "Not entered"} />
+                </div>
+              </div>;
+            })}
+          </div>
+          <p className="mt-3 text-xs leading-5 text-slate-600">Only selected Cycle bill records are saved. This does not record a payment, debit, credit, payout or withdrawal. If saving fails partway through, the modal reports the issue so saved records can be checked.</p>
+        </div>
         <div className="flex justify-end gap-2">
-          <button type="button" onClick={() => setBillingReview(false)} disabled={isSavingBilling} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm disabled:opacity-50">Cancel</button>
-          <button type="submit" form="share-cycle-billing-form" disabled={isSavingBilling} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingBilling ? "Saving…" : "Confirm"}</button>
+          <button type="button" onClick={() => setBillingReview(false)} disabled={isSavingBilling} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm disabled:opacity-50">Back to edit</button>
+          <button type="submit" form="share-cycle-billing-form" disabled={isSavingBilling} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingBilling ? "Saving bills…" : "Confirm and save all"}</button>
         </div>
       </Modal>
 
