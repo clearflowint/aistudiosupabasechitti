@@ -1833,7 +1833,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             <div className="flex flex-col gap-2 border-t border-slate-100 pt-3">
               <button type="button" onClick={() => {
                 const target = previousBillSuccess.shares[0];
-                const share = shares.find((item) => item.share_id === target?.shareId);
+                const share = target?.share ?? shares.find((item) => item.share_id === target?.shareId);
                 if (share) {
                   setActiveSectionTab("shares");
                   setSelectedShareId(share.share_id);
