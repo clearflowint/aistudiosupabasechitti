@@ -1404,7 +1404,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                 <div className="mt-3 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 sm:grid-cols-4">
                   <button type="button" onClick={() => setIsFundReportOpen(true)} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-1 text-xs font-semibold text-sky-800"><FileText size={14}/> Fund Summary</button>
                   <button type="button" onClick={() => void openFullFundReport()} disabled={isLoadingFullFundReport} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-1 text-xs font-semibold text-violet-800 disabled:opacity-50"><FileText size={14}/> {isLoadingFullFundReport ? "Loading…" : "Full Report"}</button>
-                  <button type="button" onClick={() => void openAdjustmentsLedger()} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-1 text-xs font-semibold text-emerald-800"><IndianRupee size={14}/> Adjustments</button>
                   <button type="button" onClick={() => { setFundEditForm({ fundName: selectedFund.fund_name ?? "", startDate: selectedFund.start_date ?? "", numberOfCycles: selectedFund.number_of_cycles == null ? "" : String(selectedFund.number_of_cycles) }); setFundEditError(null); setIsFundEditOpen(true); }} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-slate-200 px-1 text-xs font-semibold text-slate-700"><Pencil size={14}/> Edit Fund</button>
                 </div>
               </article>
@@ -1415,6 +1414,25 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               {cycleError && <p role="alert" className="mt-2 text-sm text-rose-700">{cycleError}</p>}
             </article>; })()}
             <button type="button" disabled={isCycleBusy || shares.length === 0} onClick={() => { const nextCycleNumber = Math.max(0, ...cycleRows.map((row) => row.cycle_number), ...billedCycleNumbers()) + 1; setCycleError(null); openCycleEditor(nextCycleNumber, true, bills, cycleRows); }} title={shares.length === 0 ? "Add at least one Share to this Fund before adding a Cycle." : undefined} className="min-h-12 w-full rounded-xl border border-violet-600 bg-violet-700 px-3 text-base font-bold text-white shadow-sm active:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-40">{isCycleBusy ? "Working…" : `Add Cycle ${Math.max(0,...cycleRows.map((row)=>row.cycle_number),...billedCycleNumbers())+1}`}</button>
+            <section aria-label="Fund Other Adjustments" className="rounded-2xl border border-emerald-200 bg-white p-3 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2">
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-800"><IndianRupee size={20}/></div>
+                  <div className="min-w-0">
+                    <h3 className="text-base font-bold text-slate-900">Fund Other Adjustments</h3>
+                    <p className="mt-0.5 text-xs text-slate-500">Separate ledger · {adjustmentsSummary?.entry_count ?? "—"} entries</p>
+                  </div>
+                </div>
+                <button type="button" onClick={() => void openAdjustmentsLedger()} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-1 rounded-xl border border-slate-200 px-3 text-xs font-semibold text-slate-700"><FileText size={14}/> View Ledger</button>
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-2"><p className="text-[11px] text-emerald-800">Credits</p><p className="mt-1 break-words text-sm font-bold tabular-nums text-emerald-800">{adjustmentsSummary ? formatINR(adjustmentsSummary.total_credits) : "—"}</p></div>
+                <div className="rounded-xl border border-rose-100 bg-rose-50 p-2"><p className="text-[11px] text-rose-800">Debits</p><p className="mt-1 break-words text-sm font-bold tabular-nums text-rose-800">{adjustmentsSummary ? formatINR(adjustmentsSummary.total_debits) : "—"}</p></div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-2"><p className="text-[11px] text-slate-600">Net</p><p className={["mt-1 break-words text-sm font-bold tabular-nums", adjustmentsSummary && adjustmentsSummary.net_adjustments < 0 ? "text-rose-600" : "text-slate-900"].join(" ")}>{adjustmentsSummary ? formatINR(adjustmentsSummary.net_adjustments) : "—"}</p></div>
+              </div>
+              <button type="button" onClick={() => { setFundEntryType("credit"); setFundEntryAmount(""); setFundEntryNote(""); setFundEntryError(null); setIsFundEntryModalOpen(true); }} className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-3 text-sm font-bold text-white shadow-sm"><Plus size={17}/> Add Adjustment</button>
+              <p className="mt-2 text-xs leading-5 text-slate-500">Independent ledger only. These entries do not affect Fund financials, Cycle totals, Share balances, payments or payouts.</p>
+            </section>
 
           </section>
 
