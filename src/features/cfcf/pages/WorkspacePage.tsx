@@ -101,10 +101,6 @@ function readSavedWorkspaceView(tenantId: string): SavedWorkspaceView {
 
 export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [funds, setFunds] = useState<CfcfFundRow[]>([]);
-  const [cycleEntryAlerts, setCycleEntryAlerts] = useState<Array<{ key: string; type: "missing" | "zero" | "dues"; kind: "Bill" | "Planned payout" | "Commission" | "Fund pending dues" | "Share pending dues"; fundId: string; fundName: string; cycleNumber?: number; shareId?: string; amount?: number }>>([]);
-  const [isLoadingCycleEntryAlerts, setIsLoadingCycleEntryAlerts] = useState(false);
-  const [phoneNotificationsEnabled, setPhoneNotificationsEnabled] = useState(typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted");
-  const [phoneNotificationMessage, setPhoneNotificationMessage] = useState<string | null>(null);
   const [archivedFunds, setArchivedFunds] = useState<CfcfArchivedFundRow[]>([]);
   const [isLoadingArchivedFunds, setIsLoadingArchivedFunds] = useState(false);
   const [isArchivingFund, setIsArchivingFund] = useState(false);
@@ -406,7 +402,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     [funds, selectedFundId],
   );
 
-  // CFCF PRODUCT: Tenant-wide Cycle entry alerts. These are read-only checks; they never alter financial records.
   useEffect(() => {
     let cancelled = false;
     async function loadCycleEntryAlerts() {
