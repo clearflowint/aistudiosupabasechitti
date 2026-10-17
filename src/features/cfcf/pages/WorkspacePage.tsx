@@ -1430,7 +1430,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                 <div className="rounded-xl border border-rose-100 bg-rose-50 p-2"><p className="text-[11px] text-rose-800">Debits</p><p className="mt-1 break-words text-sm font-bold tabular-nums text-rose-800">{adjustmentsSummary ? formatINR(adjustmentsSummary.total_debits) : "—"}</p></div>
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-2"><p className="text-[11px] text-slate-600">Net</p><p className={["mt-1 break-words text-sm font-bold tabular-nums", adjustmentsSummary && adjustmentsSummary.net_adjustments < 0 ? "text-rose-600" : "text-slate-900"].join(" ")}>{adjustmentsSummary ? formatINR(adjustmentsSummary.net_adjustments) : "—"}</p></div>
               </div>
-              <button type="button" onClick={() => { setFundEntryType("credit"); setFundEntryAmount(""); setFundEntryNote(""); setFundEntryError(null); setIsFundEntryModalOpen(true); }} className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-3 text-sm font-bold text-white shadow-sm"><Plus size={17}/> Add Adjustment</button>
+              <button type="button" onClick={() => { setFundEntryType("credit"); setFundEntryAmount(""); setFundEntryRemarks(""); setFundEntryError(null); setIsFundEntryModalOpen(true); }} className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-3 text-sm font-bold text-white shadow-sm"><Plus size={17}/> Add Adjustment</button>
               <p className="mt-2 text-xs leading-5 text-slate-500">Independent ledger only. These entries do not affect Fund financials, Cycle totals, Share balances, payments or payouts.</p>
             </section>
 
