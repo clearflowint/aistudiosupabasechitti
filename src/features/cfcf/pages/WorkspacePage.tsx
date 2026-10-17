@@ -378,11 +378,10 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     setDeletingArchivedId(archive.archive_id);
     setArchivedDeleteError(null);
     try {
-      // Preserve the only detailed financial record locally before deleting the archived report.
-      // If PDF generation/download fails, do not proceed with the destructive database deletion.
-      setArchivedDeleteError("Downloading the archive PDF before deletion…");
-      await downloadArchivedFundReport(archive, false);
-      setArchivedDeleteError("PDF download initiated. Deleting the archived report…");
+      // Delete directly after the explicit three-step confirmation. PDF generation/download
+      // can hang on iOS Safari and must not block the database deletion. Users can download
+      // the archived report separately before entering this permanent-deletion flow.
+      setArchivedDeleteError("Deleting the archived Fund and its saved report…");
       await deleteCfcfArchivedFund(workspace.tenantId, archive.archive_id);
       setArchivedFunds((current) => current.filter((item) => item.archive_id !== archive.archive_id));
       setArchivedDeleteTarget(null);
