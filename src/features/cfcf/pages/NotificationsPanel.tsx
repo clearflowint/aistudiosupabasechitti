@@ -42,6 +42,7 @@ export function NotificationsPanel({ workspace, onNavigate, onCountChange }: Not
   const [phoneAlertMessage, setPhoneAlertMessage] = useState<string | null>(null);
   const [phonePermission, setPhonePermission] = useState<NotificationPermission | "unsupported">(() => typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported");
   const seenAlertKeys = useRef<Set<string> | null>(null);
+  const [managerAlertsLoaded, setManagerAlertsLoaded] = useState(false);
   const [managerAlerts, setManagerAlerts] = useState<Array<{ key: string; label: string; fundId: string; fundName: string; detail: string; shareId?: string; cycleNumber?: number; kind: "fund-dues" | "share-dues" | "bill" | "cycle" }>>([]);
   const [dismissedNotificationIds, setDismissedNotificationIds] = useState<string[]>(() => {
     try {
@@ -147,13 +148,27 @@ export function NotificationsPanel({ workspace, onNavigate, onCountChange }: Not
   };
 
   useEffect(() => {
+    // Wait for the first complete database evaluation. The initial empty state
+    // must not be mistaken for a real "all alerts resolved" snapshot.
+    if (!managerAlertsLoaded) return;
     const keys = new Set(managerAlerts.map((alert) => alert.key));
+    const storageKey = "clearflow:cfcf-active-manager-alert-keys:v1:" + workspace.tenantId;
     if (seenAlertKeys.current === null) {
-      seenAlertKeys.current = keys;
-      return;
+      let savedKeys: string[] | null = null;
+      try {
+        const saved = window.localStorage.getItem(storageKey);
+        const parsed: unknown = saved ? JSON.parse(saved) : null;
+        if (Array.isArray(parsed)) savedKeys = parsed.filter((key): key is string => typeof key === "string");
+      } catch { /* Fall back to a safe first-load baseline. */ }
+      // On a first-ever visit, establish a baseline without notifying for old
+      // unresolved alerts. On later mounts, compare against persisted active keys.
+      seenAlertKeys.current = new Set(savedKeys ?? Array.from(keys));
+      try { window.localStorage.setItem(storageKey, JSON.stringify(Array.from(keys))); } catch { /* In-memory dedupe still works. */ }
+      if (savedKeys === null) return;
     }
     const newlyAdded = managerAlerts.filter((alert) => !seenAlertKeys.current?.has(alert.key));
     seenAlertKeys.current = keys;
+    try { window.localStorage.setItem(storageKey, JSON.stringify(Array.from(keys))); } catch { /* In-memory dedupe still works. */ }
     if (phonePermission !== "granted" || newlyAdded.length === 0 || !("Notification" in window)) return;
     const first = newlyAdded[0];
     const title = newlyAdded.length === 1 ? first.label : newlyAdded.length + " new Manager Alerts";
@@ -251,6 +266,7 @@ export function NotificationsPanel({ workspace, onNavigate, onCountChange }: Not
           setPreviousBillAlerts(previousAlerts);
           setBillAlertsError(null);
           setManagerAlerts(managerRows);
+          setManagerAlertsLoaded(true);
         }
       } catch (loadError) {
         if (isCurrent) setBillAlertsError(loadError instanceof Error ? loadError.message : "Unable to refresh manager alerts.");
