@@ -1,7 +1,7 @@
 // CFCF PRODUCT: Displays campaign acknowledgement and delivery status from persisted tenant notifications.
 // MIX: Rendered by the universal shell through the product's optional notification slot.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Bell, RefreshCw, CircleAlert } from "lucide-react";
 import type { AuthorizedWorkspace } from "../../../core/workspace/workspace.types";
 import { listCfcfNotifications, type CfcfNotification } from "../services/notifications.service";
@@ -10,6 +10,7 @@ import { listCfcfFunds, listCfcfShares, listCfcfBills, listCfcfCycles } from "..
 interface NotificationsPanelProps {
   workspace: AuthorizedWorkspace;
   onNavigate: (pageId: string) => void;
+  onCountChange?: (count: number) => void;
 }
 
 interface PreviousBillAlert {
@@ -31,12 +32,15 @@ function statusLabel(status: string) {
   return labels[status] ?? status.replace(/_/g, " ");
 }
 
-export function NotificationsPanel({ workspace, onNavigate }: NotificationsPanelProps) {
+export function NotificationsPanel({ workspace, onNavigate, onCountChange }: NotificationsPanelProps) {
   const [items, setItems] = useState<CfcfNotification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [previousBillAlerts, setPreviousBillAlerts] = useState<PreviousBillAlert[]>([]);
   const [billAlertsError, setBillAlertsError] = useState<string | null>(null);
+  const [phoneAlertMessage, setPhoneAlertMessage] = useState<string | null>(null);
+  const [phonePermission, setPhonePermission] = useState<NotificationPermission | "unsupported">(() => typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported");
+  const seenAlertKeys = useRef<Set<string> | null>(null);
   const [managerAlerts, setManagerAlerts] = useState<Array<{ key: string; label: string; fundId: string; fundName: string; detail: string; shareId?: string; cycleNumber?: number; kind: "fund-dues" | "share-dues" | "bill" | "cycle" }>>([]);
   const [dismissedNotificationIds, setDismissedNotificationIds] = useState<string[]>(() => {
     try {
@@ -62,6 +66,75 @@ export function NotificationsPanel({ workspace, onNavigate }: NotificationsPanel
     });
   };
 
+
+  const visibleInformationalCount = items.filter((item, index) => !dismissedNotificationIds.includes(notificationKey(item, index))).length;
+
+  useEffect(() => {
+    onCountChange?.(managerAlerts.length + previousBillAlerts.length + visibleInformationalCount);
+  }, [managerAlerts.length, previousBillAlerts.length, visibleInformationalCount, onCountChange]);
+
+  const enablePhoneAlerts = async () => {
+    if (!("Notification" in window) || !window.isSecureContext) {
+      setPhonePermission("unsupported");
+      setPhoneAlertMessage("This browser context does not support phone notifications. On iPhone, open ClearFlow from the Home Screen web app in a supported iOS version; on Android, use Chrome and allow notifications for this site.");
+      return;
+    }
+    try {
+      const permission = await Notification.requestPermission();
+      setPhonePermission(permission);
+      if (permission !== "granted") {
+        setPhoneAlertMessage(permission === "denied"
+          ? "Notifications are blocked for this site. Change the site notification permission in your browser or phone settings, then try again."
+          : "Notification permission was not granted. Tap Enable phone alerts and choose Allow to enable alerts.");
+        return;
+      }
+      try {
+        if ("serviceWorker" in navigator) {
+          const registration = await navigator.serviceWorker.getRegistration();
+          if (registration?.showNotification) {
+            await registration.showNotification("ClearFlow phone alerts enabled", { body: "You will receive alerts while this app can deliver browser notifications." });
+          } else {
+            new Notification("ClearFlow phone alerts enabled", { body: "Browser notifications are enabled while ClearFlow is open." });
+          }
+        } else {
+          new Notification("ClearFlow phone alerts enabled", { body: "Browser notifications are enabled while ClearFlow is open." });
+        }
+        setPhoneAlertMessage("Permission granted. Test notification sent. New Manager Alerts can notify you while ClearFlow is open; alerts when the app is closed require push-service setup.");
+      } catch {
+        setPhoneAlertMessage("Permission is granted, but this browser could not display a test notification. On iPhone, install ClearFlow to the Home Screen and open that app; otherwise check browser/phone notification settings.");
+      }
+    } catch {
+      setPhoneAlertMessage("Could not request notification permission in this browser. Check site permissions and try again.");
+    }
+  };
+
+  useEffect(() => {
+    const keys = new Set(managerAlerts.map((alert) => alert.key));
+    if (seenAlertKeys.current === null) {
+      seenAlertKeys.current = keys;
+      return;
+    }
+    const newlyAdded = managerAlerts.filter((alert) => !seenAlertKeys.current?.has(alert.key));
+    seenAlertKeys.current = keys;
+    if (phonePermission !== "granted" || newlyAdded.length === 0 || !("Notification" in window)) return;
+    const first = newlyAdded[0];
+    const title = newlyAdded.length === 1 ? first.label : newlyAdded.length + " new Manager Alerts";
+    const body = newlyAdded.length === 1 ? first.fundName + " · " + first.detail : "Open ClearFlow to review the new operational alerts.";
+    void (async () => {
+      try {
+        if ("serviceWorker" in navigator) {
+          const registration = await navigator.serviceWorker.getRegistration();
+          if (registration?.showNotification) {
+            await registration.showNotification(title, { body, tag: "clearflow-manager-alerts" });
+            return;
+          }
+        }
+        new Notification(title, { body });
+      } catch {
+        setPhoneAlertMessage("Browser permission is granted, but a new alert could not be shown as a phone notification.");
+      }
+    })();
+  }, [managerAlerts, phonePermission]);
 
   const refresh = useCallback(async () => {
     setError(null);
@@ -163,8 +236,9 @@ export function NotificationsPanel({ workspace, onNavigate }: NotificationsPanel
       <section aria-label="Manager alerts" className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0"><h3 className="text-sm font-bold text-amber-950">Manager Alerts <span className="ml-1 rounded-full bg-amber-200 px-2 py-0.5 text-xs">{managerAlerts.length}</span></h3><p className="mt-1 text-xs leading-5 text-amber-900">Cycle entries and pending dues across all active Funds. Closing this panel does not dismiss alerts; they remain until the underlying saved records are corrected.</p></div>
-          <button type="button" onClick={() => { if (!("Notification" in window)) return; if (!window.isSecureContext) return; void Notification.requestPermission(); }} className="min-h-9 shrink-0 rounded-lg border border-amber-300 bg-white px-2 text-xs font-semibold text-amber-950">Enable phone alerts</button>
+          <button type="button" onClick={() => void enablePhoneAlerts()} className="min-h-9 shrink-0 rounded-lg border border-amber-300 bg-white px-2 text-xs font-semibold text-amber-950">{phonePermission === "granted" ? "Test phone alerts" : "Enable phone alerts"}</button>
         </div>
+        {phoneAlertMessage && <p role="status" className="mt-2 rounded-lg border border-amber-200 bg-white p-2 text-xs leading-5 text-amber-950">{phoneAlertMessage}</p>}
         {managerAlerts.length === 0 ? <p className="mt-3 rounded-lg bg-white p-3 text-xs text-slate-600">No outstanding manager alerts.</p> : <div className="mt-3 max-h-[45vh] space-y-2 overflow-y-auto">
           {managerAlerts.slice(0, 40).map((alert) => <button key={alert.key} type="button" onClick={() => {
             try { window.localStorage.setItem("clearflow:cfcf-open-manager-alert:v1:" + workspace.tenantId, JSON.stringify({ fundId: alert.fundId, shareId: alert.shareId, cycleNumber: alert.cycleNumber, kind: alert.kind })); } catch { /* Navigation still works without storage. */ }
