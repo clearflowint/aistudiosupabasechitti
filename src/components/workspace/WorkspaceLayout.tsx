@@ -32,6 +32,7 @@ export function WorkspaceLayout({
   isSigningOut,
 }: WorkspaceLayoutProps) {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [notificationCount, setNotificationCount] = useState(0);
   const [isInstallHelpOpen, setIsInstallHelpOpen] = useState(false);
   const activeRequestCount = useSyncExternalStore(subscribeToRequestActivity, getActiveRequestCount, () => 0);
 
@@ -45,8 +46,9 @@ export function WorkspaceLayout({
             </button>
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
-            <button type="button" onClick={() => setIsNotificationsOpen((open) => !open)} aria-label={isNotificationsOpen ? "Close notifications" : "Open notifications"} aria-expanded={isNotificationsOpen} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800 sm:h-11 sm:w-11">
+            <button type="button" onClick={() => setIsNotificationsOpen((open) => !open)} aria-label={(isNotificationsOpen ? "Close notifications" : "Open notifications") + (notificationCount > 0 ? `, ${notificationCount} outstanding` : "")} aria-expanded={isNotificationsOpen} className="relative grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800 sm:h-11 sm:w-11">
               <Bell size={19} />
+              {notificationCount > 0 && <span aria-hidden="true" className="absolute -right-1 -top-1 grid h-[19px] min-w-[19px] place-items-center rounded-full border-2 border-white bg-rose-600 px-1 text-[10px] font-bold leading-none text-white">{notificationCount > 99 ? "99+" : notificationCount}</span>}
             </button>
             <button type="button" onClick={() => setIsInstallHelpOpen(true)} aria-label="How to install ClearFlow on this phone" title="Add ClearFlow to your phone" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800 sm:h-11 sm:w-11">
               <Smartphone size={19} />
@@ -67,7 +69,7 @@ export function WorkspaceLayout({
         </div>
         {isNotificationsOpen && (
           <div className="relative">
-            {product.renderNotifications ? product.renderNotifications(workspace, onNavigate) : (
+            {product.renderNotifications ? product.renderNotifications(workspace, onNavigate, setNotificationCount) : (
               <section aria-label="Notifications" className="mx-auto max-w-3xl border-t border-slate-100 bg-sky-50/70 px-4 py-3 sm:px-5">
                 <div className="flex items-start gap-3">
                   <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-sky-700"><Bell size={17} /></div>
