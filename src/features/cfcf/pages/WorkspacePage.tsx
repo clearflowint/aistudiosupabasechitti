@@ -370,7 +370,10 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     const archive = archivedDeleteTarget;
     if (!archive || deletingArchivedId || archivedDeleteStep !== 3 || !archivedDeleteAcknowledged) return;
     const typedId = archivedDeleteTypedId.trim();
-    if (typedId !== workspace.tenantId && typedId !== workspace.personId) return;
+    if (typedId.toLowerCase() !== workspace.email.trim().toLowerCase()) {
+      setArchivedDeleteError("Enter the logged-in account email exactly as shown to confirm deletion.");
+      return;
+    }
     if (!beginAction("delete-archived-fund")) return;
     setDeletingArchivedId(archive.archive_id);
     setArchivedDeleteError(null);
@@ -386,7 +389,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setArchivedDeleteStep(1);
       setArchivedDeleteAcknowledged(false);
       setArchivedDeleteTypedId("");
-      showDatabaseResult("Archive PDF download was initiated, then the archived report was permanently deleted. The archived Fund identity remains.");
+      showDatabaseResult("The archived Fund and its saved report were permanently deleted from the database. A PDF backup download was initiated.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to delete archived report.";
       setArchivedDeleteError(message);
