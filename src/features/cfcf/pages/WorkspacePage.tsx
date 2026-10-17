@@ -1317,6 +1317,41 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         </div>
       </section>
 
+      {!isArchivesView && selectedFund && (
+        <section aria-label="Selected Fund navigation" className="-mt-4 min-w-0 space-y-0">
+          <div className="flex min-w-0 items-center justify-between gap-3 rounded-t-xl border border-slate-200 bg-white px-3 py-2.5">
+            <div className="min-w-0 flex-1">
+              <h2 className="break-words text-sm font-bold leading-5 text-slate-900">{selectedFund.fund_name}</h2>
+              <p className="mt-0.5 break-all text-[11px] leading-4 text-slate-500">Fund ID · {selectedFund.fund_id}</p>
+              <p className="mt-0.5 text-xs leading-4 text-slate-600">Cycle {selectedFund.current_cycle} of {selectedFund.number_of_cycles ?? "—"}</p>
+            </div>
+            <div className="shrink-0 text-right">
+              <p className="text-[11px] font-medium leading-4 text-slate-500">Pending</p>
+              <p className="text-sm font-bold leading-5 text-amber-700">{formatINR(selectedFund.fund_total_pending_amount ?? 0)}</p>
+            </div>
+          </div>
+          <div role="tablist" aria-label="Fund workspace sections" className="grid grid-cols-2 gap-0">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "fund-summary"}
+              onClick={() => setActiveTab("fund-summary")}
+              className={["min-h-11 rounded-none border border-t-0 px-3 text-sm font-semibold transition", activeTab === "fund-summary" ? "border-sky-700 bg-sky-700 text-white" : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"].join(" ")}
+            >
+              Fund Summary
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "shares"}
+              onClick={() => setActiveTab("shares")}
+              className={["min-h-11 rounded-none border border-l-0 border-t-0 px-3 text-sm font-semibold transition", activeTab === "shares" ? "border-sky-700 bg-sky-700 text-white" : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"].join(" ")}
+            >
+              Shares
+            </button>
+          </div>
+        </section>
+      )}
 
       {fundsError && (
         <section role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
