@@ -222,39 +222,24 @@ export function NotificationsPanel({ workspace, onNavigate }: NotificationsPanel
         </section>
       )}
 
-      {isLoading ? (
-        <p aria-live="polite" className="mt-3 rounded-xl bg-white/80 p-4 text-center text-sm text-slate-500"><RefreshCw size={15} className="mr-2 inline animate-spin" />Loading Notifications…</p>
-      ) : items.length === 0 ? (
-        <p className="mt-3 rounded-xl bg-white/80 p-4 text-center text-sm text-slate-500">No notifications yet. Campaign receipts and delivery outcomes will appear here.</p>
-      ) : (
-        <div className="mt-3 max-h-[55vh] space-y-2 overflow-y-auto">
-          {items.slice(0, 30).map((item, index) => {
-            const status = String(item.status ?? "info").toLowerCase();
-            return (
-              <article key={item.campaign_id ?? item.id ?? String(index)} className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
-                <div className="flex items-start gap-2">
-                  <div className={"mt-0.5 shrink-0 rounded-lg p-2 " + statusStyle(status)}><StatusIcon status={status} /></div>
-                  <div className="min-w-0 flex-1">
-                    <h3 className="break-words text-sm font-semibold text-slate-900">{item.title || "Workspace notification"}</h3>
-                    <p className="mt-1 break-words text-xs leading-5 text-slate-600">{item.message || "Status update received."}</p>
-                    <p className="mt-2 text-[11px] text-slate-500">
-                      {item.recipient_count !== undefined ? item.recipient_count + " recipients" : ""}
-                      {item.channels?.length ? (item.recipient_count !== undefined ? " · " : "") + item.channels.join(", ") : ""}
-                      {(item.updated_at || item.created_at) ? " · " + new Date(item.updated_at ?? item.created_at ?? "").toLocaleString("en-IN") : ""}
-                    </p>
-                    <div className={"mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold " + statusStyle(status)}>
-                      <StatusIcon status={status} /> {statusLabel(status)}
-                    </div>
-                    {item.error && <p className="mt-2 break-words text-xs text-rose-700">{item.error}</p>}
-                    {item.delivery_summary && <p className="mt-2 break-words text-xs text-slate-600">Delivery summary: {Object.entries(item.delivery_summary).map(([key, value]) => key + " " + String(value)).join(" · ")}</p>}
-                    {item.campaign_id && <p className="mt-1 break-all font-mono text-[10px] text-slate-400">{item.campaign_id}</p>}
-                  </div>
-                </div>
-              </article>
-            );
-          })}
+      <section aria-label="Informational notifications" className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <div><h3 className="text-sm font-bold text-slate-900">Notifications</h3><p className="mt-1 text-xs text-slate-600">Campaign receipts and delivery updates. These can be dismissed independently of Manager Alerts.</p></div>
+          <button type="button" onClick={clearInformationalNotifications} className="min-h-9 rounded-lg border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-700">Clear all</button>
         </div>
-      )}
+        {items.filter((item, index) => !dismissedNotificationIds.includes(notificationKey(item, index))).map((item) => {
+          const index = items.indexOf(item);
+          const key = notificationKey(item, index);
+          const status = String(item.status ?? "info").toLowerCase();
+          return <article key={key} className="mt-2 rounded-xl border border-slate-200 bg-white p-3">
+            <h3 className="text-sm font-semibold">{item.title || "Workspace notification"}</h3>
+            <p className="mt-1 text-xs text-slate-600">{item.message || "Status update received."}</p>
+            <p className="mt-1 text-xs text-slate-500">{statusLabel(status)}</p>
+            <button type="button" onClick={() => dismissNotification(key)} className="mt-2 min-h-9 rounded-lg border px-3 text-xs">Dismiss</button>
+          </article>;
+        })}
+        {!isLoading && items.every((item, index) => dismissedNotificationIds.includes(notificationKey(item, index))) && <p className="mt-3 text-xs text-slate-600">No informational notifications. Manager Alerts remain separate above.</p>}
+      </section>
     </section>
   );
 }
