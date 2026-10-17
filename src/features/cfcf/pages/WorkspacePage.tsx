@@ -1501,6 +1501,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           )}
 
           {activeSectionTab === "fund-summary" && (
+          <>
           <section className="space-y-2">
             <button
               type="button"
@@ -1518,6 +1519,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             </button>
             <p className="text-center text-xs leading-5 text-slate-500">Danger zone · Archive only when you are ready to remove this Fund’s operational records after saving its full report.</p>
           </section>
+          </>
           )}
         </>
       ) : null}
