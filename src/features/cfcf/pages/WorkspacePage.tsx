@@ -206,7 +206,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [fundForm, setFundForm] = useState(emptyFundForm);
   const [fundFormError, setFundFormError] = useState<string | null>(null);
   const [databaseResult, setDatabaseResult] = useState<{ status: "success" | "error"; message: string } | null>(null);
-  const [previousBillSuccess, setPreviousBillSuccess] = useState<{ fundId: string; fundName: string; shares: Array<{ shareId: string; cycleNumbers: number[] }> } | null>(null);
+  const [previousBillSuccess, setPreviousBillSuccess] = useState<{ fundId: string; fundName: string; shares: Array<{ share: CfcfShareRow; shareId: string; cycleNumbers: number[] }> } | null>(null);
 
   function showDatabaseResult(message: string, status: "success" | "error" = "success"): void {
     setDatabaseResult({ status, message });
