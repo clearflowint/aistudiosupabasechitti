@@ -439,9 +439,9 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         setActiveSectionTab("shares");
         setSelectedShareId(share.share_id);
         setBillingShare(share);
-            setBillingCycleNumber(String(target.cycleNumbers[0] ?? highestCycleNumber(selectedFund) ?? 1));
-        const existing = billForShareCycle(share.share_id, target.cycleNumbers[0] ?? highestCycleNumber(selectedFund));
-        setBillingAmount(existing ? String(existing.amount) : "0");
+        const targetCycles = target.cycleNumbers.length ? target.cycleNumbers : [highestCycleNumber(selectedFund) ?? 1];
+        setBillingEditedCycles(targetCycles);
+        setBillingDrafts(Object.fromEntries(targetCycles.map((cycle) => [cycle, String(billForShareCycle(share.share_id, cycle)?.amount ?? 0)])));
         setBillingError(null);
         setBillingReview(false);
         window.localStorage.removeItem(storageKey);
@@ -833,7 +833,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       ? selectedCycleNumber
       : highestCycleNumber(selectedFund);
     setBillingShare(share);
-    setBillingEditEnabled(false);
     setBillingDrafts({});
     setBillingEditedCycles([]);
     setBillingError(cycle ? null : "Add a Cycle before entering bills.");
@@ -1844,10 +1843,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                   setActiveSectionTab("shares");
                   setSelectedShareId(share.share_id);
                   setBillingShare(share);
-                  setBillingEditEnabled(false);
-                  setBillingCycleNumber(String(target.cycleNumbers[0] ?? 1));
-                  const existing = billForShareCycle(share.share_id, target.cycleNumbers[0] ?? 1);
-                  setBillingAmount(existing ? String(existing.amount) : "0");
+                  setBillingEditedCycles(target.cycleNumbers);
+                  setBillingDrafts(Object.fromEntries(target.cycleNumbers.map((cycle) => [cycle, String(billForShareCycle(share.share_id, cycle)?.amount ?? 0)])));
                   setBillingError(null);
                   setBillingReview(false);
                 }
