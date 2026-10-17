@@ -1322,7 +1322,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       {!isArchivesView && selectedFund && (
         <>
           <section aria-label="Funds selection" className="-mt-4 min-w-0 rounded-xl border border-slate-200 bg-white p-2">
-            <div className="hidden">
+            <div className="grid grid-cols-3 gap-2">
               {funds.map((fund) => <button key={fund.fund_id} type="button" onClick={() => { setSelectedFundId(fund.fund_id); setSelectedShareId(null); setSelectedCycleNumber(null); }} aria-pressed={selectedFundId === fund.fund_id} className={["min-h-12 min-w-0 rounded-xl border px-2 py-2 text-sm font-semibold leading-4", selectedFundId === fund.fund_id ? "border-emerald-500 bg-emerald-100 text-emerald-950 ring-2 ring-emerald-200 shadow-sm" : "border-slate-200 bg-white text-slate-700"].join(" ")}><span className="line-clamp-2 break-words">{fund.fund_name}</span></button>)}
             </div>
           </section>
@@ -1380,11 +1380,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         <>
           {activeSectionTab === "fund-summary" && (
           <section aria-label="Selected Fund workspace" className="space-y-3">
-            <div className="grid grid-cols-3 gap-2">
-              {funds.map((fund) => <button key={fund.fund_id} type="button" onClick={() => { setSelectedFundId(fund.fund_id); setSelectedShareId(null); setSelectedCycleNumber(null); }} aria-pressed={selectedFundId === fund.fund_id} className={["min-h-12 min-w-0 rounded-xl border px-2 py-2 text-sm font-semibold leading-4", selectedFundId === fund.fund_id ? "border-emerald-500 bg-emerald-100 text-emerald-950 ring-2 ring-emerald-200 shadow-sm" : "border-slate-200 bg-white text-slate-700"].join(" ")}><span className="line-clamp-2 break-words">{fund.fund_name}</span></button>)}
-            </div>
-            <div className="border-t-2 border-slate-300 pt-4">
-              <p className="hidden">Selected Fund · {selectedFund.fund_name}</p>
               <article className="rounded-2xl border border-sky-100 bg-white p-3 shadow-sm">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
@@ -1421,7 +1416,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             </article>; })()}
             <button type="button" disabled={isCycleBusy || shares.length === 0} onClick={() => { const nextCycleNumber = Math.max(0, ...cycleRows.map((row) => row.cycle_number), ...billedCycleNumbers()) + 1; setCycleError(null); openCycleEditor(nextCycleNumber, true, bills, cycleRows); }} title={shares.length === 0 ? "Add at least one Share to this Fund before adding a Cycle." : undefined} className="min-h-12 w-full rounded-xl border border-violet-600 bg-violet-700 px-3 text-base font-bold text-white shadow-sm active:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-40">{isCycleBusy ? "Working…" : `Add Cycle ${Math.max(0,...cycleRows.map((row)=>row.cycle_number),...billedCycleNumbers())+1}`}</button>
 
-            </div>
           </section>
 
                     )}
