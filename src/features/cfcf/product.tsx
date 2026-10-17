@@ -35,7 +35,7 @@ export const cfcfProduct: ProductDefinition = {
     },
   ],
   resolveWorkspace: resolveCfcfWorkspace,
-  renderNotifications: (workspace, onNavigate) => <NotificationsPanel workspace={workspace} onNavigate={onNavigate} />,
+  renderNotifications: (workspace, onNavigate, onCountChange) => <NotificationsPanel workspace={workspace} onNavigate={onNavigate} onCountChange={onCountChange} />,
   // MIX: Only the product adapter maps neutral navigation IDs to product screens.
   renderPage: (navigationItem, workspace) => {
     if (navigationItem.id === "workspace") return <WorkspacePage workspace={workspace} />;
