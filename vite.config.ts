@@ -13,6 +13,8 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: "autoUpdate",
+      // Keep the standard generated Workbox worker and add the shared push/click handlers.
+      workbox: { importScripts: ["/clearflow-push-sw.js"] },
       includeAssets: ["icon.svg"],
       manifest: {
         name: "ClearFlow Workspace",
