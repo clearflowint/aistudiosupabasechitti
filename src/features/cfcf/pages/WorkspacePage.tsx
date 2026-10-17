@@ -101,6 +101,10 @@ function readSavedWorkspaceView(tenantId: string): SavedWorkspaceView {
 
 export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [funds, setFunds] = useState<CfcfFundRow[]>([]);
+  const [cycleEntryAlerts, setCycleEntryAlerts] = useState<Array<{ key: string; type: "missing" | "zero"; kind: "Bill" | "Planned payout" | "Commission"; fundId: string; fundName: string; cycleNumber: number; shareId?: string }>>([]);
+  const [isLoadingCycleEntryAlerts, setIsLoadingCycleEntryAlerts] = useState(false);
+  const [phoneNotificationsEnabled, setPhoneNotificationsEnabled] = useState(typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted");
+  const [phoneNotificationMessage, setPhoneNotificationMessage] = useState<string | null>(null);
   const [archivedFunds, setArchivedFunds] = useState<CfcfArchivedFundRow[]>([]);
   const [isLoadingArchivedFunds, setIsLoadingArchivedFunds] = useState(false);
   const [isArchivingFund, setIsArchivingFund] = useState(false);
@@ -401,6 +405,85 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     () => funds.find((fund) => fund.fund_id === selectedFundId) ?? null,
     [funds, selectedFundId],
   );
+
+  // CFCF PRODUCT: Tenant-wide Cycle entry alerts. These are read-only checks; they never alter financial records.
+  useEffect(() => {
+    let cancelled = false;
+    async function loadCycleEntryAlerts() {
+      setIsLoadingCycleEntryAlerts(true);
+      try {
+        const allFunds = await listCfcfFunds(workspace.tenantId);
+        const grouped = await Promise.all(allFunds.map(async (fund) => {
+          const [fundCycles, fundBills, fundShares] = await Promise.all([
+            listCfcfCycles(workspace.tenantId, fund.fund_id),
+            listCfcfBills(workspace.tenantId, fund.fund_id),
+            listCfcfShares(workspace.tenantId, fund.fund_id),
+          ]);
+          const alerts: Array<{ key: string; type: "missing" | "zero"; kind: "Bill" | "Planned payout" | "Commission"; fundId: string; fundName: string; cycleNumber: number; shareId?: string }> = [];
+          for (const cycle of fundCycles) {
+            if (cycle.planned_payout_amount == null) alerts.push({ key: fund.fund_id + ":" + cycle.cycle_number + ":payout:missing", type: "missing", kind: "Planned payout", fundId: fund.fund_id, fundName: fund.fund_name, cycleNumber: cycle.cycle_number });
+            else if (Number(cycle.planned_payout_amount) === 0) alerts.push({ key: fund.fund_id + ":" + cycle.cycle_number + ":payout:zero", type: "zero", kind: "Planned payout", fundId: fund.fund_id, fundName: fund.fund_name, cycleNumber: cycle.cycle_number });
+            if (cycle.commission_amount == null) alerts.push({ key: fund.fund_id + ":" + cycle.cycle_number + ":commission:missing", type: "missing", kind: "Commission", fundId: fund.fund_id, fundName: fund.fund_name, cycleNumber: cycle.cycle_number });
+            else if (Number(cycle.commission_amount) === 0) alerts.push({ key: fund.fund_id + ":" + cycle.cycle_number + ":commission:zero", type: "zero", kind: "Commission", fundId: fund.fund_id, fundName: fund.fund_name, cycleNumber: cycle.cycle_number });
+            for (const share of fundShares) {
+              const bill = fundBills.find((item) => item.cycle_id === cycle.cycle_id && item.share_id === share.share_id);
+              if (!bill) alerts.push({ key: fund.fund_id + ":" + cycle.cycle_number + ":" + share.share_id + ":bill:missing", type: "missing", kind: "Bill", fundId: fund.fund_id, fundName: fund.fund_name, cycleNumber: cycle.cycle_number, shareId: share.share_id });
+              else if (Number(bill.amount) === 0) alerts.push({ key: fund.fund_id + ":" + cycle.cycle_number + ":" + share.share_id + ":bill:zero", type: "zero", kind: "Bill", fundId: fund.fund_id, fundName: fund.fund_name, cycleNumber: cycle.cycle_number, shareId: share.share_id });
+            }
+          }
+          return alerts;
+        }));
+        if (!cancelled) {
+          const alerts = grouped.flat().sort((a, b) => a.fundName.localeCompare(b.fundName) || a.cycleNumber - b.cycleNumber || a.kind.localeCompare(b.kind));
+          setCycleEntryAlerts(alerts);
+          const storageKey = "clearflow:cfcf-cycle-alert-notified:v1:" + workspace.tenantId;
+          try {
+            const previous = new Set<string>(JSON.parse(window.localStorage.getItem(storageKey) || "[]") as string[]);
+            const currentKeys = alerts.map((alert) => alert.key);
+            const newKeys = currentKeys.filter((key) => !previous.has(key));
+            if (newKeys.length && "Notification" in window && Notification.permission === "granted") {
+              const newAlerts = alerts.filter((alert) => newKeys.includes(alert.key));
+              new Notification("ClearFlow · Cycle entries need review", {
+                body: newAlerts.length + " new item(s) need attention across your Funds. Open CFCF to review missing or zero entries.",
+                tag: "clearflow-cfcf-cycle-entry-alerts",
+              });
+            }
+            window.localStorage.setItem(storageKey, JSON.stringify(currentKeys));
+          } catch {
+            // In-app alerts remain available when browser storage or notifications are unavailable.
+          }
+        }
+      } catch (error) {
+        if (!cancelled) setPhoneNotificationMessage(error instanceof Error ? "Cycle alerts could not refresh: " + error.message : "Cycle alerts could not refresh.");
+      } finally {
+        if (!cancelled) setIsLoadingCycleEntryAlerts(false);
+      }
+    }
+    void loadCycleEntryAlerts();
+    return () => { cancelled = true; };
+  }, [workspace.tenantId, funds, fundReloadKey, detailReloadKey]);
+
+  async function enablePhoneNotifications() {
+    if (!("Notification" in window)) {
+      setPhoneNotificationMessage("Phone notifications are not supported by this browser. In-app alerts will continue to work.");
+      return;
+    }
+    if (!window.isSecureContext) {
+      setPhoneNotificationMessage("Phone notifications require the secure HTTPS website.");
+      return;
+    }
+    try {
+      const permission = await Notification.requestPermission();
+      setPhoneNotificationsEnabled(permission === "granted");
+      setPhoneNotificationMessage(permission === "granted"
+        ? "Phone notifications enabled while CFCF is active. Background push when the app is closed needs push-service setup."
+        : permission === "denied"
+          ? "Notifications are blocked in browser settings. In-app alerts remain enabled."
+          : "Permission was not granted. In-app alerts remain enabled.");
+    } catch {
+      setPhoneNotificationMessage("Could not request notification permission. In-app alerts remain enabled.");
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -1468,6 +1551,20 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                   <button type="button" onClick={() => { setFundEditForm({ fundName: selectedFund.fund_name ?? "", startDate: selectedFund.start_date ?? "", numberOfCycles: selectedFund.number_of_cycles == null ? "" : String(selectedFund.number_of_cycles) }); setFundEditError(null); setIsFundEditOpen(true); }} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-slate-200 px-1 text-xs font-semibold text-slate-700"><Pencil size={14}/> Edit Fund</button>
                 </div>
               </article>
+            {cycleEntryAlerts.length > 0 && <section className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 p-3" aria-labelledby="cycle-entry-alerts-title">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0"><h3 id="cycle-entry-alerts-title" className="text-sm font-bold text-amber-950">Cycle Entry Alerts <span className="ml-1 rounded-full bg-amber-200 px-2 py-0.5 text-xs">{cycleEntryAlerts.length}</span></h3><p className="mt-1 text-xs leading-5 text-amber-900">Across all your active Funds. Missing entries and saved ₹0 amounts are listed separately.</p></div>
+                <button type="button" onClick={() => void enablePhoneNotifications()} className="min-h-10 shrink-0 rounded-lg border border-amber-300 bg-white px-2 text-xs font-semibold text-amber-950">{phoneNotificationsEnabled ? "Phone alerts on" : "Enable phone alerts"}</button>
+              </div>
+              {phoneNotificationMessage && <p role="status" className="mt-2 rounded-lg bg-white/80 p-2 text-xs leading-5 text-amber-950">{phoneNotificationMessage}</p>}
+              <div className="mt-3 space-y-2">
+                {cycleEntryAlerts.slice(0, 12).map((alert) => <button key={alert.key} type="button" onClick={() => { setSelectedFundId(alert.fundId); setActiveSectionTab("fund-summary"); if (alert.kind === "Bill" && alert.shareId) { const request = { fundId: alert.fundId, shareId: alert.shareId, cycleNumbers: [alert.cycleNumber] }; try { window.localStorage.setItem("clearflow:cfcf-open-previous-bills:v1:" + workspace.tenantId, JSON.stringify(request)); window.dispatchEvent(new Event("clearflow:cfcf-open-previous-bills")); } catch { /* Fund navigation still works if storage is unavailable. */ } } }} className="flex min-h-11 w-full items-start justify-between gap-2 rounded-xl border border-amber-200 bg-white p-2.5 text-left">
+                  <span className="min-w-0"><span className="block break-words text-xs font-semibold text-slate-900">{alert.type === "missing" ? "Not Set / Missing" : "Zero Amount"} · {alert.kind}</span><span className="mt-0.5 block break-words text-xs text-slate-600">{alert.fundName} · Cycle {alert.cycleNumber}{alert.shareId ? " · Share " + alert.shareId : ""}</span></span><span className="shrink-0 text-xs font-semibold text-amber-800">Review ↗</span>
+                </button>)}
+                {cycleEntryAlerts.length > 12 && <p className="text-xs text-amber-900">Showing 12 of {cycleEntryAlerts.length} alerts. Resolve entries to reduce this list.</p>}
+              </div>
+              {isLoadingCycleEntryAlerts && <p className="mt-2 text-xs text-amber-800">Refreshing alerts…</p>}
+            </section>}
             {(() => { const cycleNumbers = savedCycleNumbers(); const currentCycle = selectedCycleNumber !== null && cycleNumbers.includes(selectedCycleNumber) ? selectedCycleNumber : (cycleNumbers.at(-1) ?? null); const row = cycleRows.find((item) => item.cycle_number === currentCycle); const payout = row?.planned_payout_amount; const commission = row?.commission_amount; return <article className="rounded-2xl border border-violet-200 bg-violet-50 p-3 shadow-sm">
               <div className="flex items-start justify-between gap-2"><div className="min-w-0"><h3 className="text-base font-bold text-slate-950">{currentCycle === null ? "No Cycles yet" : `Cycle ${currentCycle} / ${selectedFund.number_of_cycles ?? "Not set"}`}</h3><p className="mt-1 text-xs text-slate-600">{row ? `Created ${formatDate(row.created_at)}` : "Existing billing record"}</p></div><div className="flex shrink-0 items-center gap-1"><button type="button" aria-label="Previous Cycle" disabled={currentCycle === null || cycleNumbers.indexOf(currentCycle) <= 0} onClick={() => { if (currentCycle !== null) setSelectedCycleNumber(cycleNumbers[cycleNumbers.indexOf(currentCycle)-1]); }} className="grid h-9 w-9 place-items-center rounded-lg border border-violet-200 bg-white disabled:opacity-40"><ChevronLeft size={17}/></button><button type="button" aria-label="Latest Cycle" disabled={currentCycle === null || currentCycle === cycleNumbers.at(-1)} onClick={() => setSelectedCycleNumber(cycleNumbers.at(-1) ?? null)} className="grid h-9 w-9 place-items-center rounded-lg border border-violet-200 bg-white disabled:opacity-40"><RotateCcw size={16}/></button></div></div>
               <div className="mt-3 grid grid-cols-2 gap-2"><StoredValue label="Total billed" value={cycleSummary ? formatINR(cycleSummary.total_billed) : "—"}/><StoredValue label="Planned payout" value={displayStoredAmount(payout)}/><StoredValue label="Billed shares" value={cycleSummary ? String(cycleSummary.billed_shares) : "—"}/><StoredValue label="Not billed" value={cycleSummary ? String(cycleSummary.not_billed_shares) : "—"}/><StoredValue label="Total paid out" value={cycleSummary ? formatINR(cycleSummary.total_paid_out) : "—"}/><StoredValue label="Commission" value={displayStoredAmount(commission)}/></div>
