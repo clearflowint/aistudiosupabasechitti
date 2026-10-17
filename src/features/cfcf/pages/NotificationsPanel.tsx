@@ -152,7 +152,8 @@ export function NotificationsPanel({ workspace, onNavigate }: NotificationsPanel
 
       <section aria-label="Manager alerts" className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
         <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0"><h3 className="text-sm font-bold text-amber-950">Manager Alerts <span className="ml-1 rounded-full bg-amber-200 px-2 py-0.5 text-xs">{managerAlerts.length}</span></h3><p className="mt-1 text-xs leading-5 text-amber-900">Cycle entries and pending dues across all active Funds. Alerts remain here until the underlying saved records are corrected.</p></div>
+          <div className="min-w-0"><h3 className="text-sm font-bold text-amber-950">Manager Alerts <span className="ml-1 rounded-full bg-amber-200 px-2 py-0.5 text-xs">{managerAlerts.length}</span></h3><p className="mt-1 text-xs leading-5 text-amber-900">Cycle entries and pending dues across all active Funds. Closing this panel does not dismiss alerts; they remain until the underlying saved records are corrected.</p></div>
+          <button type="button" onClick={() => { if (!("Notification" in window)) return; if (!window.isSecureContext) return; void Notification.requestPermission(); }} className="min-h-9 shrink-0 rounded-lg border border-amber-300 bg-white px-2 text-xs font-semibold text-amber-950">Enable phone alerts</button>
         </div>
         {managerAlerts.length === 0 ? <p className="mt-3 rounded-lg bg-white p-3 text-xs text-slate-600">No outstanding manager alerts.</p> : <div className="mt-3 max-h-[45vh] space-y-2 overflow-y-auto">
           {managerAlerts.slice(0, 40).map((alert) => <button key={alert.key} type="button" onClick={() => {
