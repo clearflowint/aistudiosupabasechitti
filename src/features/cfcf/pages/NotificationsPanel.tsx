@@ -146,6 +146,7 @@ export function NotificationsPanel({ workspace, onNavigate }: NotificationsPanel
                   try {
                     window.localStorage.setItem("clearflow:cfcf-open-previous-bills:v1:" + workspace.tenantId, JSON.stringify({ fundId: alert.fundId, shareId: alert.shareId, cycleNumbers: alert.cycleNumbers }));
                   } catch { /* The alert remains visible if browser storage is unavailable. */ }
+                  window.dispatchEvent(new Event("clearflow:cfcf-open-previous-bills"));
                   onNavigate("workspace");
                 }} className="mt-3 min-h-10 w-full rounded-lg bg-amber-700 px-3 text-xs font-semibold text-white hover:bg-amber-800">Open Share Bills</button>
               </article>
