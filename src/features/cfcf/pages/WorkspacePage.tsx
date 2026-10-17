@@ -1320,7 +1320,14 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       </section>
 
       {!isArchivesView && selectedFund && (
-        <section aria-label="Selected Fund navigation" className="-mt-4 min-w-0 space-y-0">
+        <>
+          <section aria-label="Funds selection" className="-mt-4 min-w-0 rounded-xl border border-slate-200 bg-white p-2">
+            <div className="grid grid-cols-3 gap-2">
+              {funds.map((fund) => <button key={fund.fund_id} type="button" onClick={() => { setSelectedFundId(fund.fund_id); setSelectedShareId(null); setSelectedCycleNumber(null); }} aria-pressed={selectedFundId === fund.fund_id} className={["min-h-12 min-w-0 rounded-xl border px-2 py-2 text-sm font-semibold leading-4", selectedFundId === fund.fund_id ? "border-emerald-500 bg-emerald-100 text-emerald-950 ring-2 ring-emerald-200 shadow-sm" : "border-slate-200 bg-white text-slate-700"].join(" ")}><span className="line-clamp-2 break-words">{fund.fund_name}</span></button>)}
+            </div>
+          </section>
+          <div aria-hidden="true" className="border-t-2 border-slate-300" />
+        <section aria-label="Selected Fund navigation" className="min-w-0 space-y-0">
           <div className="flex min-w-0 items-center justify-between gap-3 rounded-t-xl border border-slate-200 bg-white px-3 py-2.5">
             <div className="min-w-0 flex-1">
               <h2 className="break-words text-sm font-bold leading-5 text-slate-900">{selectedFund.fund_name}</h2>
@@ -1337,6 +1344,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             <button type="button" role="tab" aria-selected={activeSectionTab === "shares"} onClick={() => setActiveSectionTab("shares")} className={["min-h-11 rounded-none border border-l-0 border-t-0 px-3 text-sm font-semibold transition", activeSectionTab === "shares" ? "border-sky-700 bg-sky-700 text-white" : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"].join(" ")}>Shares</button>
           </div>
         </section>
+        </>
       )}
 
       {fundsError && (
@@ -1372,11 +1380,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         <>
           {activeSectionTab === "fund-summary" && (
           <section aria-label="Selected Fund workspace" className="space-y-3">
-            <div className="grid grid-cols-3 gap-2">
-              {funds.map((fund) => <button key={fund.fund_id} type="button" onClick={() => { setSelectedFundId(fund.fund_id); setSelectedShareId(null); setSelectedCycleNumber(null); }} aria-pressed={selectedFundId === fund.fund_id} className={["min-h-12 min-w-0 rounded-xl border px-2 py-2 text-sm font-semibold leading-4", selectedFundId === fund.fund_id ? "border-emerald-500 bg-emerald-100 text-emerald-950 ring-2 ring-emerald-200 shadow-sm" : "border-slate-200 bg-white text-slate-700"].join(" ")}><span className="line-clamp-2 break-words">{fund.fund_name}</span></button>)}
-            </div>
-            <div className="border-t-2 border-slate-300 pt-4">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Selected Fund · {selectedFund.fund_name}</p>
               <article className="rounded-2xl border border-sky-100 bg-white p-3 shadow-sm">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
@@ -1496,7 +1499,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                 </article>;
               })}
             </section>
-          </section>
 
           )}
 
