@@ -189,8 +189,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [isSavingCycle, setIsSavingCycle] = useState(false);
   const [cycleReview, setCycleReview] = useState(false);
   const [billingShare, setBillingShare] = useState<CfcfShareRow | null>(null);
-  const [billingCycleNumber, setBillingCycleNumber] = useState("1");
-  const [billingAmount, setBillingAmount] = useState("");
+  const [billingDrafts, setBillingDrafts] = useState<Record<number, string>>({});
+  const [billingEditedCycles, setBillingEditedCycles] = useState<number[]>([]);
   const [billingError, setBillingError] = useState<string | null>(null);
   const [billingEditEnabled, setBillingEditEnabled] = useState(false);
   const [isSavingBilling, setIsSavingBilling] = useState(false);
@@ -836,9 +836,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       : highestCycleNumber(selectedFund);
     setBillingShare(share);
     setBillingEditEnabled(false);
-    setBillingCycleNumber(String(cycle || 1));
-    const existing = cycle ? billForShareCycle(share.share_id, cycle) : undefined;
-    setBillingAmount(existing ? String(existing.amount) : "");
+    setBillingDrafts({});
+    setBillingEditedCycles([]);
     setBillingError(cycle ? null : "Add a Cycle before entering bills.");
     setBillingReview(false);
   }
@@ -846,30 +845,40 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   async function handleSaveCycleBilling(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!billingShare || !selectedFund || isSavingBilling) return;
-    const cycleNumber = Number(billingCycleNumber);
-    const amount = Number(billingAmount);
-    if (!Number.isSafeInteger(cycleNumber) || cycleNumber < 1 || cycleNumber > MAX_CFCF_CYCLES) {
-      setBillingError("Choose a Cycle number from 1 to 100.");
-      return;
-    }
-    if (!billingEditEnabled) { setBillingError("Choose Edit before changing this bill."); return; }
-    if (billingAmount.trim() === "" || !Number.isSafeInteger(amount) || amount < 0 || amount > 2147483647) {
-      setBillingError("Enter a whole-rupee billing amount of zero or more.");
-      return;
+    if (billingEditedCycles.length === 0) { setBillingError("Choose Edit beside at least one Cycle and enter its corrected bill."); return; }
+    for (const cycleNumber of billingEditedCycles) {
+      const value = billingDrafts[cycleNumber] ?? "";
+      const amount = Number(value);
+      if (!Number.isSafeInteger(cycleNumber) || cycleNumber < 1 || cycleNumber > MAX_CFCF_CYCLES || value.trim() === "" || !Number.isSafeInteger(amount) || amount < 0 || amount > 2147483647) {
+        setBillingError(`Enter a valid whole-rupee amount for Cycle ${cycleNumber}. Zero is allowed.`);
+        return;
+      }
     }
     if (!billingReview) { setBillingReview(true); setBillingError(null); return; }
     if (!beginAction("cycle-billing")) return;
     setIsSavingBilling(true);
     setBillingError(null);
     try {
-      await recordCfcfCycleBilling(workspace.tenantId, selectedFund.fund_id, billingShare.share_id, cycleNumber, amount);
+      const changedCycles = [...billingEditedCycles].sort((a, b) => a - b);
+      const savedCycles: number[] = [];
+      for (const cycleNumber of changedCycles) {
+        await recordCfcfCycleBilling(workspace.tenantId, selectedFund.fund_id, billingShare.share_id, cycleNumber, Number(billingDrafts[cycleNumber]));
+        savedCycles.push(cycleNumber);
+      }
       setBillingShare(null);
       setBillingEditEnabled(false);
-      showDatabaseResult("Cycle bill saved. No payment, credit, debit, or withdrawal was created.");
+      setBillingReview(false);
+      setBillingDrafts({});
+      setBillingEditedCycles([]);
+      showDatabaseResult(`Saved bills for ${savedCycles.map((cycle) => `Cycle ${cycle}`).join(", ")}. No payment, credit, debit, or withdrawal was created.`);
       setDetailReloadKey((current) => current + 1);
       setFundReloadKey((current) => current + 1);
     } catch (error) {
-      setBillingError(error instanceof Error ? error.message : "Unable to save cycle billing."); showDatabaseResult(error instanceof Error ? error.message : "Unable to save cycle billing.", "error");
+      const message = error instanceof Error ? error.message : "Unable to save all Cycle bills.";
+      setBillingError(`Some Cycle bills may already have saved before this error. ${message} Please review saved amounts and retry only the remaining changes.`);
+      showDatabaseResult(message, "error");
+      setDetailReloadKey((current) => current + 1);
+      setFundReloadKey((current) => current + 1);
     } finally {
       endAction("cycle-billing");
       setIsSavingBilling(false);
