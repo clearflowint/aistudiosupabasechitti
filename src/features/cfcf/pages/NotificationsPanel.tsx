@@ -51,6 +51,7 @@ export function NotificationsPanel({ workspace, onNavigate }: NotificationsPanel
   const [error, setError] = useState<string | null>(null);
   const [previousBillAlerts, setPreviousBillAlerts] = useState<PreviousBillAlert[]>([]);
   const [billAlertsError, setBillAlertsError] = useState<string | null>(null);
+  const [managerAlerts, setManagerAlerts] = useState<Array<{ key: string; label: string; fundId: string; fundName: string; detail: string; shareId?: string; cycleNumber?: number; kind: "fund-dues" | "share-dues" | "bill" | "cycle" }>>([]);
 
   const refresh = useCallback(async () => {
     setError(null);
@@ -98,8 +99,32 @@ export function NotificationsPanel({ workspace, onNavigate }: NotificationsPanel
           }
         }
         if (isCurrent) { setPreviousBillAlerts(alerts); setBillAlertsError(null); }
+
+        const managerRows: Array<{ key: string; label: string; fundId: string; fundName: string; detail: string; shareId?: string; cycleNumber?: number; kind: "fund-dues" | "share-dues" | "bill" | "cycle" }> = [];
+        for (const fund of funds) {
+          const [fundCycles, fundBills, fundShares] = await Promise.all([
+            listCfcfCycles(workspace.tenantId, fund.fund_id),
+            listCfcfBills(workspace.tenantId, fund.fund_id),
+            listCfcfShares(workspace.tenantId, fund.fund_id),
+          ]);
+          const fundPending = Number(fund.fund_total_pending_amount ?? 0);
+          if (Number.isFinite(fundPending) && fundPending > 0) managerRows.push({ key: fund.fund_id + ":fund-pending", label: "Fund pending dues", fundId: fund.fund_id, fundName: fund.fund_name, detail: "₹" + fundPending.toLocaleString("en-IN"), kind: "fund-dues" });
+          for (const share of fundShares) {
+            const pending = Number(share.total_pending ?? 0);
+            if (Number.isFinite(pending) && pending > 0) managerRows.push({ key: fund.fund_id + ":" + share.share_id + ":share-pending", label: "Share pending dues", fundId: fund.fund_id, fundName: fund.fund_name, detail: "Share " + share.share_id + " · ₹" + pending.toLocaleString("en-IN"), shareId: share.share_id, kind: "share-dues" });
+          }
+          for (const cycle of fundCycles) {
+            if (cycle.planned_payout_amount == null || Number(cycle.planned_payout_amount) === 0) managerRows.push({ key: fund.fund_id + ":" + cycle.cycle_number + ":payout", label: cycle.planned_payout_amount == null ? "Planned payout · Not Set" : "Planned payout · Zero Amount", fundId: fund.fund_id, fundName: fund.fund_name, detail: "Cycle " + cycle.cycle_number, cycleNumber: cycle.cycle_number, kind: "cycle" });
+            if (cycle.commission_amount == null || Number(cycle.commission_amount) === 0) managerRows.push({ key: fund.fund_id + ":" + cycle.cycle_number + ":commission", label: cycle.commission_amount == null ? "Commission · Not Set" : "Commission · Zero Amount", fundId: fund.fund_id, fundName: fund.fund_name, detail: "Cycle " + cycle.cycle_number, cycleNumber: cycle.cycle_number, kind: "cycle" });
+            for (const share of fundShares) {
+              const bill = fundBills.find((item) => item.cycle_id === cycle.cycle_id && item.share_id === share.share_id);
+              if (!bill || Number(bill.amount) === 0) managerRows.push({ key: fund.fund_id + ":" + cycle.cycle_number + ":" + share.share_id + ":bill", label: bill ? "Bill · Zero Amount" : "Bill · Not Set / Missing", fundId: fund.fund_id, fundName: fund.fund_name, detail: "Cycle " + cycle.cycle_number + " · Share " + share.share_id, shareId: share.share_id, cycleNumber: cycle.cycle_number, kind: "bill" });
+            }
+          }
+        }
+        if (isCurrent) setManagerAlerts(managerRows);
       } catch (loadError) {
-        if (isCurrent) setBillAlertsError(loadError instanceof Error ? loadError.message : "Unable to check previous Cycle bills.");
+        if (isCurrent) setBillAlertsError(loadError instanceof Error ? loadError.message : "Unable to refresh manager alerts.");
       }
     };
     void load();
@@ -124,6 +149,23 @@ export function NotificationsPanel({ workspace, onNavigate }: NotificationsPanel
           <RefreshCw size={15} className={isLoading ? "animate-spin" : ""} />
         </button>
       </div>
+
+      <section aria-label="Manager alerts" className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0"><h3 className="text-sm font-bold text-amber-950">Manager Alerts <span className="ml-1 rounded-full bg-amber-200 px-2 py-0.5 text-xs">{managerAlerts.length}</span></h3><p className="mt-1 text-xs leading-5 text-amber-900">Cycle entries and pending dues across all active Funds. Alerts remain here until the underlying saved records are corrected.</p></div>
+        </div>
+        {managerAlerts.length === 0 ? <p className="mt-3 rounded-lg bg-white p-3 text-xs text-slate-600">No outstanding manager alerts.</p> : <div className="mt-3 max-h-[45vh] space-y-2 overflow-y-auto">
+          {managerAlerts.slice(0, 40).map((alert) => <button key={alert.key} type="button" onClick={() => {
+            try { window.localStorage.setItem("clearflow:cfcf-open-manager-alert:v1:" + workspace.tenantId, JSON.stringify({ fundId: alert.fundId, shareId: alert.shareId, cycleNumber: alert.cycleNumber, kind: alert.kind })); } catch { /* Navigation still works without storage. */ }
+            if (alert.kind === "bill" && alert.shareId && alert.cycleNumber !== undefined) {
+              try { window.localStorage.setItem("clearflow:cfcf-open-previous-bills:v1:" + workspace.tenantId, JSON.stringify({ fundId: alert.fundId, shareId: alert.shareId, cycleNumbers: [alert.cycleNumber] })); } catch { /* Navigation still works without storage. */ }
+              window.dispatchEvent(new Event("clearflow:cfcf-open-previous-bills"));
+            }
+            onNavigate("workspace");
+          }} className="flex min-h-11 w-full items-start justify-between gap-2 rounded-lg border border-amber-200 bg-white p-3 text-left"><span className="min-w-0"><span className="block break-words text-xs font-semibold text-slate-900">{alert.label}</span><span className="mt-1 block break-words text-xs text-slate-600">{alert.fundName} · {alert.detail}</span></span><span className="shrink-0 text-xs font-semibold text-amber-800">Review ↗</span></button>)}
+          {managerAlerts.length > 40 && <p className="text-xs text-amber-900">Showing 40 of {managerAlerts.length} alerts.</p>}
+        </div>}
+      </section>
 
       {error && <p role="alert" className="mt-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">{error}</p>}
       {billAlertsError && <p role="alert" className="mt-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">{billAlertsError}</p>}
