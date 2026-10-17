@@ -1122,7 +1122,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           const bill = freshBills.find((item) => item.cycle_id === cycle.cycle_id && item.share_id === share.share_id);
           return !bill || Number(bill.amount) === 0;
         }).map((cycle) => cycle.cycle_number).sort((a, b) => a - b);
-        return { shareId: share.share_id, cycleNumbers };
+        return { share, shareId: share.share_id, cycleNumbers };
       }).filter((share) => share.cycleNumbers.length > 0);
       setIsShareModalOpen(false);
       setDetailReloadKey((n) => n + 1); setFundReloadKey((n) => n + 1);
