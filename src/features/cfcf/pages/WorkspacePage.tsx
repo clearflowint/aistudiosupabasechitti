@@ -192,7 +192,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [billingDrafts, setBillingDrafts] = useState<Record<number, string>>({});
   const [billingEditedCycles, setBillingEditedCycles] = useState<number[]>([]);
   const [billingError, setBillingError] = useState<string | null>(null);
-  const [billingEditEnabled, setBillingEditEnabled] = useState(false);
   const [isSavingBilling, setIsSavingBilling] = useState(false);
   const [billingReview, setBillingReview] = useState(false);
   const [payoutShare, setPayoutShare] = useState<CfcfShareRow | null>(null);
@@ -440,8 +439,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         setActiveSectionTab("shares");
         setSelectedShareId(share.share_id);
         setBillingShare(share);
-        setBillingEditEnabled(false);
-        setBillingCycleNumber(String(target.cycleNumbers[0] ?? highestCycleNumber(selectedFund) ?? 1));
+            setBillingCycleNumber(String(target.cycleNumbers[0] ?? highestCycleNumber(selectedFund) ?? 1));
         const existing = billForShareCycle(share.share_id, target.cycleNumbers[0] ?? highestCycleNumber(selectedFund));
         setBillingAmount(existing ? String(existing.amount) : "0");
         setBillingError(null);
@@ -866,7 +864,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         savedCycles.push(cycleNumber);
       }
       setBillingShare(null);
-      setBillingEditEnabled(false);
       setBillingReview(false);
       setBillingDrafts({});
       setBillingEditedCycles([]);
@@ -1897,7 +1894,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                   <button type="button" aria-label={isSelected ? `Stop editing Cycle ${cycle}` : `Edit Cycle ${cycle} bill`} title={isSelected ? "Stop editing" : "Edit bill"} disabled={isSavingBilling || billingReview} onClick={() => {
                     setBillingEditedCycles((current) => isSelected ? current.filter((item) => item !== cycle) : [...current, cycle].sort((a, b) => a - b));
                     setBillingDrafts((current) => isSelected ? current : { ...current, [cycle]: current[cycle] ?? (savedBill ? String(savedBill.amount) : "") });
-                    setBillingEditEnabled(true);
                     setBillingError(null);
                   }} className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg border ${isSelected ? "border-sky-300 bg-sky-100 text-sky-800" : "border-slate-200 bg-white text-slate-700"} disabled:opacity-50`}><Pencil size={16}/></button>
                 </div>
