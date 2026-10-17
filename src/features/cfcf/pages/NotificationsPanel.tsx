@@ -5,9 +5,18 @@ import { useCallback, useEffect, useState } from "react";
 import { Bell, RefreshCw, CheckCircle2, CircleAlert, Clock3, XCircle } from "lucide-react";
 import type { AuthorizedWorkspace } from "../../../core/workspace/workspace.types";
 import { listCfcfNotifications, type CfcfNotification } from "../services/notifications.service";
+import { listCfcfFunds, listCfcfShares, listCfcfBills, listCfcfCycles } from "../services/workspace.service";
 
 interface NotificationsPanelProps {
   workspace: AuthorizedWorkspace;
+  onNavigate: (pageId: string) => void;
+}
+
+interface PreviousBillAlert {
+  fundId: string;
+  fundName: string;
+  shareId: string;
+  cycleNumbers: number[];
 }
 
 function statusStyle(status: string) {
@@ -36,10 +45,12 @@ function statusLabel(status: string) {
   return labels[status] ?? status.replace(/_/g, " ");
 }
 
-export function NotificationsPanel({ workspace }: NotificationsPanelProps) {
+export function NotificationsPanel({ workspace, onNavigate }: NotificationsPanelProps) {
   const [items, setItems] = useState<CfcfNotification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [previousBillAlerts, setPreviousBillAlerts] = useState<PreviousBillAlert[]>([]);
+  const [billAlertsError, setBillAlertsError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setError(null);
@@ -68,6 +79,28 @@ export function NotificationsPanel({ workspace }: NotificationsPanelProps) {
       } finally {
         if (isCurrent) setIsLoading(false);
       }
+      try {
+        const funds = await listCfcfFunds(workspace.tenantId);
+        const alerts: PreviousBillAlert[] = [];
+        for (const fund of funds) {
+          const [fundShares, fundBills, cycles] = await Promise.all([
+            listCfcfShares(workspace.tenantId, fund.fund_id),
+            listCfcfBills(workspace.tenantId, fund.fund_id),
+            listCfcfCycles(workspace.tenantId, fund.fund_id),
+          ]);
+          for (const share of fundShares) {
+            const previousCycles = cycles.filter((cycle) => new Date(cycle.created_at).getTime() <= new Date(share.created_at).getTime());
+            const cycleNumbers = previousCycles.filter((cycle) => {
+              const bill = fundBills.find((item) => item.cycle_id === cycle.cycle_id && item.share_id === share.share_id);
+              return !bill || Number(bill.amount) === 0;
+            }).map((cycle) => cycle.cycle_number).sort((a, b) => a - b);
+            if (cycleNumbers.length) alerts.push({ fundId: fund.fund_id, fundName: fund.fund_name, shareId: share.share_id, cycleNumbers });
+          }
+        }
+        if (isCurrent) { setPreviousBillAlerts(alerts); setBillAlertsError(null); }
+      } catch (loadError) {
+        if (isCurrent) setBillAlertsError(loadError instanceof Error ? loadError.message : "Unable to check previous Cycle bills.");
+      }
     };
     void load();
     interval = setInterval(() => { void load(); }, 7000);
@@ -93,6 +126,34 @@ export function NotificationsPanel({ workspace }: NotificationsPanelProps) {
       </div>
 
       {error && <p role="alert" className="mt-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">{error}</p>}
+      {billAlertsError && <p role="alert" className="mt-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">{billAlertsError}</p>}
+      {previousBillAlerts.length > 0 && (
+        <section aria-label="Previous Cycle bills needing attention" className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+          <div className="flex items-start gap-2">
+            <div className="mt-0.5 rounded-lg bg-white p-2 text-amber-800"><CircleAlert size={17} /></div>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-bold text-amber-950">Previous Cycle bills need attention</h3>
+              <p className="mt-1 text-xs leading-5 text-amber-900">Zero or missing bills for Shares added after these Cycles were created.</p>
+            </div>
+          </div>
+          <div className="mt-3 space-y-2">
+            {previousBillAlerts.map((alert) => (
+              <article key={alert.fundId + ":" + alert.shareId} className="rounded-lg border border-amber-200 bg-white p-3">
+                <p className="break-words text-sm font-semibold text-slate-900">{alert.fundName}</p>
+                <p className="mt-1 break-all text-xs text-slate-600">Share ID · {alert.shareId}</p>
+                <p className="mt-1 text-xs text-amber-900">Bills to review: {alert.cycleNumbers.map((number) => "Cycle " + number).join(", ")}</p>
+                <button type="button" onClick={() => {
+                  try {
+                    window.localStorage.setItem("clearflow:cfcf-open-previous-bills:v1:" + workspace.tenantId, JSON.stringify({ fundId: alert.fundId, shareId: alert.shareId, cycleNumbers: alert.cycleNumbers }));
+                  } catch { /* The alert remains visible if browser storage is unavailable. */ }
+                  onNavigate("workspace");
+                }} className="mt-3 min-h-10 w-full rounded-lg bg-amber-700 px-3 text-xs font-semibold text-white hover:bg-amber-800">Open Share Bills</button>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
       {isLoading ? (
         <p aria-live="polite" className="mt-3 rounded-xl bg-white/80 p-4 text-center text-sm text-slate-500"><RefreshCw size={15} className="mr-2 inline animate-spin" />Loading Notifications…</p>
       ) : items.length === 0 ? (
