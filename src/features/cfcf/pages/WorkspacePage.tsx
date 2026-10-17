@@ -1302,9 +1302,15 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           <button type="button" onClick={() => setFundReloadKey((current) => current + 1)} disabled={isLoadingFunds} aria-label="Refresh funds" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:opacity-50">
             <RefreshCw size={17} className={isLoadingFunds ? "animate-spin" : ""} />
           </button>
-          <button type="button" onClick={() => { setIsArchivesView(true); void refreshArchivedFunds(); }} aria-pressed={isArchivesView} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-xl border border-amber-200 bg-amber-50 px-2.5 text-xs font-semibold text-amber-900 transition hover:bg-amber-100 sm:px-3 sm:text-sm">
-            <Archive size={15} /> Archives
-          </button>
+          {isArchivesView ? (
+            <button type="button" onClick={() => setIsArchivesView(false)} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-xl border border-sky-200 bg-sky-50 px-2.5 text-xs font-semibold text-sky-900 transition hover:bg-sky-100 sm:px-3 sm:text-sm">
+              <ChevronLeft size={15} /> Back to Funds
+            </button>
+          ) : (
+            <button type="button" onClick={() => { setIsArchivesView(true); void refreshArchivedFunds(); }} aria-pressed={isArchivesView} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-xl border border-amber-200 bg-amber-50 px-2.5 text-xs font-semibold text-amber-900 transition hover:bg-amber-100 sm:px-3 sm:text-sm">
+              <Archive size={15} /> Archives
+            </button>
+          )}
           <button type="button" onClick={openFundModal} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-xl bg-sky-600 px-2.5 text-xs font-semibold text-white transition hover:bg-sky-700 sm:gap-1.5 sm:px-3 sm:text-sm">
             <Plus size={15} /> New Fund
           </button>
