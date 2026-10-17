@@ -1120,7 +1120,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           new Date(cycle.created_at).getTime() <= new Date(share.created_at).getTime()
         ).filter((cycle) => {
           const bill = freshBills.find((item) => item.cycle_id === cycle.cycle_id && item.share_id === share.share_id);
-          return !bill || Number(bill.amount) === 0;
+          return !bill;
         }).map((cycle) => cycle.cycle_number).sort((a, b) => a - b);
         return { share, shareId: share.share_id, cycleNumbers };
       }).filter((share) => share.cycleNumbers.length > 0);
