@@ -6,6 +6,7 @@ import { Bell, RefreshCw, CircleAlert } from "lucide-react";
 import type { AuthorizedWorkspace } from "../../../core/workspace/workspace.types";
 import { listCfcfNotifications, type CfcfNotification } from "../services/notifications.service";
 import { listCfcfFunds, listCfcfShares, listCfcfBills, listCfcfCycles } from "../services/workspace.service";
+import { supabase } from "../../../core/database/supabaseClient";
 
 interface NotificationsPanelProps {
   workspace: AuthorizedWorkspace;
@@ -74,9 +75,14 @@ export function NotificationsPanel({ workspace, onNavigate, onCountChange }: Not
   }, [managerAlerts.length, previousBillAlerts.length, visibleInformationalCount, onCountChange]);
 
   const enablePhoneAlerts = async () => {
-    if (!("Notification" in window) || !window.isSecureContext) {
+    if (!("Notification" in window) || !window.isSecureContext || !("serviceWorker" in navigator)) {
       setPhonePermission("unsupported");
-      setPhoneAlertMessage("This browser context does not support phone notifications. On iPhone, open ClearFlow from the Home Screen web app in a supported iOS version; on Android, use Chrome and allow notifications for this site.");
+      setPhoneAlertMessage("Push notifications require a supported browser on HTTPS. On iPhone, install ClearFlow to the Home Screen and open it from that icon.");
+      return;
+    }
+    const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
+    if (!vapidPublicKey) {
+      setPhoneAlertMessage("Push setup is not complete: the public VAPID key is missing from this deployment. Contact the ClearFlow administrator.");
       return;
     }
     try {
@@ -84,27 +90,59 @@ export function NotificationsPanel({ workspace, onNavigate, onCountChange }: Not
       setPhonePermission(permission);
       if (permission !== "granted") {
         setPhoneAlertMessage(permission === "denied"
-          ? "Notifications are blocked for this site. Change the site notification permission in your browser or phone settings, then try again."
-          : "Notification permission was not granted. Tap Enable phone alerts and choose Allow to enable alerts.");
+          ? "Notifications are blocked for this site. Change the notification permission in your browser or phone settings, then try again."
+          : "Notification permission was not granted. Tap Enable phone alerts and choose Allow.");
         return;
       }
-      try {
-        if ("serviceWorker" in navigator) {
-          const registration = await navigator.serviceWorker.getRegistration();
-          if (registration?.showNotification) {
-            await registration.showNotification("ClearFlow phone alerts enabled", { body: "You will receive alerts while this app can deliver browser notifications." });
-          } else {
-            new Notification("ClearFlow phone alerts enabled", { body: "Browser notifications are enabled while ClearFlow is open." });
-          }
-        } else {
-          new Notification("ClearFlow phone alerts enabled", { body: "Browser notifications are enabled while ClearFlow is open." });
-        }
-        setPhoneAlertMessage("Permission granted. Test notification sent. New Manager Alerts can notify you while ClearFlow is open; alerts when the app is closed require push-service setup.");
-      } catch {
-        setPhoneAlertMessage("Permission is granted, but this browser could not display a test notification. On iPhone, install ClearFlow to the Home Screen and open that app; otherwise check browser/phone notification settings.");
+
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      const session = sessionData.session;
+      if (sessionError || !session?.access_token) {
+        setPhoneAlertMessage("Please sign in again before enabling phone alerts.");
+        return;
       }
-    } catch {
-      setPhoneAlertMessage("Could not request notification permission in this browser. Check site permissions and try again.");
+
+      const registration = await navigator.serviceWorker.ready;
+      if (!registration.pushManager) {
+        setPhoneAlertMessage("This browser does not support Web Push. On iPhone, use the installed Home Screen app on a supported iOS version.");
+        return;
+      }
+      const keyBytes = Uint8Array.from(
+        atob(vapidPublicKey.replace(/-/g, "+").replace(/_/g, "/") + "===" .slice((vapidPublicKey.length + 3) % 4)),
+        (char) => char.charCodeAt(0),
+      );
+      let subscription = await registration.pushManager.getSubscription();
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: keyBytes,
+        });
+      }
+
+      const { data, error } = await supabase.functions.invoke("clearflow-push-subscription", {
+        body: {
+          action: "subscribe",
+          product_id: "CFCF",
+          tenant_id: workspace.tenantId,
+          subscription: subscription.toJSON(),
+        },
+      });
+      if (error || data?.ok !== true) {
+        const message = typeof data?.error === "string" ? data.error : error?.message;
+        setPhoneAlertMessage(message || "Push registration is not enabled on the server yet. Your browser permission is granted, but this device is not registered for remote delivery.");
+        return;
+      }
+
+      await registration.showNotification("ClearFlow phone alerts enabled", {
+        body: "This device is registered for ClearFlow push notifications.",
+        icon: "/icon.svg",
+        badge: "/icon.svg",
+      });
+      setPhoneAlertMessage("This device is registered for remote push notifications. Delivery will begin after the administrator enables and tests the CFCF push service.");
+    } catch (error) {
+      setPhoneAlertMessage(error instanceof Error
+        ? "Could not register this device: " + error.message
+        : "Could not register this device for push notifications. Check browser permissions and try again.");
     }
   };
 
