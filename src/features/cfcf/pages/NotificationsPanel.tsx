@@ -151,7 +151,12 @@ export function NotificationsPanel({ workspace, onNavigate, onCountChange }: Not
   useEffect(() => {
     let isCurrent = true;
     let interval: ReturnType<typeof setInterval> | undefined;
+    let inFlight = false;
+
     const load = async () => {
+      // Do not query Supabase while the app is backgrounded/hidden.
+      if (document.visibilityState !== "visible" || inFlight) return;
+      inFlight = true;
       try {
         const rows = await listCfcfNotifications(workspace.tenantId);
         if (isCurrent) {
@@ -163,39 +168,37 @@ export function NotificationsPanel({ workspace, onNavigate, onCountChange }: Not
       } finally {
         if (isCurrent) setIsLoading(false);
       }
+
       try {
         const funds = await listCfcfFunds(workspace.tenantId);
-        const alerts: PreviousBillAlert[] = [];
-        for (const fund of funds) {
-          const [fundShares, fundBills, cycles] = await Promise.all([
-            listCfcfShares(workspace.tenantId, fund.fund_id),
-            listCfcfBills(workspace.tenantId, fund.fund_id),
-            listCfcfCycles(workspace.tenantId, fund.fund_id),
-          ]);
-          for (const share of fundShares) {
-            const previousCycles = cycles.filter((cycle) => new Date(cycle.created_at).getTime() <= new Date(share.created_at).getTime());
-            const cycleNumbers = previousCycles.filter((cycle) => {
-              const bill = fundBills.find((item) => item.cycle_id === cycle.cycle_id && item.share_id === share.share_id);
-              return !bill;
-            }).map((cycle) => cycle.cycle_number).sort((a, b) => a - b);
-            if (cycleNumbers.length) alerts.push({ fundId: fund.fund_id, fundName: fund.fund_name, shareId: share.share_id, cycleNumbers });
-          }
-        }
-        if (isCurrent) { setPreviousBillAlerts(alerts); setBillAlertsError(null); }
-
+        const previousAlerts: PreviousBillAlert[] = [];
         const managerRows: Array<{ key: string; label: string; fundId: string; fundName: string; detail: string; shareId?: string; cycleNumber?: number; kind: "fund-dues" | "share-dues" | "bill" | "cycle" }> = [];
+
+        // Fetch each Fund's Shares, Bills and Cycles once per refresh and reuse
+        // those saved records for both alert groups to reduce Supabase traffic.
         for (const fund of funds) {
-          const [fundCycles, fundBills, fundShares] = await Promise.all([
-            listCfcfCycles(workspace.tenantId, fund.fund_id),
-            listCfcfBills(workspace.tenantId, fund.fund_id),
+          const [fundShares, fundBills, fundCycles] = await Promise.all([
             listCfcfShares(workspace.tenantId, fund.fund_id),
+            listCfcfBills(workspace.tenantId, fund.fund_id),
+            listCfcfCycles(workspace.tenantId, fund.fund_id),
           ]);
+
+          for (const share of fundShares) {
+            const previousCycles = fundCycles.filter((cycle) => new Date(cycle.created_at).getTime() <= new Date(share.created_at).getTime());
+            const missingPreviousCycles = previousCycles.filter((cycle) =>
+              !fundBills.some((bill) => bill.cycle_id === cycle.cycle_id && bill.share_id === share.share_id)
+            ).map((cycle) => cycle.cycle_number).sort((a, b) => a - b);
+            if (missingPreviousCycles.length) previousAlerts.push({ fundId: fund.fund_id, fundName: fund.fund_name, shareId: share.share_id, cycleNumbers: missingPreviousCycles });
+          }
+
           const fundPending = Number(fund.fund_total_pending_amount ?? 0);
           if (Number.isFinite(fundPending) && fundPending > 0) managerRows.push({ key: fund.fund_id + ":fund-pending", label: "Fund pending dues", fundId: fund.fund_id, fundName: fund.fund_name, detail: "₹" + fundPending.toLocaleString("en-IN"), kind: "fund-dues" });
+
           for (const share of fundShares) {
             const pending = Number(share.total_pending ?? 0);
             if (Number.isFinite(pending) && pending > 0) managerRows.push({ key: fund.fund_id + ":" + share.share_id + ":share-pending", label: "Share pending dues", fundId: fund.fund_id, fundName: fund.fund_name, detail: "Share " + share.share_id + " · ₹" + pending.toLocaleString("en-IN"), shareId: share.share_id, kind: "share-dues" });
           }
+
           for (const cycle of fundCycles) {
             if (cycle.planned_payout_amount == null || Number(cycle.planned_payout_amount) === 0) managerRows.push({ key: fund.fund_id + ":" + cycle.cycle_number + ":payout", label: cycle.planned_payout_amount == null ? "Planned payout · Not Set" : "Planned payout · Zero Amount", fundId: fund.fund_id, fundName: fund.fund_name, detail: "Cycle " + cycle.cycle_number, cycleNumber: cycle.cycle_number, kind: "cycle" });
             if (cycle.commission_amount == null || Number(cycle.commission_amount) === 0) managerRows.push({ key: fund.fund_id + ":" + cycle.cycle_number + ":commission", label: cycle.commission_amount == null ? "Commission · Not Set" : "Commission · Zero Amount", fundId: fund.fund_id, fundName: fund.fund_name, detail: "Cycle " + cycle.cycle_number, cycleNumber: cycle.cycle_number, kind: "cycle" });
@@ -205,16 +208,50 @@ export function NotificationsPanel({ workspace, onNavigate, onCountChange }: Not
             }
           }
         }
-        if (isCurrent) setManagerAlerts(managerRows);
+
+        if (isCurrent) {
+          setPreviousBillAlerts(previousAlerts);
+          setBillAlertsError(null);
+          setManagerAlerts(managerRows);
+        }
       } catch (loadError) {
         if (isCurrent) setBillAlertsError(loadError instanceof Error ? loadError.message : "Unable to refresh manager alerts.");
+      } finally {
+        inFlight = false;
       }
     };
-    void load();
-    interval = setInterval(() => { void load(); }, 7000);
+
+    const startPolling = () => {
+      if (interval) clearInterval(interval);
+      interval = undefined;
+      if (document.visibilityState === "visible") {
+        void load(); // Refresh immediately when the app becomes active again.
+        interval = setInterval(() => { void load(); }, 60_000);
+      }
+    };
+    const stopPolling = () => {
+      if (interval) clearInterval(interval);
+      interval = undefined;
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") startPolling();
+      else stopPolling();
+    };
+    const handleResume = () => {
+      if (document.visibilityState === "visible") startPolling();
+    };
+
+    startPolling();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pageshow", handleResume);
+    window.addEventListener("focus", handleResume);
+
     return () => {
       isCurrent = false;
-      if (interval) clearInterval(interval);
+      stopPolling();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pageshow", handleResume);
+      window.removeEventListener("focus", handleResume);
     };
   }, [workspace.tenantId]);
 
