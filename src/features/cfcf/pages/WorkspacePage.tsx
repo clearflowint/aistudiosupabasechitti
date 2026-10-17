@@ -59,7 +59,7 @@ import {
 } from "../services/workspace.service";
 import type { CfcfBillRow, CfcfContactRow, CfcfFundRow, CfcfShareRow } from "../types/database.types";
 
-type WorkspaceTab = "shares" | "ledger";
+type WorkspaceTab = "fund-summary" | "shares";
 type ShareFilter = "all" | "pending" | "drawn" | "undrawn";
 
 interface WorkspacePageProps {
@@ -80,16 +80,16 @@ interface SavedWorkspaceView {
 }
 
 function readSavedWorkspaceView(tenantId: string): SavedWorkspaceView {
-  const fallback: SavedWorkspaceView = { tab: "shares", fundId: "" };
+  const fallback: SavedWorkspaceView = { tab: "fund-summary", fundId: "" };
   try {
     const raw = window.localStorage.getItem("clearflow:cfcf-workspace-view:v2:" + tenantId);
     if (!raw) return fallback;
     const saved = JSON.parse(raw) as { tab?: unknown; fundId?: unknown };
-    const validTabs: WorkspaceTab[] = ["shares", "ledger"];
+    const validTabs: WorkspaceTab[] = ["fund-summary", "shares"];
     return {
       tab: typeof saved.tab === "string" && validTabs.includes(saved.tab as WorkspaceTab)
         ? saved.tab as WorkspaceTab
-        : "shares",
+        : "fund-summary",
       fundId: typeof saved.fundId === "string" ? saved.fundId : "",
     };
   } catch {
@@ -116,7 +116,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [archivedDeleteError, setArchivedDeleteError] = useState<string | null>(null);
   const [initialSavedView] = useState(() => readSavedWorkspaceView(workspace.tenantId));
   const [selectedFundId, setSelectedFundId] = useState(initialSavedView.fundId);
-  const [, setActiveTab] = useState<WorkspaceTab>("shares");
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>("fund-summary");
+  const [isArchivesView, setIsArchivesView] = useState(false);
   const [isLoadingFunds, setIsLoadingFunds] = useState(true);
   const [fundsError, setFundsError] = useState<string | null>(null);
   const [shares, setShares] = useState<CfcfShareRow[]>([]);
@@ -487,14 +488,14 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     if (hydratedViewTenantId.current !== workspace.tenantId) {
       const savedView = readSavedWorkspaceView(workspace.tenantId);
       hydratedViewTenantId.current = workspace.tenantId;
-      setActiveTab("shares");
+      setActiveTab(savedView.tab);
       setSelectedFundId(savedView.fundId);
       return;
     }
     try {
       window.localStorage.setItem(
         "clearflow:cfcf-workspace-view:v2:" + workspace.tenantId,
-        JSON.stringify({ tab: "shares", fundId: selectedFundId }),
+        JSON.stringify({ tab: activeTab, fundId: selectedFundId }),
       );
     } catch {
       // Keep the workspace usable when browser storage is unavailable.
@@ -1246,7 +1247,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       });
       setFunds((current) => [created, ...current].sort((a, b) => b.created_at.localeCompare(a.created_at)));
       setSelectedFundId(created.fund_id);
-      setActiveTab("shares");
+      setActiveTab("fund-summary");
       showDatabaseResult("Fund created successfully. Its stored details are shown below.");
       setIsFundModalOpen(false);
       setFundForm(emptyFundForm);
@@ -1301,6 +1302,9 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           <button type="button" onClick={() => setFundReloadKey((current) => current + 1)} disabled={isLoadingFunds} aria-label="Refresh funds" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:opacity-50">
             <RefreshCw size={17} className={isLoadingFunds ? "animate-spin" : ""} />
           </button>
+          <button type="button" onClick={() => { setIsArchivesView(true); void refreshArchivedFunds(); }} aria-pressed={isArchivesView} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-xl border border-amber-200 bg-amber-50 px-2.5 text-xs font-semibold text-amber-900 transition hover:bg-amber-100 sm:px-3 sm:text-sm">
+            <Archive size={15} /> Archives
+          </button>
           <button type="button" onClick={openFundModal} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-xl bg-sky-600 px-2.5 text-xs font-semibold text-white transition hover:bg-sky-700 sm:gap-1.5 sm:px-3 sm:text-sm">
             <Plus size={15} /> New Fund
           </button>
@@ -1337,633 +1341,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             </button>
           }
         />
-      ) : selectedFund ? (
-        <>
-          <section aria-label="Selected Fund workspace" className="space-y-3">
-            <div className="grid grid-cols-3 gap-2">
-              {funds.map((fund) => <button key={fund.fund_id} type="button" onClick={() => { setSelectedFundId(fund.fund_id); setSelectedShareId(null); setSelectedCycleNumber(null); }} aria-pressed={selectedFundId === fund.fund_id} className={["min-h-12 min-w-0 rounded-xl border px-2 py-2 text-sm font-semibold leading-4", selectedFundId === fund.fund_id ? "border-emerald-500 bg-emerald-100 text-emerald-950 ring-2 ring-emerald-200 shadow-sm" : "border-slate-200 bg-white text-slate-700"].join(" ")}><span className="line-clamp-2 break-words">{fund.fund_name}</span></button>)}
-            </div>
-            <div className="border-t-2 border-slate-300 pt-4">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Selected Fund · {selectedFund.fund_name}</p>
-              <article className="rounded-2xl border border-sky-100 bg-white p-3 shadow-sm">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <h3 className="break-words text-base font-bold text-slate-900">{selectedFund.fund_name}</h3>
-                    <p className="mt-1 break-all text-xs text-slate-500">Fund ID · {selectedFund.fund_id} <span className="px-1">·</span> Start · {selectedFund.start_date ? formatDate(selectedFund.start_date) : "Not set"}</p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p className="text-xs font-medium text-slate-500">Pending</p>
-                    <p className="text-[1.1rem] font-bold leading-tight tabular-nums text-rose-600">{formatINR(selectedFund.fund_total_pending_amount ?? 0)}</p>
-                  </div>
-                </div>
-                <div className="mt-2 flex items-center justify-between gap-2 text-xs text-slate-600">
-                  <span>Planned cycles: {selectedFund.number_of_cycles ?? "Not set"}</span>
-                  <span>Cycle progress: {savedCycleNumbers().at(-1) ?? 0} / {selectedFund.number_of_cycles ?? "Not set"}</span>
-                </div>
-                <div className="mt-2 grid grid-cols-3 gap-2">
-                  <div className="rounded-lg bg-slate-50 px-2 py-2"><p className="text-[11px] text-slate-500">Advance</p><p className="mt-1 text-sm font-bold tabular-nums text-slate-900">{formatINR(selectedFund.fund_total_advance ?? 0)}</p></div>
-                  <div className="rounded-lg bg-slate-50 px-2 py-2"><p className="text-[11px] text-slate-500">Withdrawn</p><p className="mt-1 text-sm font-bold tabular-nums text-slate-900">{formatINR(selectedFund.fund_total_withdrawn ?? 0)}</p></div>
-                  <div className="rounded-lg bg-slate-50 px-2 py-2"><p className="text-[11px] text-slate-500">Net balance</p><p className={["mt-1 text-sm font-bold tabular-nums", (selectedFund.fund_net_balance ?? 0) < 0 ? "text-rose-600" : (selectedFund.fund_net_balance ?? 0) > 0 ? "text-emerald-700" : "text-slate-900"].join(" ")}>{(selectedFund.fund_net_balance ?? 0) > 0 ? "+" : (selectedFund.fund_net_balance ?? 0) < 0 ? "−" : ""}{formatINR(Math.abs(selectedFund.fund_net_balance ?? 0))}</p></div>
-                </div>
-                <div className="mt-2 flex items-center justify-between gap-2 text-xs text-slate-600"><span>Total Commission: {formatINR(selectedFund.fund_total_commissions ?? 0)}</span><span>Shares: {shares.length}</span></div>
-                <div className="mt-3 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 sm:grid-cols-4">
-                  <button type="button" onClick={() => setIsFundReportOpen(true)} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-1 text-xs font-semibold text-sky-800"><FileText size={14}/> Fund Summary</button>
-                  <button type="button" onClick={() => void openFullFundReport()} disabled={isLoadingFullFundReport} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-1 text-xs font-semibold text-violet-800 disabled:opacity-50"><FileText size={14}/> {isLoadingFullFundReport ? "Loading…" : "Full Report"}</button>
-                  <button type="button" onClick={() => void openAdjustmentsLedger()} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-1 text-xs font-semibold text-emerald-800"><IndianRupee size={14}/> Adjustments</button>
-                  <button type="button" onClick={() => { setFundEditForm({ fundName: selectedFund.fund_name ?? "", startDate: selectedFund.start_date ?? "", numberOfCycles: selectedFund.number_of_cycles == null ? "" : String(selectedFund.number_of_cycles) }); setFundEditError(null); setIsFundEditOpen(true); }} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-slate-200 px-1 text-xs font-semibold text-slate-700"><Pencil size={14}/> Edit Fund</button>
-                </div>
-              </article>
-            {(() => { const cycleNumbers = savedCycleNumbers(); const currentCycle = selectedCycleNumber !== null && cycleNumbers.includes(selectedCycleNumber) ? selectedCycleNumber : (cycleNumbers.at(-1) ?? null); const row = cycleRows.find((item) => item.cycle_number === currentCycle); const payout = row?.planned_payout_amount; const commission = row?.commission_amount; return <article className="rounded-2xl border border-violet-200 bg-violet-50 p-3 shadow-sm">
-              <div className="flex items-start justify-between gap-2"><div className="min-w-0"><h3 className="text-base font-bold text-slate-950">{currentCycle === null ? "No Cycles yet" : `Cycle ${currentCycle} / ${selectedFund.number_of_cycles ?? "Not set"}`}</h3><p className="mt-1 text-xs text-slate-600">{row ? `Created ${formatDate(row.created_at)}` : "Existing billing record"}</p></div><div className="flex shrink-0 items-center gap-1"><button type="button" aria-label="Previous Cycle" disabled={currentCycle === null || cycleNumbers.indexOf(currentCycle) <= 0} onClick={() => { if (currentCycle !== null) setSelectedCycleNumber(cycleNumbers[cycleNumbers.indexOf(currentCycle)-1]); }} className="grid h-9 w-9 place-items-center rounded-lg border border-violet-200 bg-white disabled:opacity-40"><ChevronLeft size={17}/></button><button type="button" aria-label="Latest Cycle" disabled={currentCycle === null || currentCycle === cycleNumbers.at(-1)} onClick={() => setSelectedCycleNumber(cycleNumbers.at(-1) ?? null)} className="grid h-9 w-9 place-items-center rounded-lg border border-violet-200 bg-white disabled:opacity-40"><RotateCcw size={16}/></button></div></div>
-              <div className="mt-3 grid grid-cols-2 gap-2"><StoredValue label="Total billed" value={cycleSummary ? formatINR(cycleSummary.total_billed) : "—"}/><StoredValue label="Planned payout" value={displayStoredAmount(payout)}/><StoredValue label="Billed shares" value={cycleSummary ? String(cycleSummary.billed_shares) : "—"}/><StoredValue label="Not billed" value={cycleSummary ? String(cycleSummary.not_billed_shares) : "—"}/><StoredValue label="Total paid out" value={cycleSummary ? formatINR(cycleSummary.total_paid_out) : "—"}/><StoredValue label="Commission" value={displayStoredAmount(commission)}/></div>
-              <div className="mt-3 grid grid-cols-2 gap-2"><button type="button" disabled={currentCycle === null || currentCycle !== Math.max(...cycleNumbers) || isCycleBusy} onClick={() => { if (currentCycle === null) return; setSelectedCycleNumber(currentCycle); setCycleDeleteTarget(currentCycle); setCycleDeleteStep(1); setCycleDeleteAcknowledged(false); setCycleDeleteTypedEmail(""); setCycleDeleteError(null); }} className="min-h-10 rounded-xl border border-rose-200 bg-white px-2 text-sm font-semibold text-rose-700 disabled:opacity-40">Delete Cycle</button><button type="button" disabled={currentCycle === null} onClick={() => setIsCycleStatementOpen(true)} className="min-h-10 rounded-xl border border-violet-200 bg-white px-2 text-sm font-semibold text-violet-800 disabled:opacity-40">Cycle Statement</button><button type="button" disabled={currentCycle === null} onClick={() => { setPlannedPayoutCycle(currentCycle); setPlannedPayoutInput(payout == null ? "" : String(payout)); setPlannedPayoutError(null); }} className="min-h-10 rounded-xl border border-violet-200 bg-white px-2 text-sm font-semibold text-violet-800 disabled:opacity-40">Planned Payout</button><button type="button" disabled={currentCycle === null} onClick={() => currentCycle !== null && openCycleEditor(currentCycle)} className="min-h-10 rounded-xl bg-violet-700 px-2 text-sm font-semibold text-white disabled:opacity-40">Edit Cycle</button></div>
-              {cycleError && <p role="alert" className="mt-2 text-sm text-rose-700">{cycleError}</p>}
-            </article>; })()}
-            <button type="button" disabled={isCycleBusy || shares.length === 0} onClick={() => { const nextCycleNumber = Math.max(0, ...cycleRows.map((row) => row.cycle_number), ...billedCycleNumbers()) + 1; setCycleError(null); openCycleEditor(nextCycleNumber, true, bills, cycleRows); }} title={shares.length === 0 ? "Add at least one Share to this Fund before adding a Cycle." : undefined} className="min-h-12 w-full rounded-xl border border-violet-600 bg-violet-700 px-3 text-base font-bold text-white shadow-sm active:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-40">{isCycleBusy ? "Working…" : `Add Cycle ${Math.max(0,...cycleRows.map((row)=>row.cycle_number),...billedCycleNumbers())+1}`}</button>
-
-            </div>
-          </section>
-
-          <section aria-label="Shares section" className="space-y-3">
-            <div className="flex min-w-0 items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-sm sm:px-4">
-              <div className="flex min-w-0 items-center gap-2">
-                <h2 className="text-base font-bold text-slate-900">Shares</h2>
-                <ChevronDown size={16} className="shrink-0 text-slate-500" aria-hidden="true" />
-              </div>
-              <button type="button" onClick={openShareModal} className="inline-flex min-h-10 min-w-0 flex-1 items-center justify-center gap-1 rounded-xl bg-sky-600 px-2 text-xs font-semibold text-white sm:flex-none sm:px-3 sm:text-sm"><Plus size={16} className="shrink-0" /><span className="truncate">Add Share</span></button>
-              <div className="flex shrink-0 items-center gap-1.5 rounded-full bg-sky-50 px-2.5 py-2 text-sky-800 sm:gap-2 sm:px-3">
-                <span className="text-[10px] font-semibold sm:text-xs">Total</span>
-                <span className="text-base font-bold tabular-nums">{shares.length}</span>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <button type="button" disabled title="Disabled until the n8n reminder workflow is configured." aria-label="Send pending reminder to all shares (disabled)" className="inline-flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-2 py-2 text-center text-xs font-bold leading-4 text-amber-900 opacity-60 cursor-not-allowed"><MessageCircle size={16} className="shrink-0" /><span>Send Pending Reminder to All</span></button>
-              <button type="button" disabled title="Disabled until the n8n report workflow is configured." aria-label="Send report to all shares (disabled)" className="inline-flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-sky-300 bg-sky-50 px-2 py-2 text-center text-xs font-bold leading-4 text-sky-900 opacity-60 cursor-not-allowed"><FileText size={16} className="shrink-0" /><span>Send Report to All</span></button>
-            </div>
-            <p className="text-center text-xs text-slate-500">Bulk WhatsApp automation is disabled until the n8n webhook is configured.</p>
-
-            <section className="space-y-3">
-              <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
-                <div className="flex items-center gap-2">
-                  <label className="relative min-w-0 flex-1">
-                    <Search size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input type="search" value={shareSearch} onChange={(event) => setShareSearch(event.target.value)} placeholder="Search Contact, phone or Share ID" aria-label="Search Contact, phone or Share ID" className="min-h-11 w-full rounded-xl border border-slate-200 py-2 pl-10 pr-3 text-sm" />
-                  </label>
-                  <button type="button" onClick={() => setDetailReloadKey((n) => n + 1)} aria-label="Refresh Shares" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-200 text-sky-700"><RefreshCw size={17} /></button>
-                </div>
-
-                <div className="mt-3 grid grid-cols-4 gap-1.5">
-                  {shareFilterOptions.map((option) => <button key={option.id} type="button" aria-pressed={shareFilter === option.id} onClick={() => setShareFilter(option.id)} className={["min-h-10 min-w-0 whitespace-nowrap rounded-xl border px-1 text-[10px] font-semibold leading-tight sm:px-2 sm:text-xs",shareFilter===option.id?"border-slate-900 bg-slate-900 text-white":"border-slate-200 bg-white text-slate-600"].join(" ")}>{option.label} ({option.count})</button>)}
-                </div>
-              </section>
-              {isLoadingDetails ? <LoadingCard message="Loading Shares…" /> : detailsError ? <ErrorCard message={detailsError} onRetry={() => setDetailReloadKey((n) => n + 1)} /> : filteredShares.length === 0 ? (
-                <EmptyState icon={<UsersRound size={22} />} title={shares.length ? "No matching Shares" : "No Shares in this Fund yet"} description={shares.length ? "Clear the search or change the status filter." : "Add a Share by selecting an existing Contact in this Fund."} action={!shares.length ? <button type="button" onClick={openShareModal} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white"><Plus size={16} className="mr-1 inline" /> Add Share</button> : undefined} />
-              ) : filteredShares.map((share) => {
-                const contact = contactById.get(share.contact_id);
-                // The saved Cycle rows are authoritative; fall back to their highest saved number if the Fund summary is stale.
-                const currentCycleNumber = cycleRows.reduce((highest, row) => Math.max(highest, row.cycle_number), 0);
-                const currentCycleBill = currentCycleNumber > 0 ? billForShareCycle(share.share_id, currentCycleNumber) : undefined;
-                return <article key={share.share_id} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-                  <div className="flex min-w-0 items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <h3 className="break-words text-base font-semibold leading-tight text-slate-900">{contact?.name ?? "Contact unavailable"}</h3>
-                      <p className="mt-1 text-xs text-slate-500">Share ID: <span className="font-mono">{share.share_id}</span></p>
-                      <p className="mt-0.5 break-all text-xs text-slate-500">{contact?.phone ?? "No phone saved"}</p>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        {share.total_pending > 0 && <span aria-hidden="true" className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-600 motion-reduce:animate-none" />}
-                        <span className="text-xs font-medium text-slate-500">Pending</span>
-                      </div>
-                      <p className={["mt-0.5 text-[1.1rem] font-bold tabular-nums",share.total_pending > 0?"text-red-600":"text-slate-700"].join(" ")}>{formatINR(share.total_pending)}</p>
-                      <span className={["mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-semibold",share.payout_status==="drawn"?"bg-emerald-50 text-emerald-800":"bg-amber-50 text-amber-800"].join(" ")}>{share.payout_status==="drawn"?"Drawn":"Undrawn"}</span>
-                    </div>
-                  </div>
-                  <div className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1.5 rounded-xl bg-slate-50 p-2">
-                    <StoredValue label={"Current Cycle (" + currentCycleNumber + ") Billing"} value={currentCycleBill === undefined ? "—" : displayStoredAmount(currentCycleBill.amount)}/>
-                    <StoredValue label="Total Billed" value={formatINR(share.share_total_billed_amount)}/>
-                    <StoredValue label="Total Paid" value={formatINR(share.share_net_payment_received)}/>
-                    <StoredValue label="Advance Amount" value={formatINR(share.total_advance)}/>
-                    {share.payout_status === "drawn" && <StoredValue label={"Withdrawn · Cycle " + (share.payout_cycle_number ?? "—")} value={formatINR(share.withdrawn_amount)}/>}
-                  </div>
-                  <div className="mt-2 flex gap-1">
-                    <div className="grid min-w-0 flex-[65] grid-cols-2 gap-1">
-                      <button type="button" onClick={() => openPayoutModal(share)} disabled={billedCycleNumbers().length === 0} className="inline-flex min-h-9 min-w-0 items-center justify-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-1.5 text-xs font-semibold text-amber-800 disabled:cursor-not-allowed disabled:opacity-50"><WalletCards size={14} className="shrink-0"/> Payout</button>
-                      <button type="button" onClick={() => openCycleBilling(share)} className="inline-flex min-h-9 min-w-0 items-center justify-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-1.5 text-xs font-semibold text-violet-800"><CalendarDays size={14} className="shrink-0"/> Bills</button>
-                    </div>
-                    <button type="button" onClick={() => openPaymentModal(share)} className="inline-flex min-h-9 min-w-0 flex-[35] items-center justify-center gap-1 rounded-lg bg-emerald-800 px-1.5 text-xs font-semibold text-white"><CreditCard size={14} className="shrink-0"/> Record Payment</button>
-                  </div>
-                  <div className="mt-1 flex gap-1">
-                    <button type="button" onClick={() => void openShareStatement(share)} className="inline-flex min-h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-1.5 text-xs font-semibold text-sky-800"><FileText size={14}/> Statement &amp; Ledger</button>
-                    <button type="button" aria-label={"Delete Share " + share.share_id} title="Delete Share and its related bills/payments" onClick={() => void openShareDelete(share)} className="inline-flex min-h-8 w-9 shrink-0 items-center justify-center rounded-lg border border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100"><Trash2 size={14}/></button>
-                    <button type="button" onClick={() => openShareWhatsApp(share,"report")} className="inline-flex min-h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-1.5 text-xs font-semibold text-emerald-800"><MessageCircle size={13}/> Report</button>
-                    <button type="button" onClick={() => openShareWhatsApp(share,"reminder")} disabled={share.total_pending <= 0} title={share.total_pending <= 0 ? "No outstanding amount" : "Open WhatsApp reminder"} className="inline-flex min-h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-1.5 text-xs font-semibold text-emerald-800 disabled:cursor-not-allowed disabled:opacity-40"><MessageCircle size={13}/> Reminder</button>
-                  </div>
-                </article>;
-              })}
-            </section>
-          </section>
-
-          <section className="space-y-2">
-            <button
-              type="button"
-              onClick={() => setIsFundPaymentLedgerOpen(true)}
-              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 text-sm font-semibold text-sky-800 shadow-sm hover:bg-sky-100"
-            >
-              <CreditCard size={17} /> Fund Payment Record Ledger
-            </button>
-            <p className="text-center text-xs text-slate-500">Opens the 40 most recent payment and Fund adjustment records.</p>
-          </section>
-
-          <section className="space-y-2 border-t border-slate-200 pt-4">
-            <button type="button" onClick={() => void openFullFundReport()} disabled={isLoadingFullFundReport} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 text-sm font-semibold text-amber-900 shadow-sm hover:bg-amber-100 disabled:opacity-50">
-              <Archive size={17}/> {isLoadingFullFundReport ? "Preparing report…" : "Archive Fund"}
-            </button>
-            <p className="text-center text-xs leading-5 text-slate-500">Danger zone · Archive only when you are ready to remove this Fund’s operational records after saving its full report.</p>
-          </section>
-        </>
-      ) : null}
-
-      <Modal isOpen={plannedPayoutCycle !== null} title={plannedPayoutCycle === null ? "Planned Payout" : "Cycle " + plannedPayoutCycle + " Planned Payout"} description="Planned amount only; this does not record an actual withdrawal or shareholder payment." onClose={() => { if (!isCycleBusy) { setPlannedPayoutCycle(null); setPlannedPayoutReview(false); setPlannedPayoutError(null); } }}>
-        <form id="planned-payout-form" onSubmit={async (event) => {
-          event.preventDefault();
-          if (!selectedFund || plannedPayoutCycle === null || isCycleBusy) return;
-          const amount = plannedPayoutInput.trim() === "" ? null : Number(plannedPayoutInput);
-          if (amount === null || !Number.isSafeInteger(amount) || amount < 0 || amount > 2147483647) { setPlannedPayoutError("Enter a whole-rupee amount of zero or more."); return; }
-          if (!plannedPayoutReview) { setPlannedPayoutReview(true); setPlannedPayoutError(null); return; }
-          if (!beginAction("planned-payout")) return;
-          setIsCycleBusy(true); setPlannedPayoutError(null);
-          try {
-            const updated = await setCfcfCyclePlannedPayout(workspace.tenantId, selectedFund.fund_id, plannedPayoutCycle, amount);
-            setCycleRows((rows) => rows.map((row) => row.cycle_number === plannedPayoutCycle ? { ...row, planned_payout_amount: updated.planned_payout_amount } : row));
-            setPlannedPayoutCycle(null); setPlannedPayoutReview(false); showDatabaseResult("Planned payout saved. No payment or withdrawal was recorded."); setDetailReloadKey((v) => v + 1);
-          } catch (error) { setPlannedPayoutError(error instanceof Error ? error.message : "Unable to save planned payout."); showDatabaseResult(error instanceof Error ? error.message : "Unable to save planned payout.", "error"); }
-          finally { endAction("planned-payout"); setIsCycleBusy(false); }
-        }} className="space-y-4">
-
-          <label htmlFor="planned-payout-amount" className="block text-sm font-medium text-slate-700">Planned payout (₹)<input id="planned-payout-amount" type="number" inputMode="numeric" min="0" max="2147483647" step="1" required value={plannedPayoutInput} onChange={(event) => setPlannedPayoutInput(event.target.value)} className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm"/></label>
-          {plannedPayoutError && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{plannedPayoutError}</p>}
-          <div className="flex justify-end gap-2 border-t border-slate-100 pt-3"><button type="button" onClick={() => setPlannedPayoutCycle(null)} disabled={isCycleBusy} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button><button type="submit" disabled={isCycleBusy} className="min-h-11 rounded-xl bg-violet-700 px-4 text-sm font-semibold text-white disabled:opacity-50">{isCycleBusy ? <><RefreshCw size={16} className="animate-spin" /> Waiting for Supabase…</> : plannedPayoutReview ? "Confirm planned payout" : "Review planned payout"}</button></div>
-        </form>
-      </Modal>
-
-      <Modal isOpen={isCycleStatementOpen} title={"Cycle " + (selectedCycleNumber ?? cycleRows.at(-1)?.cycle_number ?? "") + " Statement"} description="Cycle billing and payout summary. Shareholder payments are excluded from this Cycle statement." onClose={() => setIsCycleStatementOpen(false)}>
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-2">
-            <StoredValue label="Total billed" value={cycleSummary ? formatINR(cycleSummary.total_billed) : "Loading…"} />
-            <StoredValue label="Planned payout" value={displayStoredAmount(cycleSummary?.planned_payout_amount)} />
-            <StoredValue label="Billed Shares" value={cycleSummary ? cycleSummary.billed_shares : "Loading…"} />
-            <StoredValue label="Not billed Shares" value={cycleSummary ? cycleSummary.not_billed_shares : "Loading…"} />
-            <StoredValue label="Total withdrawn" value={cycleSummary ? formatINR(cycleSummary.total_paid_out) : "Loading…"} />
-            <StoredValue label="Cycle created" value={cycleRows.find((row) => row.cycle_number === (selectedCycleNumber ?? cycleRows.at(-1)?.cycle_number))?.created_at ? formatDate(cycleRows.find((row) => row.cycle_number === (selectedCycleNumber ?? cycleRows.at(-1)?.cycle_number))!.created_at) : "Date unavailable"} />
-          </div>
-          <section className="space-y-2"><h4 className="text-sm font-bold text-slate-900">Withdrawn Shares</h4>
-            {cycleSummary?.withdrawn_shares.length ? cycleSummary.withdrawn_shares.map((item) => <div key={item.share_id} className="flex min-w-0 items-start justify-between gap-3 rounded-xl border border-slate-200 p-3"><div className="min-w-0"><p className="break-words text-sm font-semibold text-slate-900">{item.contact_name || "Contact unavailable"}</p><p className="text-xs text-slate-500">Share {item.share_id}</p></div><strong className="shrink-0 text-sm text-slate-900">{formatINR(item.withdrawn_amount)}</strong></div>) : <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-500">{cycleSummary ? "No Shares have been withdrawn against this Cycle." : "Loading withdrawal details…"}</p>}
-          </section>
-          <p className="rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600">Actual withdrawals are Share payout records linked to this Cycle. Shareholder payments received remain in the separate Payments ledger.</p>
-          <div className="flex justify-end border-t border-slate-100 pt-3"><button type="button" onClick={() => setIsCycleStatementOpen(false)} className="min-h-11 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white">Close statement</button></div>
-        </div>
-      </Modal>
-
-      <Modal
-        isOpen={cycleDeleteTarget !== null}
-        title={cycleDeleteTarget === null ? "Delete Cycle" : "Danger Zone · Delete Cycle " + cycleDeleteTarget}
-        description={"Step " + cycleDeleteStep + " of 3 · Permanent Cycle deletion review"}
-        onClose={() => { if (!isCycleBusy) { setCycleDeleteTarget(null); setCycleDeleteError(null); setCycleDeleteStep(1); setCycleDeleteAcknowledged(false); setCycleDeleteTypedEmail(""); } }}
-      >
-        {cycleDeleteTarget !== null && (
-          <div className="space-y-4">
-            {cycleDeleteStep === 1 && <>
-              <div className="rounded-xl border border-rose-200 bg-rose-50 p-3">
-                <p className="font-semibold text-rose-900">This operation cannot be undone.</p>
-                <p className="mt-1 text-sm leading-5 text-rose-800">Deleting Cycle {cycleDeleteTarget} permanently removes its billing records, planned payout and commission. Shares drawn against this Cycle will become Undrawn and their stored withdrawal amounts will reset to zero. Shareholder payment records and Fund payment history remain untouched. Only the latest Cycle can be deleted.</p>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <StoredValue label="Cycle billing to remove" value={cycleSummary ? formatINR(cycleSummary.total_billed) : "Loading…"} />
-                <StoredValue label="Planned payout to remove" value={displayStoredAmount(cycleSummary?.planned_payout_amount)} />
-                <StoredValue label="Commission to remove" value={displayStoredAmount(cycleSummary?.commission_amount)} />
-                <StoredValue label="Withdrawals to reset" value={cycleSummary ? String(cycleSummary.withdrawn_shares.length) : "Loading…"} />
-              </div>
-              <section className="space-y-2">
-                <h4 className="text-sm font-semibold text-slate-900">Shares that will be set to Undrawn</h4>
-                {cycleSummary?.withdrawn_shares.length ? cycleSummary.withdrawn_shares.map((item) => (
-                  <div key={item.share_id} className="flex items-start justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
-                    <div className="min-w-0"><p className="break-words text-sm font-semibold text-slate-900">{item.contact_name || "Contact unavailable"}</p><p className="text-xs text-slate-600">Share {item.share_id}</p><p className="text-xs font-semibold text-amber-800">Drawn · Cycle {cycleDeleteTarget} → Undrawn</p></div>
-                    <strong className="shrink-0 text-sm text-slate-900">{formatINR(item.withdrawn_amount)}</strong>
-                  </div>
-                )) : cycleSummary ? <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">No Shares are currently drawn against this Cycle.</p> : <p className="text-sm text-slate-500">Loading withdrawal details…</p>}
-              </section>
-              <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
-                <button type="button" onClick={() => { setCycleDeleteTarget(null); setCycleDeleteStep(1); setCycleDeleteAcknowledged(false); setCycleDeleteTypedEmail(""); setCycleDeleteError(null); }} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button>
-                <button type="button" onClick={() => { setCycleDeleteStep(2); setCycleDeleteError(null); }} disabled={!cycleSummary} className="min-h-11 rounded-xl bg-rose-700 px-4 text-sm font-semibold text-white disabled:opacity-40">Review permanent deletion</button>
-              </div>
-            </>}
-            {cycleDeleteStep === 2 && <div className="space-y-4">
-              <div className="rounded-xl border border-rose-200 bg-rose-50 p-3">
-                <p className="font-semibold text-rose-900">Confirm you understand the impact</p>
-                <p className="mt-1 text-sm leading-5 text-rose-800">Cycle {cycleDeleteTarget} and its billing, planned payout and commission will be permanently deleted. Any Drawn Shares assigned to it will be reset to Undrawn. This cannot be undone.</p>
-              </div>
-              <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-3 text-sm text-slate-700"><input type="checkbox" checked={cycleDeleteAcknowledged} onChange={(event) => setCycleDeleteAcknowledged(event.target.checked)} className="mt-1 h-4 w-4 accent-rose-700"/><span>I understand the Cycle's financial records will be deleted and any withdrawals assigned to it will be reset.</span></label>
-              <div className="flex justify-between gap-2 border-t border-slate-100 pt-3">
-                <button type="button" onClick={() => setCycleDeleteStep(1)} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Back</button>
-                <button type="button" disabled={!cycleDeleteAcknowledged} onClick={() => { setCycleDeleteTypedEmail(""); setCycleDeleteStep(3); }} className="min-h-11 rounded-xl bg-rose-700 px-4 text-sm font-semibold text-white disabled:opacity-40">Continue to final confirmation</button>
-              </div>
-            </div>}
-            {cycleDeleteStep === 3 && <div className="space-y-4">
-              <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm leading-5 text-rose-900">Final confirmation · Cycle {cycleDeleteTarget} will be permanently deleted.</div>
-              <label className="block text-sm font-medium text-slate-700">Type the email address of the currently logged-in account exactly as shown below.
-                <p className="mt-2 break-all rounded-lg bg-slate-100 p-3 text-sm font-semibold text-slate-800">{workspace.email}</p>
-                <input value={cycleDeleteTypedEmail} onChange={(event) => setCycleDeleteTypedEmail(event.target.value)} autoComplete="email" spellCheck={false} inputMode="email" className="mt-2 min-h-11 w-full rounded-xl border border-slate-300 px-3 text-sm" placeholder="Enter your logged-in email address"/>
-              </label>
-              {cycleDeleteError && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{cycleDeleteError}</p>}
-              <div className="flex justify-between gap-2 border-t border-slate-100 pt-3">
-                <button type="button" onClick={() => setCycleDeleteStep(2)} disabled={isCycleBusy} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Back</button>
-                <button type="button" onClick={() => void handleConfirmDeleteCycle()} disabled={isCycleBusy || !cycleDeleteAcknowledged || cycleDeleteTypedEmail.trim().toLowerCase() !== workspace.email.trim().toLowerCase() || !cycleSummary} className="min-h-11 rounded-xl bg-rose-800 px-4 text-sm font-semibold text-white disabled:opacity-40">{isCycleBusy ? "Deleting…" : "Permanently delete Cycle"}</button>
-              </div>
-            </div>}
-            {cycleDeleteError && cycleDeleteStep !== 3 && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{cycleDeleteError}</p>}
-          </div>
-        )}
-      </Modal>
-
-      <Modal
-        isOpen={cycleEditNumber !== null}
-        title={(cycleCreatedInFlow ? "Add Cycle " : "Edit Cycle ") + cycleEditNumber}
-        description={cycleCreatedInFlow ? "Enter billing for each Share and set planned payout and commission. You can apply one amount to all Shares in a section, then edit individual amounts. Review before saving." : "Review every saved Share bill for this Cycle. Choose Edit to change bill amounts. Blank amounts are saved as ₹0; billing never creates payment transactions."}
-        onClose={() => { if (!isSavingCycle) { setCycleEditNumber(null); setCycleEditError(null); setCycleCreatedInFlow(false); setCycleEditEnabled(false); setCycleReview(false); } }}
-      >
-        <form id="cycle-values-form" onSubmit={(event) => void handleSaveCycleValues(event)} className="space-y-4">
-          {cycleReview && <section className="space-y-3 rounded-xl border border-violet-200 bg-violet-50 p-4">
-            <h3 className="text-base font-bold text-violet-950">Review Cycle {cycleEditNumber} before saving</h3>
-            <p className="text-sm leading-5 text-violet-900">Check the billing and payout values below. Nothing is saved until you choose Confirm and save Cycle.</p>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-lg bg-white p-3"><p className="text-xs text-slate-500">Planned payout</p><p className="mt-1 font-extrabold text-slate-950">{cyclePayoutInput.trim() === "" ? "Not set" : formatINR(Number(cyclePayoutInput))}</p></div>
-              <div className="rounded-lg bg-white p-3"><p className="text-xs text-slate-500">Commission</p><p className="mt-1 font-extrabold text-slate-950">{cycleCommissionInput.trim() === "" ? "Not set" : formatINR(Number(cycleCommissionInput))}</p></div>
-              <div className="rounded-lg bg-white p-3"><p className="text-xs text-slate-500">Total Cycle billing</p><p className="mt-1 text-lg font-extrabold text-slate-950">{formatINR(shares.filter((share) => share.status === "active").reduce((total, share) => total + (Number(cycleBillInputs[share.share_id] ?? "0") || 0), 0))}</p></div>
-              <div className="rounded-lg bg-white p-3"><p className="text-xs text-slate-500">Active Shares</p><p className="mt-1 text-lg font-extrabold text-slate-950">{shares.filter((share) => share.status === "active").length}</p></div>
-            </div>
-            <h4 className="font-semibold text-slate-900">Share billing summary</h4>
-            <div className="max-h-64 space-y-2 overflow-y-auto">
-              {shares.filter((share) => share.status === "active").slice().sort((a, b) => (contactById.get(a.contact_id)?.name ?? "").localeCompare(contactById.get(b.contact_id)?.name ?? "", undefined, { sensitivity: "base" }) || (contactById.get(a.contact_id)?.phone ?? "").localeCompare(contactById.get(b.contact_id)?.phone ?? "") || a.share_id.localeCompare(b.share_id)).map((share) => {
-                const contact = contactById.get(share.contact_id);
-                const amount = Number(cycleBillInputs[share.share_id] ?? "0") || 0;
-                return <div key={share.share_id} className="flex items-center justify-between gap-3 rounded-lg border border-violet-100 bg-white p-3"><div className="min-w-0"><p className="break-words text-sm font-semibold text-slate-900">{contact?.name || "Contact unavailable"}</p><p className="text-xs text-slate-500">{contact?.phone || "Phone unavailable"} · Share {share.share_id}</p></div><strong className="shrink-0 text-base font-extrabold text-slate-950">{formatINR(amount)}</strong></div>;
-              })}
-            </div>
-          </section>}
-
-
-          <div className="flex items-center justify-between gap-2 rounded-xl bg-violet-50 p-3"><div className="text-sm font-semibold text-violet-900">Cycle {cycleEditNumber ?? ""} · {shares.filter((share) => share.status === "active").length} active Shares</div><button type="button" onClick={() => setCycleEditEnabled((value) => !value)} disabled={cycleReview || isSavingCycle} className="min-h-9 rounded-lg border border-violet-200 bg-white px-3 text-xs font-semibold text-violet-800">{cycleEditEnabled ? "Review" : "Edit"}</button></div>
-          <div className="grid grid-cols-2 gap-2">
-            <div><label htmlFor="cycle-edit-payout" className="mb-1.5 block text-xs font-semibold text-slate-700">Planned payout (₹)</label><input id="cycle-edit-payout" type="number" min="0" max="2147483647" step="1" value={cyclePayoutInput} onChange={(event) => setCyclePayoutInput(event.target.value)} disabled={!cycleEditEnabled || cycleReview || isSavingCycle} placeholder="Not set" className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm disabled:bg-slate-50 disabled:text-slate-500" /></div>
-            <div><label htmlFor="cycle-edit-commission" className="mb-1.5 block text-xs font-semibold text-slate-700">Commission (₹)</label><input id="cycle-edit-commission" type="number" min="0" max="2147483647" step="1" value={cycleCommissionInput} onChange={(event) => setCycleCommissionInput(event.target.value)} disabled={!cycleEditEnabled} placeholder="Not set" className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm disabled:bg-slate-50 disabled:text-slate-500" /></div>
-          </div>
-          {(["withdrawn", "undrawn"] as const).map((section) => {
-            const group = shares.filter((share) => share.status === "active" && (share.payout_status === "drawn" ? "withdrawn" : "undrawn") === section).slice().sort((a, b) => (contactById.get(a.contact_id)?.name ?? "").localeCompare(contactById.get(b.contact_id)?.name ?? "", undefined, { sensitivity: "base" }) || (contactById.get(a.contact_id)?.phone ?? "").localeCompare(contactById.get(b.contact_id)?.phone ?? "") || a.share_id.localeCompare(b.share_id));
-            return <section key={section} className="space-y-2">
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <div className="flex items-center justify-between gap-2"><h4 className="text-sm font-bold text-slate-800">{section === "withdrawn" ? "Withdrawn Shares" : "Undrawn Shares"} <span className="font-normal text-slate-500">({group.length})</span></h4></div>
-                <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
-                  <label className="block min-w-0 text-xs font-medium text-slate-600">Amount for all {section} Shares (₹)<input aria-label={"Amount to apply to all " + section + " Shares"} type="number" inputMode="numeric" min="0" max="2147483647" step="1" value={cycleBulkBillInputs[section]} onChange={(event) => setCycleBulkBillInputs((current) => ({ ...current, [section]: event.target.value }))} disabled={!cycleEditEnabled || cycleReview || isSavingCycle || group.length === 0} placeholder="Enter amount" className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm disabled:bg-slate-100" /></label>
-                  <button type="button" onClick={() => applyCycleBillToGroup(section)} disabled={!cycleEditEnabled || cycleReview || isSavingCycle || group.length === 0} className="min-h-10 rounded-lg border border-violet-200 bg-white px-3 text-xs font-semibold text-violet-800 disabled:opacity-40">Apply to all</button>
-                </div>
-              </div>
-              {group.length === 0 ? <p className="rounded-lg bg-slate-50 p-3 text-xs text-slate-500">No {section} Shares.</p> : group.map((share) => {
-                const contact = contactById.get(share.contact_id);
-                return <div key={share.share_id} className="grid grid-cols-[minmax(0,1fr)_112px] items-center gap-2 rounded-xl border border-slate-200 p-2.5">
-                  <div className="min-w-0"><p className="break-words text-sm font-semibold text-slate-900">{contact?.name || "Contact unavailable"}</p><p className="text-xs text-slate-500">{contact?.phone || "Phone unavailable"}</p><p className="text-xs text-slate-500">Share {share.share_id}{share.payout_status === "drawn" ? " · Drawn in Cycle " + (share.payout_cycle_number ?? "unknown") : " · Undrawn"}</p></div>
-                  <div><label htmlFor={"cycle-bill-" + share.share_id} className="mb-1 block text-[11px] text-slate-500">Bill (₹)</label><input id={"cycle-bill-" + share.share_id} type="number" inputMode="numeric" min="0" max="2147483647" step="1" value={cycleBillInputs[share.share_id] ?? "0"} onChange={(event) => setCycleBillInputs((current) => ({ ...current, [share.share_id]: event.target.value }))} disabled={!cycleEditEnabled || cycleReview || isSavingCycle} placeholder="0" className="min-h-10 w-full rounded-lg border border-slate-200 px-2 text-sm disabled:bg-slate-50 disabled:text-slate-600" /></div>
-                </div>;
-              })}
-            </section>;
-          })}
-          {cycleEditError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{cycleEditError}</div>}
-          <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
-            <button type="button" onClick={() => { setCycleEditNumber(null); setCycleEditEnabled(false); setCycleCreatedInFlow(false); setCycleReview(false); setCycleEditError(null); }} disabled={isSavingCycle} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Close</button>
-            {cycleEditEnabled && <button type="submit" disabled={isSavingCycle} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingCycle ? <><RefreshCw size={16} className="animate-spin" /> Waiting for Supabase…</> : cycleReview ? "Confirm and save Cycle" : "Review Cycle changes"}</button>}
-          </div>
-        </form>
-      </Modal>
-
-      <Modal
-        isOpen={Boolean(payoutShare)}
-        title="Update Share payout"
-        description="Select the Cycle and review its stored payout amount. This changes payout status only; record actual money separately under Payments. Mark Undrawn resets payout fields without deleting Payment history."
-        onClose={() => { if (!isSavingPayout) { setPayoutShare(null); setPayoutError(null); } }}
-      >
-        <form id="share-payout-form" onSubmit={(event) => void handleSavePayout(event)} className="space-y-4">
-
-          <div className={payoutReview ? "pointer-events-none opacity-60" : ""}>
-            <label htmlFor="payout-cycle-number" className="mb-1.5 block text-sm font-medium text-slate-700">Payout Cycle</label>
-            <select id="payout-cycle-number" value={payoutCycleNumber} onChange={(event) => {
-              setPayoutCycleNumber(event.target.value);
-              const savedPayout = event.target.value ? cycleRows.find((row) => row.cycle_number === Number(event.target.value))?.planned_payout_amount : undefined;
-              setWithdrawnAmount(typeof savedPayout === "number" ? String(savedPayout) : "");
-              setPayoutError(null);
-            }} required disabled={savedCycleNumbers().length === 0} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm disabled:bg-slate-100">
-              <option value="">{savedCycleNumbers().length === 0 ? "No saved Cycles available" : "Select payout Cycle"}</option>
-              {savedCycleNumbers().map((cycle) => <option key={cycle} value={String(cycle)}>Cycle {cycle}</option>)}
-            </select>
-            {savedCycleNumbers().length === 0 && (
-              <p className="mt-1.5 text-sm text-amber-700">Add a Cycle before recording a payout status.</p>
-            )}
-            {payoutShare?.payout_status === "drawn" && payoutShare.payout_cycle_number !== null && !savedCycleNumbers().includes(payoutShare.payout_cycle_number) && (
-              <p className="mt-1.5 text-sm text-amber-700">Its previous payout Cycle is no longer saved. You can mark this Share Undrawn or choose an existing Cycle.</p>
-            )}
-          </div>
-          <div className={"rounded-xl bg-slate-50 p-3 " + (payoutReview ? "opacity-60" : "")}>
-            <p className="text-xs font-medium text-slate-500">Payout amount stored on Cycle {payoutCycleNumber}</p>
-            <p className="mt-1 text-lg font-semibold text-slate-900">{displayStoredAmount(cycleRows.find((row) => row.cycle_number === Number(payoutCycleNumber))?.planned_payout_amount)}</p>
-          </div>
-          <div className={payoutReview ? "pointer-events-none opacity-60" : ""}>
-            <label htmlFor="payout-withdrawn-amount" className="mb-1.5 block text-sm font-medium text-slate-700">Withdrawn amount (₹)</label>
-            <input id="payout-withdrawn-amount" type="number" min="0" max="2147483647" step="1" required value={withdrawnAmount} onChange={(event) => setWithdrawnAmount(event.target.value)} className="min-h-11 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
-            <p className="mt-1.5 text-xs text-slate-500">Prefilled from the Cycle payout amount, but editable to record the actual stored withdrawn amount.</p>
-          </div>
-          {payoutError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-800">{payoutError}</div>}
-          <div className="flex flex-wrap justify-between gap-2 border-t border-slate-100 pt-4">
-            {payoutShare?.payout_status === "drawn" ? (
-              <button type="button" onClick={() => void handleMarkUndrawn()} disabled={isSavingPayout} className="min-h-11 rounded-xl border border-rose-200 bg-rose-50 px-3 text-sm font-semibold text-rose-800 disabled:opacity-50">{isSavingPayout ? <><RefreshCw size={16} className="animate-spin" /> Waiting for Supabase…</> : undrawnReview ? "Confirm Undrawn" : "Review Undrawn"}</button>
-            ) : <span />}
-            <div className="flex gap-2">
-              <button type="button" onClick={() => setPayoutShare(null)} disabled={isSavingPayout} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button>
-              <button type="submit" disabled={isSavingPayout || savedCycleNumbers().length === 0} className="min-h-11 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingPayout ? <><RefreshCw size={16} className="animate-spin" /> Waiting for Supabase…</> : payoutReview ? "Confirm and save payout" : "Review payout"}</button>
-            </div>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal
-        isOpen={Boolean(billingShare)}
-        title="Share bill · Existing Cycle"
-        description={billingShare ? "Saved bill amounts are shown per Cycle. Choose Edit this Cycle to enter a corrected amount, compare it with the saved value, then review and confirm the update." : "Review a saved Share bill."}
-        onClose={() => { if (!isSavingBilling) { setBillingShare(null); setBillingError(null); } }}
-      >
-        <form id="share-cycle-billing-form" onSubmit={(event) => void handleSaveCycleBilling(event)} className="space-y-4">
-
-          <section className="space-y-2 rounded-xl border border-slate-200 p-3">
-            <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">Saved bills for this Share</h4>
-            {savedCycleNumbers().length === 0 ? <p className="text-sm text-slate-500">No saved Cycles yet.</p> : savedCycleNumbers().map((cycle) => {
-              const savedBill = billingShare ? billForShareCycle(billingShare.share_id, cycle) : undefined;
-              const isSelected = Number(billingCycleNumber) === cycle && billingEditEnabled;
-              return <div key={cycle} className="border-b border-slate-100 py-3 last:border-b-0">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="min-w-0 text-sm font-medium text-slate-800">Cycle {cycle} <span className="mx-1 text-slate-400">—</span> <span className="font-bold tabular-nums">{formatINR(savedBill?.amount ?? 0)}</span></p>
-                  <button type="button" disabled={isSavingBilling || billingReview} onClick={() => { setBillingCycleNumber(String(cycle)); setBillingAmount(String(savedBill?.amount ?? 0)); setBillingEditEnabled(true); setBillingReview(false); setBillingError(null); }} className="min-h-9 shrink-0 rounded-lg border border-sky-200 bg-white px-3 text-xs font-semibold text-sky-800 disabled:opacity-50">{isSelected ? "Selected" : "Edit"}</button>
-                </div>
-                {isSelected && <div className="mt-3 grid grid-cols-2 gap-2">
-                  <div className="min-w-0 rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-500">Saved bill</p><p className="mt-1 break-words font-bold tabular-nums text-slate-800">{formatINR(savedBill?.amount ?? 0)}</p></div>
-                  <div className="min-w-0 rounded-lg border border-sky-200 bg-sky-50 p-3"><label htmlFor="cycle-billing-amount" className="block text-xs text-sky-800">Corrected bill (₹)</label><input id="cycle-billing-amount" type="number" inputMode="numeric" min="0" max="2147483647" step="1" required value={billingAmount} onChange={(event) => setBillingAmount(event.target.value)} disabled={billingReview} placeholder="Enter amount" className="mt-1 min-h-10 w-full min-w-0 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-900" /></div>
-                </div>}
-              </div>;
-            })}
-          </section>
-          {!billingEditEnabled && <p className="text-xs leading-5 text-slate-500">Tap Edit on a Cycle row. Its saved amount will remain visible beside the corrected amount field.</p>}
-          {billingEditEnabled && <p className="text-xs leading-5 text-slate-500">Compare the saved bill with the corrected amount. Choose Review changes to inspect the update before saving. No payment or withdrawal is created.</p>}
-          {billingError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm leading-5 text-rose-800">{billingError}</div>}
-          <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
-            <button type="button" onClick={() => setBillingShare(null)} disabled={isSavingBilling} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">Close</button>
-            {!billingEditEnabled ? <button type="button" disabled={savedCycleNumbers().length === 0} onClick={() => { setBillingEditEnabled(true); setBillingError(null); }} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">Edit bill</button> : <button type="submit" disabled={isSavingBilling || savedCycleNumbers().length === 0 || !billingAmount.trim() || !Number.isSafeInteger(Number(billingAmount)) || Number(billingAmount) < 0 || Number(billingAmount) > 2147483647} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"><CalendarDays size={16} /> {isSavingBilling ? <><RefreshCw size={16} className="animate-spin" /> Waiting for Supabase…</> : "Review changes"}</button>}
-          </div>
-        </form>
-      </Modal>
-
-
-      <Modal isOpen={isShareModalOpen} title={shareAssignmentReview ? "Review Share Assignments" : isInlineContactOpen ? "Add Contact" : "Add Shares to Fund"} description={selectedFund ? "Fund: " + selectedFund.fund_name + " · Contacts and Shares are listed alphabetically." : "Select Contacts and assign Shares."} size="full" onClose={() => { if (!isSavingShare && !isSavingInlineContact) { if (isInlineContactOpen) setIsInlineContactOpen(false); else setIsShareModalOpen(false); } }}>
-        {isInlineContactOpen ? (
-          <form onSubmit={(event) => void handleCreateInlineContact(event)} className="mx-auto flex min-h-[calc(100dvh-10rem)] max-w-2xl flex-col gap-5">
-            <div className="rounded-xl bg-sky-50 p-4"><p className="font-semibold text-sky-900">Add a Contact</p><p className="mt-1 text-sm text-sky-800">After saving, the Contact will appear in this assignment list with one new Share selected. Your current selections will be preserved.</p></div>
-            <label className="block"><span className="mb-2 block text-sm font-semibold">Full name</span><input autoFocus required maxLength={120} value={inlineContactName} onChange={(event) => setInlineContactName(event.target.value)} className="min-h-12 w-full rounded-xl border border-slate-200 px-4 text-base" placeholder="Enter full name" /></label>
-            <label className="block"><span className="mb-2 block text-sm font-semibold">Mobile number</span><div className="flex overflow-hidden rounded-xl border border-slate-200"><span className="flex items-center border-r border-slate-200 bg-slate-50 px-4 text-base text-slate-500">+91</span><input required type="tel" inputMode="numeric" autoComplete="tel-national" maxLength={10} pattern="[6-9][0-9]{9}" value={inlineContactPhone} onChange={(event) => setInlineContactPhone(event.target.value.replace(/\D/g, "").slice(0, 10))} className="min-h-12 min-w-0 flex-1 px-4 text-base" placeholder="10-digit mobile number" /></div></label>
-            {inlineContactError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{inlineContactError}</p>}
-            <div className="sticky bottom-0 mt-auto flex gap-3 border-t border-slate-100 bg-white py-4"><button type="button" disabled={isSavingInlineContact} onClick={() => {setIsInlineContactOpen(false);setInlineContactError(null);}} className="min-h-12 flex-1 rounded-xl border border-slate-200 px-4 font-semibold">Back to assignments</button><button type="submit" disabled={isSavingInlineContact || !inlineContactName.trim() || !/^[6-9]\d{9}$/.test(inlineContactPhone)} className="min-h-12 flex-1 rounded-xl bg-sky-600 px-4 font-semibold text-white disabled:opacity-50">{isSavingInlineContact ? "Saving Contact…" : "Save Contact and select"}</button></div>
-          </form>
-        ) : shareAssignmentReview ? (
-          <form onSubmit={(event) => void handleCreateShare(event)} className="mx-auto flex min-h-[calc(100dvh-10rem)] max-w-3xl flex-col gap-4">
-            <div className="grid grid-cols-2 gap-3"><div className="rounded-xl bg-slate-50 p-4"><p className="text-sm text-slate-500">Selected Contacts</p><p className="mt-1 text-2xl font-bold">{Object.keys(shareAssignments).length}</p></div><div className="rounded-xl bg-violet-50 p-4"><p className="text-sm text-violet-700">New Shares to create</p><p className="mt-1 text-2xl font-bold text-violet-900">{Object.values(shareAssignments).reduce((sum, count) => sum + count, 0)}</p></div></div>
-            <p className="text-sm text-slate-600">Review every Contact and quantity. Nothing is created until you confirm.</p>
-            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pb-3">{Object.entries(shareAssignments).sort(([a],[b]) => (contactById.get(a)?.name ?? "").localeCompare(contactById.get(b)?.name ?? "", undefined, {sensitivity:"base"}) || (contactById.get(a)?.phone ?? "").localeCompare(contactById.get(b)?.phone ?? "")).map(([contactId,count]) => { const contact=contactById.get(contactId); return <article key={contactId} className="rounded-xl border border-slate-200 p-4"><div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="break-words font-semibold text-slate-900">{contact?.name ?? "Contact unavailable"}</p><p className="mt-1 break-all text-sm text-slate-500">{contact?.phone ?? "No mobile number"}</p><p className="mt-1 text-xs text-slate-500">Existing Shares in this Fund: {shares.filter((share) => share.contact_id === contactId).length}</p></div><div className="shrink-0 text-right"><p className="text-xs text-slate-500">New Shares</p><p className="text-xl font-bold">{count}</p></div></div></article>; })}</div>
-            {shareFormError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{shareFormError}</p>}
-            <div className="sticky bottom-0 mt-auto flex gap-3 border-t border-slate-100 bg-white py-4"><button type="button" disabled={isSavingShare} onClick={() => setShareAssignmentReview(false)} className="min-h-12 flex-1 rounded-xl border border-slate-200 px-4 font-semibold">Back to edit</button><button type="submit" disabled={isSavingShare || !selectedFund || !Object.keys(shareAssignments).length} className="min-h-12 flex-1 rounded-xl bg-violet-700 px-4 font-semibold text-white disabled:opacity-50">{isSavingShare ? "Creating Shares…" : "Confirm and add Shares"}</button></div>
-          </form>
-        ) : (
-          <div className="mx-auto flex min-h-[calc(100dvh-10rem)] max-w-4xl flex-col gap-4">
-            <div className="rounded-xl bg-slate-50 p-4"><p className="text-sm text-slate-500">Fund</p><p className="text-lg font-semibold">{selectedFund?.fund_name ?? "No Fund selected"}</p></div>
-            <label className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-4"><Search size={20} className="shrink-0 text-slate-400"/><input value={shareContactSearch} onChange={(event) => setShareContactSearch(event.target.value)} className="min-w-0 flex-1 bg-transparent text-base outline-none" placeholder="Search name or mobile number…" aria-label="Search contacts by name or mobile number"/>{shareContactSearch && <button type="button" onClick={() => setShareContactSearch("")} className="text-sm font-semibold text-sky-700">Clear</button>}</label>
-            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pb-2">{contacts.filter((contact) => [contact.name,contact.phone].some((value) => value.toLocaleLowerCase().includes(shareContactSearch.trim().toLocaleLowerCase()))).slice().sort((a,b) => a.name.localeCompare(b.name, undefined, {sensitivity:"base"}) || a.phone.localeCompare(b.phone)).map((contact) => { const count=shareAssignments[contact.contact_id] ?? 0; const existingCount=shares.filter((share) => share.contact_id === contact.contact_id).length; return <article key={contact.contact_id} className={"rounded-xl border p-4 transition " + (count ? "border-sky-300 bg-sky-50/50" : "border-slate-200 bg-white")}><div className="flex items-center gap-3"><div className="min-w-0 flex-1"><p className="break-words font-semibold text-slate-900">{contact.name}</p><p className="mt-1 break-all text-sm text-slate-500">{contact.phone}</p><p className="mt-1 text-xs text-slate-500">Existing Shares in this Fund: {existingCount}</p></div><label className="flex min-h-11 items-center justify-center px-2" aria-label={"Select " + contact.name}><input type="checkbox" checked={count > 0} onChange={(event) => setShareAssignments((current) => { const next={...current}; if(event.target.checked) next[contact.contact_id]=1; else delete next[contact.contact_id]; return next; })} className="h-6 w-6 accent-sky-600"/><span className="sr-only">Select Contact</span></label><div className="w-32 shrink-0"><p className="mb-1 text-center text-xs text-slate-500">New Shares</p><div className="flex items-center justify-center gap-2"><button type="button" disabled={count <= 1} onClick={() => setShareAssignments((current) => ({...current,[contact.contact_id]:Math.max(1,(current[contact.contact_id] ?? 1)-1)}))} className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 disabled:opacity-30" aria-label={"Remove one Share for " + contact.name}><span className="text-xl">−</span></button><span className="min-w-5 text-center text-base font-bold">{count || "—"}</span><button type="button" disabled={count === 0} onClick={() => setShareAssignments((current) => ({...current,[contact.contact_id]:(current[contact.contact_id] ?? 0)+1}))} className="flex h-10 w-10 items-center justify-center rounded-lg border border-sky-200 bg-sky-50 text-sky-800 disabled:opacity-30" aria-label={"Add one Share for " + contact.name}><span className="text-xl">+</span></button></div></div></div></article>; })}</div>
-            {!contacts.length && <div className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">No Contacts yet. Add a Contact to begin assigning Shares.</div>}
-            {contacts.length > 0 && !contacts.some((contact) => [contact.name,contact.phone].some((value) => value.toLocaleLowerCase().includes(shareContactSearch.trim().toLocaleLowerCase()))) && <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No matching Contacts. Try another search.</p>}
-            {shareFormError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{shareFormError}</p>}
-            <div className="sticky bottom-0 mt-auto border-t border-slate-100 bg-white py-3"><div className="mb-3 flex items-center justify-between gap-3"><div><p className="font-semibold">{Object.keys(shareAssignments).length} contacts selected</p><p className="text-sm text-slate-500">{Object.values(shareAssignments).reduce((sum,count) => sum+count,0)} new Shares to create</p></div><button type="button" onClick={() => {setInlineContactName("");setInlineContactPhone("");setInlineContactError(null);setIsInlineContactOpen(true);}} className="min-h-10 rounded-xl border border-sky-200 px-3 text-sm font-semibold text-sky-800"><Plus size={16} className="mr-1 inline"/>Add Contact</button></div><button type="button" disabled={!Object.keys(shareAssignments).length || isSavingShare} onClick={() => {setShareFormError(null);setShareAssignmentReview(true);}} className="min-h-12 w-full rounded-xl bg-violet-700 px-4 font-semibold text-white disabled:opacity-40">Review assignments</button></div>
-          </div>
-        )}
-      </Modal>
-
-      <Modal isOpen={Boolean(paymentShare)} title="Record Payment / Correction" description="Record a payment or correct an existing balance. Payout status is separate." onClose={() => { if (!isSavingPayment) { setPaymentShare(null); setPaymentReview(false); paymentRequestRef.current = null; } }}>
-        <form id="share-payment-entry-form" onSubmit={(event) => void handleRecordPayment(event)} className="space-y-4">
-          <div className="space-y-2 border-b border-slate-100 pb-3"><div className="flex flex-wrap items-baseline justify-between gap-3"><p className="font-semibold text-slate-900">{contactById.get(paymentShare?.contact_id ?? "")?.name ?? "Member"}</p><p className="shrink-0 text-xs text-slate-500">Share {paymentShare?.share_id}</p></div><p className="text-xs text-slate-500">{selectedFund?.fund_name}</p><div className="grid grid-cols-2 gap-x-4 gap-y-1">{[{label:"Current billed",value:paymentShare ? formatINR(currentBilledForShare(paymentShare)) : "—"},{label:"Pending",value:paymentShare ? formatINR(paymentShare.total_pending ?? 0) : "—"},{label:"Advance",value:paymentShare ? formatINR(paymentShare.total_advance ?? 0) : "—"},{label:"Total billed",value:paymentShare ? formatINR(paymentShare.share_total_billed_amount ?? 0) : "—"},{label:"Payout status",value:paymentShare?.payout_status === "drawn" ? "Drawn" : "Undrawn"}].map((item) => <div key={item.label} className="flex min-w-0 items-baseline justify-between gap-2 border-b border-slate-100 py-1"><span className="text-xs leading-4 text-slate-500">{item.label}</span><span className="break-words text-sm font-semibold leading-5 tabular-nums text-slate-900">{item.value}</span></div>)}</div><p className="text-[11px] leading-4 text-slate-500">Balances before this entry is recorded.</p></div>
-          <div><span className="mb-1.5 block text-sm font-medium">Record type</span><div className="grid grid-cols-2 gap-2"><button type="button" aria-pressed={paymentEntryType==="credit"} onClick={() => setPaymentEntryType("credit")} className={["min-h-11 rounded-xl px-2 text-sm font-semibold",paymentEntryType==="credit"?"bg-emerald-600 text-white":"bg-slate-100 text-slate-700"].join(" ")}>Credit (Payment)</button><button type="button" aria-pressed={paymentEntryType==="debit"} onClick={() => setPaymentEntryType("debit")} className={["min-h-11 rounded-xl px-2 text-sm font-semibold",paymentEntryType==="debit"?"bg-rose-600 text-white":"bg-slate-100 text-slate-700"].join(" ")}>Debit (Correction)</button></div></div>
-          <label className="block"><span className="mb-1.5 block text-sm font-medium">Amount (₹)</span><input type="number" min="1" max="2147483647" step="1" required value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm" placeholder="Enter amount"/></label>
-          <label className="block"><span className="mb-1.5 block text-sm font-medium">Payment / Adjustment mode</span><select value={paymentMode} onChange={(event) => setPaymentMode(event.target.value as "UPI"|"Cash"|"Other")} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"><option value="UPI">UPI / Google Pay / PhonePe</option><option value="Cash">Cash</option><option value="Other">Other</option></select></label>
-          <label className="block"><span className="mb-1.5 block text-sm font-medium">Remarks (optional)</span><textarea rows={2} value={paymentRemarks} onChange={(event) => setPaymentRemarks(event.target.value)} maxLength={500} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="Reference or correction reason"/></label>
-          {paymentError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{paymentError}</p>}
-          <div className="flex justify-end gap-2 border-t border-slate-100 pt-4"><button type="button" onClick={() => { setPaymentShare(null); setPaymentReview(false); paymentRequestRef.current = null; }} disabled={isSavingPayment} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button><button type="submit" disabled={isSavingPayment || !paymentShare || !selectedFund || !paymentAmount.trim() || !Number.isSafeInteger(Number(paymentAmount)) || Number(paymentAmount) <= 0 || Number(paymentAmount) > 2147483647} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white">{isSavingPayment ? <><RefreshCw size={16} className="animate-spin" /> Waiting for Supabase…</> : paymentReview ? "Confirm and record" : paymentEntryType==="credit" ? "Review payment" : "Review correction"}</button></div>
-        </form>
-      </Modal>
-
-      <Modal isOpen={paymentReview && Boolean(paymentShare)} title="Confirm payment entry" description="Please verify this entry before it is recorded." onClose={() => { if (!isSavingPayment) { setPaymentReview(false); paymentRequestRef.current = null; } }}>
-        <div className="space-y-3">
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-            <p className="font-semibold">{paymentEntryType === "credit" ? "Credit payment" : "Debit correction"}</p>
-            <p className="mt-1">{contactById.get(paymentShare?.contact_id ?? "")?.name ?? "Contact"} · Fund {selectedFund?.fund_name} · Share {paymentShare?.share_id}</p>
-            <p className="mt-1 text-lg font-semibold">{formatINR(Number(paymentAmount))} · {paymentMode}</p>
-            <p className="mt-1 text-xs">No Cycle or payout association.</p>
-          </div>
-          {paymentRemarks.trim() && <p className="text-sm text-slate-600">Remarks: {paymentRemarks.trim()}</p>}
-          {paymentError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{paymentError}</p>}
-          <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
-            <button type="button" onClick={() => { setPaymentReview(false); paymentRequestRef.current = null; }} disabled={isSavingPayment} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button>
-            <button type="submit" form="share-payment-entry-form" disabled={isSavingPayment} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingPayment ? <><RefreshCw size={16} className="animate-spin" /> Waiting for Supabase…</> : "Confirm and record"}</button>
-          </div>
-        </div>
-      </Modal>
-
-      <Modal isOpen={plannedPayoutReview && plannedPayoutCycle !== null} title="Review Planned Payout" description="Confirm the planned amount for this Cycle. This does not record an actual withdrawal or payment." onClose={() => { if (!isCycleBusy) setPlannedPayoutReview(false); }}>
-        <div className="mb-4 rounded-xl border border-sky-200 bg-sky-50 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-sky-800">Review details</p><p className="mt-2 text-sm text-slate-600">Fund</p><p className="font-semibold text-slate-900">{selectedFund?.fund_name ?? "—"}</p><div className="mt-3 grid grid-cols-2 gap-3"><StoredValue label="Cycle" value={plannedPayoutCycle === null ? "—" : String(plannedPayoutCycle)} /><StoredValue label="Planned payout" value={plannedPayoutInput.trim() ? formatINR(Number(plannedPayoutInput)) : "Not set"} /></div><p className="mt-3 text-xs leading-5 text-slate-600">No Share payout status, payment record or Fund balance is changed by this planned value.</p></div>
-        <div className="flex justify-end gap-2">
-          <button type="button" onClick={() => setPlannedPayoutReview(false)} disabled={isCycleBusy} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm disabled:opacity-50">Cancel</button>
-          <button type="submit" form="planned-payout-form" disabled={isCycleBusy} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isCycleBusy ? "Saving…" : "Confirm"}</button>
-        </div>
-      </Modal>
-
-      <Modal isOpen={cycleReview && cycleEditNumber !== null} title="Review Cycle Changes" description="Verify the Cycle billing and planned values before saving." onClose={() => { if (!isSavingCycle) setCycleReview(false); }}>
-        <div className="mb-4 rounded-xl border border-violet-200 bg-violet-50 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-violet-800">Review details</p><p className="mt-2 text-sm text-slate-600">Fund</p><p className="font-semibold text-slate-900">{selectedFund?.fund_name ?? "—"}</p><div className="mt-3 grid grid-cols-2 gap-3"><StoredValue label="Cycle" value={cycleEditNumber === null ? "—" : String(cycleEditNumber)} /><StoredValue label="Active Shares" value={String(shares.filter((share) => share.status === "active").length)} /><StoredValue label="Total billing" value={formatINR(shares.filter((share) => share.status === "active").reduce((total, share) => total + (Number(cycleBillInputs[share.share_id] ?? "0") || 0), 0))} /><StoredValue label="Planned payout" value={cyclePayoutInput.trim() ? formatINR(Number(cyclePayoutInput)) : "Not set"} /><StoredValue label="Commission" value={cycleCommissionInput.trim() ? formatINR(Number(cycleCommissionInput)) : "Not set"} /></div><p className="mt-3 text-xs leading-5 text-slate-600">Only Cycle values and bills are saved. Shareholder payment history is not changed.</p></div>
-        <div className="flex justify-end gap-2">
-          <button type="button" onClick={() => setCycleReview(false)} disabled={isSavingCycle} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm disabled:opacity-50">Cancel</button>
-          <button type="submit" form="cycle-values-form" disabled={isSavingCycle} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingCycle ? "Saving…" : "Confirm"}</button>
-        </div>
-      </Modal>
-
-      <Modal isOpen={payoutReview && Boolean(payoutShare)} title="Review Share Payout" description="Confirm the Share payout details before changing its status." onClose={() => { if (!isSavingPayout) setPayoutReview(false); }}>
-        <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Review details</p><p className="mt-2 text-sm text-slate-600">Fund</p><p className="font-semibold text-slate-900">{selectedFund?.fund_name ?? "—"}</p><div className="mt-3 grid grid-cols-2 gap-3"><StoredValue label="Share ID" value={payoutShare?.share_id ?? "—"} /><StoredValue label="Payout Cycle" value={payoutCycleNumber ? payoutCycleNumber : "Not selected"} /><StoredValue label="Withdrawn amount" value={withdrawnAmount.trim() ? formatINR(Number(withdrawnAmount)) : "Not entered"} /><StoredValue label="Current status" value={payoutShare?.payout_status === "drawn" ? "Drawn" : "Undrawn"} /></div><p className="mt-3 text-xs leading-5 text-slate-600">This updates payout status and withdrawn amount only. It does not create a Payment transaction.</p></div>
-        <div className="flex justify-end gap-2">
-          <button type="button" onClick={() => setPayoutReview(false)} disabled={isSavingPayout} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm disabled:opacity-50">Cancel</button>
-          <button type="submit" form="share-payout-form" disabled={isSavingPayout} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingPayout ? "Saving…" : "Confirm"}</button>
-        </div>
-      </Modal>
-
-      <Modal isOpen={undrawnReview && Boolean(payoutShare)} title="Review Mark as Undrawn" description="Confirm that this Share should no longer be marked as withdrawn." onClose={() => { if (!isSavingPayout) setUndrawnReview(false); }}>
-        <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-4"><p className="font-semibold text-rose-900">Payout status will be reset</p><p className="mt-2 text-sm leading-5 text-rose-800">Share {payoutShare?.share_id ?? "—"} in {selectedFund?.fund_name ?? "the selected Fund"} will become Undrawn. Its payout Cycle and withdrawn amount will reset to empty/₹0. Existing Payment records are not deleted or changed.</p><div className="mt-3 grid grid-cols-2 gap-3"><StoredValue label="Current payout Cycle" value={payoutShare?.payout_cycle_number == null ? "—" : String(payoutShare.payout_cycle_number)} /><StoredValue label="Current withdrawn amount" value={formatINR(payoutShare?.withdrawn_amount ?? 0)} /></div></div>
-        <div className="flex justify-end gap-2">
-          <button type="button" onClick={() => setUndrawnReview(false)} disabled={isSavingPayout} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm disabled:opacity-50">Cancel</button>
-          <button type="button" onClick={() => void handleMarkUndrawn()} disabled={isSavingPayout} className="min-h-11 rounded-xl bg-rose-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingPayout ? "Saving…" : "Confirm"}</button>
-        </div>
-      </Modal>
-
-      <Modal isOpen={billingReview && Boolean(billingShare)} title="Review Share Bill" description="Verify the bill amount and Cycle before saving." onClose={() => { if (!isSavingBilling) setBillingReview(false); }}>
-        <div className="mb-4 rounded-xl border border-violet-200 bg-violet-50 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-violet-800">Review details</p><p className="mt-2 text-sm text-slate-600">Fund</p><p className="font-semibold text-slate-900">{selectedFund?.fund_name ?? "—"}</p><div className="mt-3 grid grid-cols-2 gap-3"><StoredValue label="Share ID" value={billingShare?.share_id ?? "—"} /><StoredValue label="Cycle" value={billingCycleNumber || "Not selected"} /><StoredValue label="Currently saved" value={formatINR(billForShareCycle(billingShare?.share_id ?? "", Number(billingCycleNumber))?.amount ?? 0)} /><StoredValue label="Corrected amount" value={billingAmount.trim() ? formatINR(Number(billingAmount)) : "Not entered"} /></div><p className="mt-3 text-xs leading-5 text-slate-600">Saving billing changes the bill record only. It does not record a payment, debit, credit or withdrawal.</p></div>
-        <div className="flex justify-end gap-2">
-          <button type="button" onClick={() => setBillingReview(false)} disabled={isSavingBilling} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm disabled:opacity-50">Cancel</button>
-          <button type="submit" form="share-cycle-billing-form" disabled={isSavingBilling} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingBilling ? "Saving…" : "Confirm"}</button>
-        </div>
-      </Modal>
-
-      <Modal isOpen={isFundEntryModalOpen} title="Add Adjustments" description="This amount is not calculated or considered in Fund financials. These are separate Fund Other Adjustments only." onClose={() => { if (!isSavingFundEntry) setIsFundEntryModalOpen(false); }}>
-        <form onSubmit={(event) => void handleRecordFundEntry(event)} className="space-y-4">
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3"><p className="text-sm font-semibold text-amber-900">Separate ledger only</p><p className="mt-1 text-xs leading-5 text-amber-800">These entries are not calculated or considered in Fund financials, Cycle totals, Share balances, payments, or payouts.</p></div>
-          <div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">Fund context</p><p className="font-semibold">{selectedFund?.fund_name ?? "No Fund selected"}</p></div>
-          <div><span className="mb-1.5 block text-sm font-medium">Entry type</span><div className="grid grid-cols-2 gap-2">
-            <button type="button" aria-pressed={fundEntryType === "credit"} onClick={() => setFundEntryType("credit")} className={["min-h-11 rounded-xl px-2 text-sm font-semibold", fundEntryType === "credit" ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-700"].join(" ")}>Credit (+)</button>
-            <button type="button" aria-pressed={fundEntryType === "debit"} onClick={() => setFundEntryType("debit")} className={["min-h-11 rounded-xl px-2 text-sm font-semibold", fundEntryType === "debit" ? "bg-rose-600 text-white" : "bg-slate-100 text-slate-700"].join(" ")}>Debit (−)</button>
-          </div></div>
-          <label className="block"><span className="mb-1.5 block text-sm font-medium">Adjustment category *</span><select required value={fundEntryCategory} onChange={(event) => setFundEntryCategory(event.target.value as typeof fundEntryCategory)} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"><option value="">Select category</option><option value="outside_money">Outside money</option><option value="commission">Commission</option><option value="discount">Discount</option><option value="stationery">Stationery</option><option value="others">Others</option></select></label>
-          <label className="block"><span className="mb-1.5 block text-sm font-medium">Amount (₹) *</span><input type="number" min="1" max="2147483647" step="1" required value={fundEntryAmount} onChange={(event) => setFundEntryAmount(event.target.value)} className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm" placeholder="Enter amount"/></label>
-          <label className="block"><span className="mb-1.5 block text-sm font-medium">Remarks (optional)</span><textarea rows={2} maxLength={500} value={fundEntryRemarks} onChange={(event) => setFundEntryRemarks(event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="Optional note"/></label>
-          {fundEntryError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{fundEntryError}</p>}
-          <div className="flex justify-end gap-2 border-t border-slate-100 pt-4"><button type="button" onClick={() => setIsFundEntryModalOpen(false)} disabled={isSavingFundEntry} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cancel</button><button type="submit" disabled={isSavingFundEntry || !selectedFund || !fundEntryCategory || !fundEntryAmount.trim() || !Number.isSafeInteger(Number(fundEntryAmount)) || Number(fundEntryAmount) <= 0 || Number(fundEntryAmount) > 2147483647} className="min-h-11 rounded-xl bg-emerald-700 px-4 text-sm font-semibold text-white disabled:opacity-50">{isSavingFundEntry ? <><RefreshCw size={16} className="animate-spin" /> Waiting for Supabase…</> : "Add adjustment"}</button></div>
-        </form>
-      </Modal>
-
-      <Modal isOpen={Boolean(statementShare)} title="Share Statement" description="Database-backed billing, payout and payment ledger. Refreshes when opened." size="large" onClose={() => { statementRequestId.current += 1; setStatementShare(null); setStatementError(null); setIsLoadingStatement(false); }}>
-        {statementShare && (() => {
-          const contact = contactById.get(statementShare.contact_id);
-          const history = ledgerItems.filter((item) => item.kind === "payment" && item.shareId === statementShare.share_id).sort((a,b) => b.date.localeCompare(a.date));
-          const shareBills = bills.filter((bill) => bill.share_id === statementShare.share_id).map((bill) => ({ ...bill, cycle_number: cycleRows.find((row) => row.cycle_id === bill.cycle_id)?.cycle_number ?? null })).filter((bill) => bill.cycle_number !== null).sort((a,b) => (a.cycle_number ?? 0) - (b.cycle_number ?? 0));
-          const currentBill = bills.find((bill) => bill.share_id === statementShare.share_id && cycleRows.find((cycle) => cycle.cycle_id === bill.cycle_id)?.cycle_number === (selectedFund?.current_cycle ?? -1));
-          return <div data-cfcf-share-statement className="space-y-4 text-slate-900">
-            {(isLoadingStatement || statementError) && <div role={statementError ? "alert" : "status"} className={["rounded-xl p-3 text-sm",statementError ? "bg-rose-50 text-rose-800" : "bg-slate-100 text-slate-600"].join(" ")}>{statementError ?? "Refreshing statement from the database…"}</div>}
-            <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4"><div><p className="text-xs font-bold uppercase tracking-wide text-slate-500">ClearFlow · Share Statement</p><h3 className="mt-1 text-lg font-bold">{selectedFund?.fund_name}</h3><p className="mt-1 text-sm">{contact?.name} · {contact?.phone ?? "No phone saved"}</p><p className="mt-1 break-all text-xs text-slate-500">Share ID: {statementShare.share_id}</p></div><button type="button" disabled={isLoadingStatement} onClick={() => void openShareStatement(statementShare)} className="min-h-10 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white disabled:opacity-50">Refresh</button></div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4"><StoredValue label="Current Cycle bill" value={currentBill ? formatINR(currentBill.amount) : "Not billed"}/><StoredValue label="Total billed" value={formatINR(statementShare.share_total_billed_amount)}/><StoredValue label="Total paid (net)" value={formatINR(statementShare.share_net_payment_received)}/><StoredValue label="Pending due" value={formatINR(statementShare.total_pending)}/><StoredValue label="Advance" value={formatINR(statementShare.total_advance)}/><StoredValue label="Cycle progress" value={(selectedFund?.current_cycle ?? 0) + " of " + (selectedFund?.number_of_cycles ?? "—")}/><StoredValue label="Payout status" value={statementShare.payout_status === "drawn" ? "Drawn" : "Undrawn"}/>{statementShare.payout_status === "drawn" ? <StoredValue label={"Amount withdrawn" + (statementShare.payout_cycle_number !== null ? " · Cycle " + statementShare.payout_cycle_number : "")} value={formatINR(statementShare.withdrawn_amount)}/> : <StoredValue label="Withdrawal" value="Not drawn yet"/>}</div>
-            <section><h4 className="font-semibold">Cycle billing history</h4>{shareBills.length ? <div className="mt-2 divide-y divide-slate-200 rounded-xl border border-slate-200">{shareBills.map((bill)=><div key={bill.bill_id} className="flex justify-between gap-3 p-3 text-sm"><span>Cycle {bill.cycle_number}{bill.bill_date ? " · "+formatDate(bill.bill_date) : " · Date unavailable"}</span><strong>{formatINR(bill.amount)}</strong></div>)}</div> : <p className="mt-2 text-sm text-slate-500">No cycle billing recorded.</p>}</section>
-            <section><h4 className="font-semibold">Payment ledger · Credits and debits</h4>{history.length ? <div className="mt-2 divide-y divide-slate-200 rounded-xl border border-slate-200">{history.map((item)=><div key={item.id} className="flex justify-between gap-3 p-3 text-sm"><div><p className="font-semibold capitalize">{item.entryType} · {item.date ? formatDate(item.date) : "Date unavailable"}</p><p className="text-xs text-slate-500">{item.paymentType ?? "—"}{item.remarks ? " · "+item.remarks : ""}</p></div><strong className={item.entryType === "credit" ? "text-emerald-700" : "text-rose-700"}>{item.entryType === "credit" ? "+" : "−"}{formatINR(item.amount)}</strong></div>)}</div> : <p className="mt-2 text-sm text-slate-500">No payment ledger entries recorded for this Share.</p>}</section>
-            <button type="button" onClick={printShareStatement} className="min-h-11 w-full rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white">Print / Save Statement</button>
-          </div>;
-        })()}
-      </Modal>
-
-      <Modal isOpen={Boolean(deleteTarget)} title="Danger Zone · Delete Share" description={"Step " + deleteStep + " of 3 · Permanent deletion review"} onClose={() => { if (!isDeleting) { setDeleteTarget(null); setDeleteError(null); setDeleteStep(1); setDeleteAcknowledged(false); setDeleteTypedId(""); setShareDeleteRecords(null); } }}>
-        {deleteTarget && <div className="space-y-4">
-          <div className="rounded-xl border border-rose-200 bg-rose-50 p-3">
-            <p className="text-sm font-semibold text-rose-900">{deleteTarget.label}</p>
-            {deleteTarget.kind === "share" && <>
-              <p className="mt-1 text-xs text-rose-800">Share ID: {deleteTarget.id}</p>
-              <p className="mt-1 text-xs text-rose-800">Fund: {selectedFund?.fund_name ?? "Selected Fund"}</p>
-              <p className="mt-1 text-xs text-rose-800">Phone: {(() => { const targetShare = shares.find((share) => share.share_id === deleteTarget.id); const targetContact = targetShare ? contactById.get(targetShare.contact_id) : undefined; return targetContact?.phone ?? "No phone saved"; })()}</p>
-              {(() => { const targetShare = shares.find((share) => share.share_id === deleteTarget.id); if (!targetShare) return null; return <p className="mt-1 text-xs text-rose-800">Payout: {targetShare.payout_status === "drawn" ? "Drawn · " + formatINR(targetShare.withdrawn_amount) + (targetShare.payout_cycle_number !== null ? " · Cycle " + targetShare.payout_cycle_number : "") : "Undrawn"}</p>; })()}
-            </>}
-            <p className="mt-2 text-sm leading-5 text-rose-800">This permanently deletes this Share, its Cycle bill rows, shareholder payment ledger rows, and recorded payout data. The Fund, its Cycles, and other Shares remain.</p>
-            {deleteTarget.kind === "share" && <p className="mt-2 text-xs leading-5 text-rose-800">Audit records are retained to document the deletion. Only this Share and its related bill/payment rows are removed.</p>}
-          </div>
-          {deleteTarget.kind === "share" && <section className="space-y-2 rounded-xl border border-slate-200 p-3">
-            <h3 className="text-sm font-semibold text-slate-900">Related records to be deleted</h3>
-            {isLoadingShareDeleteRecords && <p className="text-sm text-slate-500">Loading related saved records…</p>}
-            {!isLoadingShareDeleteRecords && shareDeleteRecords && <>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="rounded-lg bg-slate-50 p-2"><p className="text-xs text-slate-500">Cycle bills</p><p className="text-base font-semibold">{shareDeleteRecords.bills.length}</p></div>
-                <div className="rounded-lg bg-slate-50 p-2"><p className="text-xs text-slate-500">Payment entries</p><p className="text-base font-semibold">{shareDeleteRecords.payments.length}</p></div>
-              </div>
-              <div className="max-h-44 space-y-2 overflow-y-auto">
-                {shareDeleteRecords.bills.map((bill) => <div key={"bill-" + bill.bill_id} className="flex items-start justify-between gap-2 rounded-lg bg-slate-50 p-2 text-xs"><span>Cycle {cycleRows.find((row) => row.cycle_id === bill.cycle_id)?.cycle_number ?? "—"} bill{bill.bill_date ? " · " + formatDate(bill.bill_date) : ""}</span><strong>{formatINR(bill.amount)}</strong></div>)}
-                {shareDeleteRecords.payments.map((payment) => <div key={"payment-" + payment.id} className="flex items-start justify-between gap-2 rounded-lg bg-slate-50 p-2 text-xs"><span>{payment.entryType === "credit" ? "Credit" : "Debit"} · {payment.date || "Date unavailable"}{payment.paymentType ? " · " + payment.paymentType : ""}{payment.remarks ? " · " + payment.remarks : ""}</span><strong>{formatINR(payment.amount)}</strong></div>)}
-                {shareDeleteRecords.bills.length === 0 && shareDeleteRecords.payments.length === 0 && <p className="text-xs text-slate-500">No bill/payment rows. The Share record and any saved payout data will still be deleted.</p>}
-              </div>
-            </>}
-          </section>}
-          {deleteStep === 1 && <div className="space-y-3">
-            <p className="text-sm leading-5 text-slate-700">{deleteTarget.kind === "share" ? "Review the Share and every listed bill/payment record. This action cannot be undone." : "Review the Fund and its deletion restrictions."}</p>
-            <button type="button" disabled={deleteTarget.kind === "share" && (isLoadingShareDeleteRecords || !shareDeleteRecords)} onClick={() => setDeleteStep(2)} className="min-h-11 w-full rounded-xl bg-rose-700 px-4 text-sm font-semibold text-white disabled:opacity-40">I reviewed these records</button>
-          </div>}
-          {deleteStep === 2 && <div className="space-y-3">
-            <label className="flex items-start gap-3 rounded-xl border border-rose-200 p-3 text-sm leading-5 text-slate-700"><input type="checkbox" checked={deleteAcknowledged} onChange={(event) => setDeleteAcknowledged(event.target.checked)} className="mt-1 h-4 w-4 shrink-0"/><span>I understand the Share, its bills, all credit/debit payment entries, and payout data will be permanently deleted. The Fund, Cycles, other Shares, and audit records remain.</span></label>
-            <button type="button" disabled={!deleteAcknowledged} onClick={() => { setDeleteTypedId(""); setDeleteStep(3); }} className="min-h-11 w-full rounded-xl bg-rose-700 px-4 text-sm font-semibold text-white disabled:opacity-40">Continue to final confirmation</button>
-          </div>}
-          {deleteStep === 3 && <div className="space-y-3">
-            <label className="block text-sm font-medium text-slate-700">To confirm, type the email address of the currently logged-in account<p className="mt-2 break-all rounded-lg bg-slate-100 p-3 text-sm font-semibold text-slate-800">{workspace.email}</p><input value={deleteTypedId} onChange={(event) => setDeleteTypedId(event.target.value)} autoComplete="email" spellCheck={false} inputMode="email" className="mt-2 min-h-11 w-full rounded-xl border border-slate-300 px-3 text-sm" placeholder="Enter your logged-in email address"/></label>
-            <button type="button" onClick={() => void handleConfirmDelete()} disabled={isDeleting || !deleteAcknowledged || deleteTypedId.trim().toLowerCase() !== workspace.email.trim().toLowerCase() || !shareDeleteRecords} className="min-h-11 w-full rounded-xl bg-rose-800 px-4 text-sm font-semibold text-white disabled:opacity-40">{isDeleting ? "Deleting…" : "Permanently delete Share + history"}</button>
-          </div>}
-          {deleteError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{deleteError}</p>}
-        </div>}
-      </Modal>
-      <Modal isOpen={isAdjustmentsLedgerOpen} title="Fund Other Adjustments" description="Separate, append-only ledger. These entries are not included in Fund financials." size="large" onClose={() => setIsAdjustmentsLedgerOpen(false)}>
-        <div className="space-y-4">
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-            <p className="font-semibold">Separate ledger only</p>
-            <p className="mt-1 text-xs leading-5">This amount is not calculated or considered in Fund financials. These are Fund Other Adjustments only. Credits and debits here do not change Cycle totals, Share balances, payments, payouts or Fund Net Balance.</p>
-          </div>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="text-xs text-slate-500">{selectedFund?.fund_name ?? "Fund"} · {adjustmentsSummary?.entry_count ?? 0} entries</div>
-            <div className="flex gap-2">
-              <button type="button" onClick={() => void openAdjustmentsLedger()} disabled={isLoadingAdjustmentsLedger} className="inline-flex min-h-10 items-center gap-1 rounded-lg border border-slate-200 px-3 text-sm font-semibold disabled:opacity-50"><RefreshCw size={14}/> Refresh</button>
-              <button type="button" onClick={() => { setFundEntryType("debit"); setFundEntryAmount(""); setFundEntryRemarks(""); setFundEntryCategory(""); setFundEntryError(null); setIsFundEntryModalOpen(true); }} className="inline-flex min-h-10 items-center gap-1 rounded-lg bg-emerald-700 px-3 text-sm font-semibold text-white"><IndianRupee size={14}/> Add Adjustment</button>
-            </div>
-          </div>
-          {adjustmentsLedgerError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{adjustmentsLedgerError}</p>}
-          {isLoadingAdjustmentsLedger && <p role="status" className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">Loading latest adjustments from the database…</p>}
-          {adjustmentsSummary && <div className="grid grid-cols-3 gap-2">
-            <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3"><p className="text-[11px] text-emerald-800">Total Credits</p><p className="mt-1 break-words text-sm font-bold tabular-nums text-emerald-800">{formatINR(adjustmentsSummary.total_credits)}</p></div>
-            <div className="rounded-xl border border-rose-100 bg-rose-50 p-3"><p className="text-[11px] text-rose-800">Total Debits</p><p className="mt-1 break-words text-sm font-bold tabular-nums text-rose-800">{formatINR(adjustmentsSummary.total_debits)}</p></div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="text-[11px] text-slate-600">Net Adjustments</p><p className={["mt-1 break-words text-sm font-bold tabular-nums", adjustmentsSummary.net_adjustments < 0 ? "text-rose-700" : adjustmentsSummary.net_adjustments > 0 ? "text-emerald-700" : "text-slate-900"].join(" ")}>{adjustmentsSummary.net_adjustments > 0 ? "+" : adjustmentsSummary.net_adjustments < 0 ? "−" : ""}{formatINR(Math.abs(adjustmentsSummary.net_adjustments))}</p></div>
-          </div>}
-          <div data-cfcf-adjustments-report className="space-y-3 text-slate-900">
-            <section className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">ClearFlow · Fund Other Adjustments Ledger</p>
-              <h3 className="mt-1 text-lg font-bold">{selectedFund?.fund_name ?? "Fund"}</h3>
-              <p className="mt-1 break-all text-xs text-slate-500">Fund ID · {selectedFund?.fund_id ?? "—"}</p>
-              <p className="mt-1 text-xs text-slate-500">Report generated · {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</p>
-              <p className="mt-2 text-xs font-semibold text-amber-800">Independent ledger — excluded from Fund financial calculations</p>
-            </section>
-            {adjustmentsSummary && <section className="grid grid-cols-3 gap-2">
-              <div className="rounded-xl border border-slate-200 p-3"><p className="text-xs text-slate-500">Total Credits</p><p className="mt-1 font-bold">{formatINR(adjustmentsSummary.total_credits)}</p></div>
-              <div className="rounded-xl border border-slate-200 p-3"><p className="text-xs text-slate-500">Total Debits</p><p className="mt-1 font-bold">{formatINR(adjustmentsSummary.total_debits)}</p></div>
-              <div className="rounded-xl border border-slate-200 p-3"><p className="text-xs text-slate-500">Net Adjustments</p><p className="mt-1 font-bold">{formatINR(adjustmentsSummary.net_adjustments)}</p></div>
-            </section>}
-            <section>
-              <h4 className="font-semibold">Dated entries</h4>
-              {adjustmentsLedgerRows.length ? <div className="mt-2 space-y-2">
-                {adjustmentsLedgerRows.slice().sort((a,b) => b.date.localeCompare(a.date)).map((item) => <article key={item.id} className="rounded-xl border border-slate-200 p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0"><p className="text-xs text-slate-500">{formatDate(item.date)} · {adjustmentCategoryLabel(item.adjustmentCategory)}</p><p className="mt-1 break-words text-sm font-semibold text-slate-800">{item.remarks || "No remarks"}</p></div>
-                    <div className="shrink-0 text-right"><p className={["text-xs font-semibold", item.entryType === "credit" ? "text-emerald-700" : "text-rose-700"].join(" ")}>{item.entryType === "credit" ? "Credit (+)" : "Debit (−)"}</p><p className={["mt-1 text-sm font-bold tabular-nums", item.entryType === "credit" ? "text-emerald-700" : "text-rose-700"].join(" ")}>{item.entryType === "debit" ? "−" : "+"}{formatINR(item.amount)}</p></div>
-                  </div>
-                  <p className="mt-2 break-all text-[10px] text-slate-400">Entry ID · {item.id}</p>
-                </article>)}
-              </div> : <p className="mt-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-500">{isLoadingAdjustmentsLedger ? "Loading entries…" : "No Other Adjustments have been recorded for this Fund."}</p>}
-            </section>
-          </div>
-          <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
-            <button type="button" onClick={() => setIsAdjustmentsLedgerOpen(false)} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Close</button>
-            <button type="button" disabled={!adjustmentsSummary} onClick={printAdjustmentsLedger} className="min-h-11 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white disabled:opacity-40">Print / Save HTML report</button>
-          </div>
-        </div>
-      </Modal>
-
-      <section aria-label="Archived Funds" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex items-start justify-between gap-3"><div><h2 className="text-base font-bold text-slate-950">Archived Funds</h2><p className="mt-1 text-xs leading-5 text-slate-500">Archived Fund IDs remain for status/reference only. Shares, bills, Cycles, payments, adjustments, and related operational records are deleted during archiving. Reports expire after six months; deleting a report does not remove the retained Fund ID.</p></div><button type="button" onClick={() => void refreshArchivedFunds()} disabled={isLoadingArchivedFunds} className="min-h-9 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 disabled:opacity-50"><RefreshCw size={13} className={isLoadingArchivedFunds ? "mr-1 inline animate-spin" : "mr-1 inline"}/>Refresh</button></div>
-        {archivingError && <p role="alert" className="mt-3 rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{archivingError}</p>}
-        {isLoadingArchivedFunds ? <p className="mt-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Loading Archived Funds…</p> : archivedFunds.length === 0 ? <p className="mt-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No archived Funds yet.</p> : <div className="mt-3 space-y-2">{archivedFunds.map((archive) => <article key={archive.archive_id} className="rounded-xl border border-slate-200 p-3"><div className="min-w-0"><h3 className="break-words text-sm font-bold text-slate-900">{archive.fund_name}</h3><p className="mt-1 break-all text-xs text-slate-500">Fund ID · {archive.fund_id}</p><p className="mt-1 text-xs text-slate-500">Archived · {new Date(archive.archived_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })} · Expires · {new Date(archive.expires_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</p></div><div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={() => downloadArchivedFundReport(archive)} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg bg-violet-700 px-2 text-xs font-semibold text-white"><Download size={14}/> Download Full PDF Report</button><button type="button" onClick={() => void handleDeleteArchivedFund(archive)} disabled={deletingArchivedId === archive.archive_id} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2 text-xs font-semibold text-rose-800 disabled:opacity-50"><Trash2 size={14}/>{deletingArchivedId === archive.archive_id ? "Deleting…" : "Delete Archived Fund"}</button></div></article>)}</div>}
-      </section>
-
-      <Modal isOpen={isFullFundReportOpen} title="Full Fund Report" description="Download a report file and open the full report in a separate browser tab. The report is mobile-friendly; use its own Print / Save as PDF control only if you need a PDF." size="large" onClose={() => setIsFullFundReportOpen(false)}>
+      ) : isArchivesView ? (
+        <Modal isOpen={isFullFundReportOpen} title="Full Fund Report" description="Download a report file and open the full report in a separate browser tab. The report is mobile-friendly; use its own Print / Save as PDF control only if you need a PDF." size="large" onClose={() => setIsFullFundReportOpen(false)}>
         <div className="space-y-4">
           <div className="sticky top-0 z-10 -mx-1 flex flex-wrap gap-2 border-b border-slate-100 bg-white px-1 py-2"><button type="button" onClick={printFullFundReport} disabled={!selectedFund || isLoadingFullFundReport || !!fullFundReportError || isArchivingFund} className="min-h-11 flex-1 rounded-xl bg-violet-700 px-4 text-sm font-semibold text-white disabled:opacity-40">Download PDF</button><button type="button" onClick={() => void archiveSelectedFund()} disabled={!selectedFund || isLoadingFullFundReport || isArchivingFund || !!fullFundReportError} className="min-h-11 flex-1 rounded-xl bg-amber-600 px-4 text-sm font-semibold text-white disabled:opacity-40">{isArchivingFund ? "Archiving…" : "Archive Fund"}</button><button type="button" onClick={() => setIsFullFundReportOpen(false)} disabled={isArchivingFund} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Close</button></div>
           {fullFundReportError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{fullFundReportError}</p>}
