@@ -67,7 +67,7 @@ export function WorkspaceLayout({
         </div>
         {isNotificationsOpen && (
           <div className="relative">
-            {product.renderNotifications ? product.renderNotifications(workspace) : (
+            {product.renderNotifications ? product.renderNotifications(workspace, onNavigate) : (
               <section aria-label="Notifications" className="mx-auto max-w-3xl border-t border-slate-100 bg-sky-50/70 px-4 py-3 sm:px-5">
                 <div className="flex items-start gap-3">
                   <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-sky-700"><Bell size={17} /></div>
