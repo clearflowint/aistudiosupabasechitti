@@ -1501,29 +1501,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         </>
       )}
 
-      {(cycleEntryAlerts.length > 0 || isLoadingCycleEntryAlerts) && <section className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 p-3" aria-labelledby="cycle-entry-alerts-title">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0"><h3 id="cycle-entry-alerts-title" className="text-sm font-bold text-amber-950">Manager Alerts <span className="ml-1 rounded-full bg-amber-200 px-2 py-0.5 text-xs">{cycleEntryAlerts.length}</span></h3><p className="mt-1 text-xs leading-5 text-amber-900">Across all active Funds: missing or zero Cycle entries and outstanding Fund/Share dues. Dues use saved database balances and disappear when those stored balances clear.</p></div>
-          <button type="button" onClick={() => void enablePhoneNotifications()} className="min-h-10 shrink-0 rounded-lg border border-amber-300 bg-white px-2 text-xs font-semibold text-amber-950">{phoneNotificationsEnabled ? "Phone alerts on" : "Enable phone alerts"}</button>
-        </div>
-        {phoneNotificationMessage && <p role="status" className="mt-2 rounded-lg bg-white/80 p-2 text-xs leading-5 text-amber-950">{phoneNotificationMessage}</p>}
-        <div className="mt-3 space-y-2">
-          {cycleEntryAlerts.slice(0, 12).map((alert) => <button key={alert.key} type="button" onClick={() => {
-            setSelectedFundId(alert.fundId);
-            if (alert.kind === "Share pending dues" && alert.shareId) { setActiveSectionTab("shares"); setSelectedShareId(alert.shareId); }
-            else setActiveSectionTab("fund-summary");
-            if (alert.kind === "Bill" && alert.shareId && alert.cycleNumber !== undefined) {
-              const request = { fundId: alert.fundId, shareId: alert.shareId, cycleNumbers: [alert.cycleNumber] };
-              try { window.localStorage.setItem("clearflow:cfcf-open-previous-bills:v1:" + workspace.tenantId, JSON.stringify(request)); window.dispatchEvent(new Event("clearflow:cfcf-open-previous-bills")); } catch { /* Fund navigation still works if storage is unavailable. */ }
-            }
-          }} className="flex min-h-11 w-full items-start justify-between gap-2 rounded-xl border border-amber-200 bg-white p-2.5 text-left">
-            <span className="min-w-0"><span className="block break-words text-xs font-semibold text-slate-900">{alert.type === "dues" ? "Pending dues" : alert.type === "missing" ? "Not Set / Missing" : "Zero Amount"} · {alert.kind}</span><span className="mt-0.5 block break-words text-xs text-slate-600">{alert.fundName}{alert.cycleNumber !== undefined ? " · Cycle " + alert.cycleNumber : ""}{alert.shareId ? " · Share " + alert.shareId : ""}{alert.amount !== undefined ? " · " + formatINR(alert.amount) : ""}</span></span><span className="shrink-0 text-xs font-semibold text-amber-800">Review ↗</span>
-          </button>)}
-          {cycleEntryAlerts.length > 12 && <p className="text-xs text-amber-900">Showing 12 of {cycleEntryAlerts.length} alerts. Resolve entries to reduce this list.</p>}
-        </div>
-        {isLoadingCycleEntryAlerts && <p className="mt-2 text-xs text-amber-800">Refreshing alerts…</p>}
-      </section>}
-
       {fundsError && (
         <section role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
           <p className="font-semibold">Funds could not be loaded</p>
