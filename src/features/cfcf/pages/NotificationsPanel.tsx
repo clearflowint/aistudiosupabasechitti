@@ -92,7 +92,7 @@ export function NotificationsPanel({ workspace, onNavigate }: NotificationsPanel
             const previousCycles = cycles.filter((cycle) => new Date(cycle.created_at).getTime() <= new Date(share.created_at).getTime());
             const cycleNumbers = previousCycles.filter((cycle) => {
               const bill = fundBills.find((item) => item.cycle_id === cycle.cycle_id && item.share_id === share.share_id);
-              return !bill || Number(bill.amount) === 0;
+              return !bill;
             }).map((cycle) => cycle.cycle_number).sort((a, b) => a - b);
             if (cycleNumbers.length) alerts.push({ fundId: fund.fund_id, fundName: fund.fund_name, shareId: share.share_id, cycleNumbers });
           }
@@ -133,7 +133,7 @@ export function NotificationsPanel({ workspace, onNavigate }: NotificationsPanel
             <div className="mt-0.5 rounded-lg bg-white p-2 text-amber-800"><CircleAlert size={17} /></div>
             <div className="min-w-0 flex-1">
               <h3 className="text-sm font-bold text-amber-950">Previous Cycle bills need attention</h3>
-              <p className="mt-1 text-xs leading-5 text-amber-900">Zero or missing bills for Shares added after these Cycles were created.</p>
+              <p className="mt-1 text-xs leading-5 text-amber-900">Missing bill records for Shares added after these Cycles were created.</p>
             </div>
           </div>
           <div className="mt-3 space-y-2">
