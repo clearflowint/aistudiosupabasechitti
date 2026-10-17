@@ -74,6 +74,20 @@ Deno.serve(async (req: Request) => {
     .in("origin_status", ["active", "migration"]).maybeSingle();
   if (originError) return reply(500, { error: "Unable to verify this product origin." }, requestOrigin);
   if (!originRecord) return reply(403, { error: "This product is not approved for this website origin." }, requestOrigin);
+  if (originRecord.product_id !== productId) return reply(403, { error: "The website origin does not belong to the requested product." }, requestOrigin);
+
+  if (action === "unsubscribe") {
+    const subscriptionId = text(body.subscription_id, 80);
+    const endpoint = text(body.endpoint, 2048);
+    if (!subscriptionId && !endpoint) return reply(400, { error: "subscription_id or endpoint is required." }, requestOrigin);
+    let query = admin.from("clearflow_push_subscriptions").update({
+      is_active: false, revoked_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    }).eq("auth_user_id", user.id).eq("product_id", productId).eq("tenant_id", tenantId).eq("origin_id", originRecord.origin_id).eq("is_active", true);
+    query = subscriptionId ? query.eq("subscription_id", subscriptionId) : query.eq("endpoint", endpoint);
+    const { error } = await query;
+    if (error) return reply(500, { error: "Unable to revoke this device subscription." }, requestOrigin);
+    return reply(200, { ok: true, revoked: true }, requestOrigin);
+  }
 
   const email = user.email.trim().toLowerCase();
   const { data: access, error: accessError } = await admin.from("global_access_list")
@@ -94,18 +108,7 @@ Deno.serve(async (req: Request) => {
   if (productError) return reply(500, { error: "Unable to verify product status." }, requestOrigin);
   if (!product) return reply(403, { error: "This product is inactive." }, requestOrigin);
 
-  if (action === "unsubscribe") {
-    const subscriptionId = text(body.subscription_id, 80);
-    const endpoint = text(body.endpoint, 2048);
-    if (!subscriptionId && !endpoint) return reply(400, { error: "subscription_id or endpoint is required." }, requestOrigin);
-    let query = admin.from("clearflow_push_subscriptions").update({
-      is_active: false, revoked_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-    }).eq("auth_user_id", user.id).eq("product_id", productId).eq("tenant_id", tenantId).eq("origin_id", originRecord.origin_id).eq("is_active", true);
-    query = subscriptionId ? query.eq("subscription_id", subscriptionId) : query.eq("endpoint", endpoint);
-    const { error } = await query;
-    if (error) return reply(500, { error: "Unable to revoke this device subscription." }, requestOrigin);
-    return reply(200, { ok: true, revoked: true }, requestOrigin);
-  }
+
 
   if (originRecord.push_enabled !== true) {
     return reply(409, { error: "Push registration is not enabled for this origin yet. The device registry is prepared, but push remains safely disabled until delivery is configured and validated." }, requestOrigin);
