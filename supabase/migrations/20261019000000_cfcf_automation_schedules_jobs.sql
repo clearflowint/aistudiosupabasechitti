@@ -24,7 +24,10 @@ create table if not exists public.cfcf_automation_schedules (
     or (job_type = 'report' and slot_number between 1 and 2)
   ),
   constraint cfcf_automation_schedule_fund_slot_unique
-    unique (product_id, tenant_id, fund_id, job_type, slot_number)
+    unique (product_id, tenant_id, fund_id, job_type, slot_number),
+  constraint cfcf_automation_schedule_fund_fk
+    foreign key (fund_id, tenant_id, product_id)
+    references public.cfcf_funds(fund_id, tenant_id, product_id) on delete cascade
 );
 
 create index if not exists cfcf_automation_schedules_due_idx
@@ -315,7 +318,6 @@ begin
     where j.product_id = 'CFCF' and j.tenant_id = p_tenant_id
       and j.fund_id = p_fund_id and j.job_type = p_job_type
       and j.trigger_type = 'manual' and j.created_at > now() - interval '1 hour'
-      and j.status <> 'cancelled'
   ) then
     raise exception 'This manual action is limited to once per hour for this Fund' using errcode = 'P0001';
   end if;
