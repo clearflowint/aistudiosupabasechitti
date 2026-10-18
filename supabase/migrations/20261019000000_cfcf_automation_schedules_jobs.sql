@@ -97,10 +97,9 @@ as $$
     from public.cfcf_automation_schedules
     where product_id = 'CFCF'
       and is_enabled = true
-      and next_run_at is not null
-      and next_run_at <= now()
+      and (next_run_at is null or next_run_at <= now())
       and (claimed_until is null or claimed_until < now())
-    order by next_run_at, created_at
+    order by next_run_at nulls first, created_at
     limit greatest(1, least(coalesce(p_limit, 25), 100))
     for update skip locked
   )
@@ -126,8 +125,9 @@ as $$
     select job_id
     from public.cfcf_automation_jobs
     where product_id = 'CFCF'
-      and status in ('queued', 'delayed')
+      and (status in ('queued', 'delayed') or (status = 'processing' and claimed_until < now()))
       and (claimed_until is null or claimed_until < now())
+      and attempts < 8
     order by created_at
     limit greatest(1, least(coalesce(p_limit, 25), 100))
     for update skip locked
