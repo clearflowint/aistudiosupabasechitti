@@ -1506,29 +1506,46 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <h3 className="break-words text-base font-bold text-slate-900">{selectedFund.fund_name}</h3>
-                    <p className="mt-1 break-all text-xs text-slate-500">Fund ID · {selectedFund.fund_id} <span className="px-1">·</span> Start · {selectedFund.start_date ? formatDate(selectedFund.start_date) : "Not set"}</p>
+                    <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
+                      <span className="break-all">Fund ID · {selectedFund.fund_id}</span>
+                      <span aria-hidden="true">·</span>
+                      <span>{shares.length} Shares</span>
+                      <span aria-hidden="true">·</span>
+                      <span>Cycles {savedCycleNumbers().at(-1) ?? 0} / {selectedFund.number_of_cycles ?? "Not set"}</span>
+                      <span aria-hidden="true">·</span>
+                      <span>Start · {selectedFund.start_date ? formatDate(selectedFund.start_date) : "Not set"}</span>
+                    </div>
                   </div>
                   <div className="shrink-0 text-right">
                     <p className="text-xs font-medium text-slate-500">Pending</p>
                     <p className="text-[1.1rem] font-bold leading-tight tabular-nums text-rose-600">{formatINR(selectedFund.fund_total_pending_amount ?? 0)}</p>
                   </div>
                 </div>
-                <div className="mt-2 flex items-center justify-between gap-2 text-xs text-slate-600">
-                  <span>Planned cycles: {selectedFund.number_of_cycles ?? "Not set"}</span>
-                  <span>Cycle progress: {savedCycleNumbers().at(-1) ?? 0} / {selectedFund.number_of_cycles ?? "Not set"}</span>
+                <div className="mt-3 rounded-xl bg-rose-50 px-3 py-3">
+                  <p className="text-xs font-medium text-rose-700">Pending from members</p>
+                  <p className="mt-1 text-xl font-bold leading-tight tabular-nums text-rose-700">{formatINR(selectedFund.fund_total_pending_amount ?? 0)}</p>
+                  <p className="mt-1 text-[11px] text-rose-600">Outstanding billed amount</p>
                 </div>
-                <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  <div className="rounded-lg bg-slate-50 px-2 py-2"><p className="text-[11px] text-slate-500">Total payments received</p><p className="mt-1 text-sm font-bold tabular-nums text-slate-900">{formatINR(selectedFund.fund_net_payment_received ?? 0)}</p></div>
-                  <div className="rounded-lg bg-slate-50 px-2 py-2"><p className="text-[11px] text-slate-500">Total billed</p><p className="mt-1 text-sm font-bold tabular-nums text-slate-900">{formatINR(selectedFund.fund_total_billed_amount ?? 0)}</p></div>
-                  <div className="rounded-lg bg-slate-50 px-2 py-2"><p className="text-[11px] text-slate-500">Advance</p><p className="mt-1 text-sm font-bold tabular-nums text-slate-900">{formatINR(selectedFund.fund_total_advance ?? 0)}</p></div>
-                  <div className="rounded-lg bg-slate-50 px-2 py-2"><p className="text-[11px] text-slate-500">Withdrawn</p><p className="mt-1 text-sm font-bold tabular-nums text-slate-900">{formatINR(selectedFund.fund_total_withdrawn ?? 0)}</p></div>
-                  <div className="rounded-lg bg-slate-50 px-2 py-2"><p className="text-[11px] text-slate-500">Net balance</p><p className={["mt-1 text-sm font-bold tabular-nums", (selectedFund.fund_net_balance ?? 0) < 0 ? "text-rose-600" : (selectedFund.fund_net_balance ?? 0) > 0 ? "text-emerald-700" : "text-slate-900"].join(" ")}>{(selectedFund.fund_net_balance ?? 0) > 0 ? "+" : (selectedFund.fund_net_balance ?? 0) < 0 ? "−" : ""}{formatINR(Math.abs(selectedFund.fund_net_balance ?? 0))}</p></div>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <div className="min-w-0 rounded-lg border border-slate-200 px-3 py-3"><p className="break-words text-[11px] leading-4 text-slate-500">Total billed</p><p className="mt-1 break-words text-sm font-bold tabular-nums text-slate-900">{formatINR(selectedFund.fund_total_billed_amount ?? 0)}</p></div>
+                  <div className="min-w-0 rounded-lg border border-slate-200 px-3 py-3"><p className="break-words text-[11px] leading-4 text-slate-500">Net payments received</p><p className="mt-1 break-words text-sm font-bold tabular-nums text-slate-900">{formatINR(selectedFund.fund_net_payment_received ?? 0)}</p></div>
+                  <div className="min-w-0 rounded-lg border border-slate-200 px-3 py-3"><p className="break-words text-[11px] leading-4 text-slate-500">Advance</p><p className="mt-1 break-words text-sm font-bold tabular-nums text-slate-900">{formatINR(selectedFund.fund_total_advance ?? 0)}</p></div>
+                  <div className="min-w-0 rounded-lg border border-slate-200 px-3 py-3"><p className="break-words text-[11px] leading-4 text-slate-500">Total withdrawn</p><p className="mt-1 break-words text-sm font-bold tabular-nums text-slate-900">{formatINR(selectedFund.fund_total_withdrawn ?? 0)}</p></div>
                 </div>
-                <div className="mt-2 flex items-center justify-between gap-2 text-xs text-slate-600"><span>Total Commission: {formatINR(selectedFund.fund_total_commissions ?? 0)}</span><span>Shares: {shares.length}</span></div>
-                <div className="mt-3 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 sm:grid-cols-4">
-                  <button type="button" onClick={() => setIsFundReportOpen(true)} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-1 text-xs font-semibold text-sky-800"><FileText size={14}/> Fund Summary</button>
-                  <button type="button" onClick={() => void openFullFundReport()} disabled={isLoadingFullFundReport} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-1 text-xs font-semibold text-violet-800 disabled:opacity-50"><FileText size={14}/> {isLoadingFullFundReport ? "Loading…" : "Full Report"}</button>
-                  <button type="button" onClick={() => { setFundEditForm({ fundName: selectedFund.fund_name ?? "", startDate: selectedFund.start_date ?? "", numberOfCycles: selectedFund.number_of_cycles == null ? "" : String(selectedFund.number_of_cycles) }); setFundEditError(null); setIsFundEditOpen(true); }} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-slate-200 px-1 text-xs font-semibold text-slate-700"><Pencil size={14}/> Edit Fund</button>
+                <div className="mt-2 rounded-xl border border-slate-200 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-medium text-slate-500">Net Balance</p>
+                    <p className={["text-base font-bold tabular-nums", (selectedFund.fund_net_balance ?? 0) < 0 ? "text-rose-600" : (selectedFund.fund_net_balance ?? 0) > 0 ? "text-emerald-700" : "text-slate-900"].join(" ")}>{(selectedFund.fund_net_balance ?? 0) > 0 ? "+" : (selectedFund.fund_net_balance ?? 0) < 0 ? "−" : ""}{formatINR(Math.abs(selectedFund.fund_net_balance ?? 0))}</p>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between gap-2 border-t border-slate-100 pt-2">
+                    <p className="text-xs text-slate-500">Total Commission</p>
+                    <p className="text-sm font-semibold tabular-nums text-slate-900">{formatINR(selectedFund.fund_total_commissions ?? 0)}</p>
+                  </div>
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-1.5 border-t border-slate-100 pt-3">
+                  <button type="button" onClick={() => { setFundEditForm({ fundName: selectedFund.fund_name ?? "", startDate: selectedFund.start_date ?? "", numberOfCycles: selectedFund.number_of_cycles == null ? "" : String(selectedFund.number_of_cycles) }); setFundEditError(null); setIsFundEditOpen(true); }} className="inline-flex min-h-10 min-w-0 items-center justify-center gap-1 rounded-lg border border-slate-200 px-1 py-2 text-[11px] font-semibold text-slate-700"><Pencil size={14} className="shrink-0"/> <span className="text-center leading-tight">Edit Fund</span></button>
+                  <button type="button" onClick={() => setIsFundReportOpen(true)} className="inline-flex min-h-10 min-w-0 items-center justify-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-1 py-2 text-[11px] font-semibold text-sky-800"><FileText size={14} className="shrink-0"/> <span className="text-center leading-tight">Fund Summary</span></button>
+                  <button type="button" onClick={() => void openFullFundReport()} disabled={isLoadingFullFundReport} className="inline-flex min-h-10 min-w-0 items-center justify-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-1 py-2 text-[11px] font-semibold text-violet-800 disabled:opacity-50"><FileText size={14} className="shrink-0"/> <span className="text-center leading-tight">{isLoadingFullFundReport ? "Loading…" : "Full Report"}</span></button>
                 </div>
               </article>
 
