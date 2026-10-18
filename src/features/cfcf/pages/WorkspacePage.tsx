@@ -58,6 +58,7 @@ import {
   type CfcfFundOtherAdjustmentSummary,
 } from "../services/workspace.service";
 import type { CfcfBillRow, CfcfContactRow, CfcfFundRow, CfcfShareRow } from "../types/database.types";
+import { jsPDF } from "jspdf";
 
 type WorkspaceTab = "shares" | "ledger";
 type WorkspaceSectionTab = "fund-summary" | "shares";
@@ -737,85 +738,210 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       return false;
     }
     setIsDownloadingFullFundPdf(true);
-    let reportRoot: HTMLDivElement | null = null;
     try {
       setFullFundReportError(null);
-      const source = document.querySelector("[data-cfcf-full-fund-report]");
-      if (!(source instanceof HTMLElement)) {
-        setFullFundReportError("Full Fund report content is not ready. Please close and reopen the report, then try again.");
-        return false;
-      }
-      // Export the actual styled HTML report instead of reconstructing it as plain text.
-      // Inline computed styles in a detached copy so html2canvas avoids the app's OKLCH stylesheet.
-      reportRoot = document.createElement("div");
-      reportRoot.id = "clearflow-full-fund-pdf-root";
-      reportRoot.style.cssText = "position:fixed;left:0;top:0;z-index:99;pointer-events:none;width:794px;background:#ffffff;color:#0f172a;font-family:Arial,sans-serif;box-sizing:border-box;overflow-wrap:anywhere";
-      const reportCopy = source.cloneNode(true) as HTMLElement;
-      reportCopy.style.width = "100%";
-      reportCopy.style.maxWidth = "none";
-      reportCopy.style.backgroundColor = "#ffffff";
-      reportCopy.style.color = "#0f172a";
-      const sourceNodes = [source, ...Array.from(source.querySelectorAll<HTMLElement>("*"))];
-      const copyNodes = [reportCopy, ...Array.from(reportCopy.querySelectorAll<HTMLElement>("*"))];
-      const styleProperties = [
-        "display", "position", "box-sizing", "width", "max-width", "min-width", "height", "min-height",
-        "margin", "margin-top", "margin-right", "margin-bottom", "margin-left",
-        "padding", "padding-top", "padding-right", "padding-bottom", "padding-left",
-        "gap", "grid-template-columns", "grid-column", "flex", "flex-direction", "flex-wrap",
-        "align-items", "justify-content", "border", "border-top", "border-right", "border-bottom", "border-left",
-        "border-radius", "border-color", "border-width", "border-style", "background", "background-color",
-        "color", "font-family", "font-size", "font-weight", "font-style", "line-height", "letter-spacing",
-        "text-align", "text-transform", "text-decoration", "white-space", "overflow-wrap", "word-break",
-        "list-style", "list-style-type"
-      ];
-      sourceNodes.forEach((original, index) => {
-        const copy = copyNodes[index];
-        if (!(copy instanceof HTMLElement)) return;
-        const computed = window.getComputedStyle(original);
-        for (const property of styleProperties) {
-          const value = computed.getPropertyValue(property);
-          if (value) copy.style.setProperty(property, value);
-        }
-        copy.removeAttribute("class");
-        copy.removeAttribute("data-cfcf-full-fund-report");
-      });
-      const header = document.createElement("div");
-      header.textContent = "ClearFlow Automations";
-      header.style.cssText = "font:700 13px Arial,sans-serif;color:#234569;padding:0 0 8px;border-bottom:1px solid #cbd5e1;margin-bottom:14px";
-      const footer = document.createElement("div");
-      footer.textContent = "ClearFlow Automations · Full Fund Report";
-      footer.style.cssText = "font:10px Arial,sans-serif;color:#64748b;text-align:center;border-top:1px solid #cbd5e1;padding-top:8px;margin-top:16px";
-      reportRoot.appendChild(header);
-      reportRoot.appendChild(reportCopy);
-      reportRoot.appendChild(footer);
-      document.body.appendChild(reportRoot);
+      // Build a readable PDF from the same freshly loaded, tenant-scoped records
+      // used by the Full Fund Report. Do not flatten the rendered HTML into raw text.
+      const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 15;
+      const usableWidth = pageWidth - margin * 2;
+      let y = margin;
 
-      const html2pdf = (await import("html2pdf.js")).default;
-      const worker = html2pdf().set({
-        margin: [8, 8, 8, 8],
-        filename: "ClearFlow-Full-Fund-Report.pdf",
-        image: { type: "jpeg", quality: 0.98 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          logging: false,
-          backgroundColor: "#ffffff",
-          windowWidth: 794,
-          onclone: (clonedDocument: Document) => {
-            clonedDocument.querySelectorAll('style, link[rel="stylesheet"]').forEach((node) => node.remove());
-            const clonedRoot = clonedDocument.getElementById("clearflow-full-fund-pdf-root");
-            if (clonedRoot instanceof HTMLElement) {
-              clonedRoot.style.color = "#0f172a";
-              clonedRoot.style.backgroundColor = "#ffffff";
-            }
-          },
-        },
-        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-        pagebreak: { mode: ["css", "legacy"], avoid: [".report-section", "article"] },
-      }).from(reportRoot);
-      const blob = await worker.outputPdf("blob");
+      const ensureSpace = (height: number) => {
+        if (y + height > pageHeight - margin) {
+          pdf.addPage();
+          y = margin;
+        }
+      };
+      const writeLines = (value: string, options: { size?: number; bold?: boolean; gapAfter?: number } = {}) => {
+        const size = options.size ?? 9;
+        pdf.setFont("helvetica", options.bold ? "bold" : "normal");
+        pdf.setFontSize(size);
+        const normalized = String(value ?? "").replace(/\u00a0/g, " ").replace(/₹/g, "INR ").replace(/[\t ]+/g, " ").trim();
+        const lines = pdf.splitTextToSize(normalized, usableWidth) as string[];
+        const lineHeight = size * 0.42;
+        ensureSpace(Math.max(lineHeight, lines.length * lineHeight) + (options.gapAfter ?? 1));
+        for (const line of lines) {
+          ensureSpace(lineHeight);
+          pdf.text(line, margin, y);
+          y += lineHeight;
+        }
+        y += options.gapAfter ?? 1;
+      };
+      const heading = (value: string) => {
+        y += 2;
+        ensureSpace(13);
+        pdf.setFillColor(232, 239, 247);
+        pdf.roundedRect(margin, y - 2, usableWidth, 9, 1.5, 1.5, "F");
+        pdf.setTextColor(25, 55, 90);
+        y += 1;
+        writeLines(value, { size: 11, bold: true, gapAfter: 2 });
+        pdf.setTextColor(30, 41, 59);
+      };
+      const field = (label: string, value: unknown) => writeLines(label + ": " + String(value ?? "Not recorded"), { size: 9, gapAfter: 1 });
+      const record = (title: string, fields: Array<[string, unknown]>) => {
+        ensureSpace(14);
+        pdf.setFillColor(247, 249, 252);
+        pdf.roundedRect(margin, y - 1, usableWidth, 6, 1, 1, "F");
+        pdf.setTextColor(25, 55, 90);
+        y += 2;
+        writeLines(title, { size: 9.5, bold: true, gapAfter: 1 });
+        pdf.setTextColor(30, 41, 59);
+        for (const [label, value] of fields) field(label, value);
+        pdf.setDrawColor(225, 230, 236);
+        pdf.line(margin, y, pageWidth - margin, y);
+        y += 2;
+      };
+      const paymentRows = ledgerItems.filter((item) => item.kind === "payment").slice().sort((a, b) => a.date.localeCompare(b.date));
+      const adjustmentRows = ledgerItems.filter((item) => item.kind === "fund-entry");
+
+      writeLines("CLEARFLOW · FULL FUND REPORT", { size: 16, bold: true, gapAfter: 3 });
+      writeLines(selectedFund.fund_name, { size: 13, bold: true, gapAfter: 2 });
+      field("Fund ID", selectedFund.fund_id);
+      field("Report date", new Date().toLocaleDateString("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }));
+      field("Start date", selectedFund.start_date ? formatDate(selectedFund.start_date) : "Not set");
+      field("Planned cycles", selectedFund.number_of_cycles ?? "Not set");
+      field("Saved cycles", cycleRows.length);
+      field("Share records", shares.length);
+      field("Billing entries", bills.length);
+      field("Payment entries", paymentRows.length);
+      field("Other adjustment entries", adjustmentRows.length);
+
+      heading("Workspace / Tenant Details");
+      field("Tenant ID", workspace.tenantId);
+      field("Authorized person", workspace.displayName || "Not available");
+      field("Person ID", workspace.personId);
+      field("Email", workspace.email || "Not available");
+
+      heading("1. Fund Summary (stored values)");
+      field("Fund Net Balance", formatINR(selectedFund.fund_net_balance ?? 0));
+      field("Total billed", formatINR(selectedFund.fund_total_billed_amount ?? 0));
+      field("Pending", formatINR(selectedFund.fund_total_pending_amount ?? 0));
+      field("Advance", formatINR(selectedFund.fund_total_advance ?? 0));
+      field("Withdrawn", formatINR(selectedFund.fund_total_withdrawn ?? 0));
+      field("Commissions", formatINR(selectedFund.fund_total_commissions ?? 0));
+
+      heading("2. Share-wise Summary");
+      if (!shares.length) writeLines("No Share records were returned for this Fund.");
+      for (const share of shares) {
+        const contact = contactById.get(share.contact_id);
+        record((contact?.name ?? "Contact unavailable") + " · Share " + share.share_id, [
+          ["Contact ID", share.contact_id],
+          ["Phone", contact?.phone || "Not recorded"],
+          ["Share status", share.status],
+          ["Payout status", share.payout_status === "drawn" ? "Drawn" : "Undrawn"],
+          ["Total billed (stored)", formatINR(share.share_total_billed_amount ?? 0)],
+          ["Total paid / net received (stored)", formatINR(share.share_net_payment_received ?? 0)],
+          ["Advance (stored)", formatINR(share.total_advance ?? 0)],
+          ["Pending (stored)", formatINR(share.total_pending ?? 0)],
+          ["Draw cycle", share.payout_status === "drawn" ? (share.payout_cycle_number ?? "Not recorded") : "Not drawn"],
+          ["Recorded payout", share.payout_status === "drawn" ? formatINR(share.withdrawn_amount ?? 0) : "Not drawn"],
+        ]);
+      }
+
+      heading("3. Saved Cycle Register");
+      if (!cycleRows.length) writeLines("No saved Cycles were returned for this Fund.");
+      for (const cycle of cycleRows) record("Cycle " + cycle.cycle_number, [
+        ["Cycle ID", cycle.cycle_id],
+        ["Planned payout", displayStoredAmount(cycle.planned_payout_amount)],
+        ["Commission", displayStoredAmount(cycle.commission_amount)],
+        ["Created", formatDate(cycle.created_at)],
+        ["Updated", formatDate(cycle.updated_at)],
+      ]);
+
+      heading("4. Cycle-wise Billing Details");
+      if (!cycleRows.length && !bills.length) writeLines("No saved Cycle or billing records were returned for this Fund.");
+      for (const cycle of cycleRows) {
+        const cycleBills = bills.filter((bill) => bill.cycle_id === cycle.cycle_id).slice().sort((a, b) => a.share_id.localeCompare(b.share_id));
+        writeLines("Cycle " + cycle.cycle_number + " · " + cycleBills.length + " saved billing record(s)", { size: 10, bold: true, gapAfter: 2 });
+        if (!cycleBills.length) writeLines("No billing entries recorded for this Cycle.");
+        for (const bill of cycleBills) {
+          const share = shares.find((item) => item.share_id === bill.share_id);
+          const contact = share ? contactById.get(share.contact_id) : undefined;
+          record((contact?.name ?? "Contact unavailable") + " · " + formatINR(bill.amount), [
+            ["Share ID", bill.share_id],
+            ["Billing ID", bill.bill_id],
+            ["Billing date", bill.bill_date ? formatDate(bill.bill_date) : "Not recorded"],
+            ["Saved", formatDate(bill.created_at)],
+          ]);
+        }
+      }
+      if (!cycleRows.length) {
+        for (const bill of bills) record("Share " + bill.share_id + " · " + formatINR(bill.amount), [
+          ["Billing ID", bill.bill_id], ["Cycle ID", bill.cycle_id],
+          ["Billing date", bill.bill_date ? formatDate(bill.bill_date) : "Not recorded"],
+        ]);
+      }
+
+      heading("5. Complete Payment Ledger");
+      if (!paymentRows.length) writeLines("No payment records were returned for this Fund.");
+      for (const item of paymentRows) {
+        const share = shares.find((row) => row.share_id === item.shareId);
+        const contact = share ? contactById.get(share.contact_id) : undefined;
+        record(formatDate(item.date) + " · " + (item.entryType === "credit" ? "Credit" : "Debit") + " · " + formatINR(item.amount), [
+          ["Payment ID", item.id],
+          ["Shareholder", contact?.name ?? "Contact unavailable"],
+          ["Share ID", item.shareId ?? "Not recorded"],
+          ["Mode", item.paymentType ?? "Not recorded"],
+          ["Remarks", item.remarks || "None"],
+        ]);
+      }
+
+      heading("6. Draw / Payout Register");
+      if (!shares.length) writeLines("No Share payout statuses were returned for this Fund.");
+      for (const share of shares) {
+        const contact = contactById.get(share.contact_id);
+        record((contact?.name ?? "Contact unavailable") + " · " + (share.payout_status === "drawn" ? "Drawn" : "Undrawn"), [
+          ["Share ID", share.share_id],
+          ["Cycle", share.payout_status === "drawn" ? (share.payout_cycle_number ?? "Not recorded") : "Not drawn"],
+          ["Recorded payout", share.payout_status === "drawn" ? formatINR(share.withdrawn_amount ?? 0) : "Not drawn"],
+        ]);
+      }
+
+      heading("7. Other Adjustments — Separate Ledger");
+      writeLines("These credits and debits are independent and are not included in Fund financial calculations, Share balances, Cycle billing, payments or payouts.");
+      if (fullFundReportAdjustmentsSummary) {
+        field("Adjustment entries", fullFundReportAdjustmentsSummary.entry_count);
+        field("Total credits", formatINR(fullFundReportAdjustmentsSummary.total_credits));
+        field("Total debits", formatINR(fullFundReportAdjustmentsSummary.total_debits));
+        field("Net adjustments (separate)", formatINR(fullFundReportAdjustmentsSummary.net_adjustments));
+      }
+      if (!adjustmentRows.length) writeLines("No adjustment entries were returned for this Fund.");
+      for (const item of adjustmentRows) record(formatDate(item.date) + " · " + item.entryType, [
+        ["Amount", formatINR(item.amount)],
+        ["Entry ID", item.id],
+        ["Category", adjustmentCategoryLabel(item.adjustmentCategory)],
+        ["Remarks", item.remarks || "None"],
+      ]);
+
+      heading("8. Report Notes");
+      writeLines("All figures above are shown from saved Fund/Share fields and saved ledger records. No new financial totals are derived by this report.");
+      writeLines("Generated from the currently authorized ClearFlow workspace. Keep this report with the Fund's business records.");
+
+      // Add a consistent ClearFlow Automations header and footer to every page.
+      const pageCount = pdf.getNumberOfPages();
+      for (let page = 1; page <= pageCount; page += 1) {
+        pdf.setPage(page);
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(8);
+        pdf.setTextColor(35, 69, 105);
+        pdf.text("ClearFlow Automations", margin, 8);
+        pdf.setDrawColor(205, 214, 224);
+        pdf.line(margin, 10, pageWidth - margin, 10);
+        pdf.line(margin, pageHeight - 11, pageWidth - margin, pageHeight - 11);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
+        pdf.setTextColor(90, 100, 112);
+        pdf.text("ClearFlow Automations · Full Fund Report", margin, pageHeight - 6);
+        pdf.text("Page " + page + " of " + pageCount, pageWidth - margin, pageHeight - 6, { align: "right" });
+      }
       const filename = "ClearFlow-Full-Fund-Report.pdf";
+      const blob = pdf.output("blob");
       const file = new File([blob], filename, { type: "application/pdf" });
+      // On iOS, offer the native share sheet so Save to Files is available
+      // directly, rather than first navigating to a PDF viewer tab.
       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
         (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
       if (isIOS && typeof navigator.share === "function" &&
@@ -830,6 +956,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           throw shareError;
         }
       } else {
+        // Blob URL download with a filename for browsers that support the download attribute.
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement("a");
         anchor.href = url;
@@ -840,16 +967,13 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         anchor.remove();
         window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
       }
-      if (!requiredBeforeArchive) {
-        showDatabaseResult(isIOS ? "PDF ready. Choose Save to Files in the iPhone share sheet to store it." : "Full Fund Report PDF download started.");
-      }
+      if (!requiredBeforeArchive) showDatabaseResult(isIOS ? "PDF ready. Choose Save to Files in the iPhone share sheet to store it." : "Full Fund Report PDF download started.");
       return true;
     } catch (error) {
       const message = error instanceof Error ? "PDF download failed: " + error.message + ". Your Fund data is unchanged. Please retry." : "PDF download failed. Your Fund data is unchanged. Please retry.";
       setFullFundReportError(message);
       return false;
     } finally {
-      reportRoot?.remove();
       setIsDownloadingFullFundPdf(false);
     }
   }
