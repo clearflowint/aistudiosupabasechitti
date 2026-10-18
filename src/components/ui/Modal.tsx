@@ -42,7 +42,81 @@ export function Modal({
   const titleId = useId();
   const descriptionId = useId();
   const onCloseRef = useRef(onClose);
+  const panelRef = useRef<HTMLElement | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const focusScrollFrameRef = useRef<number | null>(null);
   onCloseRef.current = onClose;
+
+  // Keep mobile dialogs inside the currently visible viewport as browser
+  // chrome and the on-screen keyboard change its dimensions.
+  useEffect(() => {
+    if (!isOpen) return;
+    const panel = panelRef.current;
+    const overlay = panel?.parentElement;
+    if (!panel || !overlay) return;
+
+    const updateViewport = () => {
+      const viewport = window.visualViewport;
+      const height = viewport?.height ?? window.innerHeight;
+      const top = viewport?.offsetTop ?? 0;
+      overlay.style.height = height + "px";
+      overlay.style.top = top + "px";
+      panel.style.maxHeight = Math.max(180, height - 16) + "px";
+    };
+
+    const viewport = window.visualViewport;
+    updateViewport();
+    window.addEventListener("resize", updateViewport);
+    viewport?.addEventListener("resize", updateViewport);
+    viewport?.addEventListener("scroll", updateViewport);
+
+    return () => {
+      window.removeEventListener("resize", updateViewport);
+      viewport?.removeEventListener("resize", updateViewport);
+      viewport?.removeEventListener("scroll", updateViewport);
+      overlay.style.height = "";
+      overlay.style.top = "";
+      panel.style.maxHeight = "";
+    };
+  }, [isOpen, size]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const content = contentRef.current;
+    if (!content) return;
+
+    const handleFocusIn = (event: FocusEvent) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement) || !content.contains(target)) return;
+      if (focusScrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(focusScrollFrameRef.current);
+      }
+      focusScrollFrameRef.current = window.requestAnimationFrame(() => {
+        focusScrollFrameRef.current = null;
+        const active = document.activeElement;
+        if (!(active instanceof HTMLElement) || !content.contains(active)) return;
+        const panel = panelRef.current;
+        if (!panel) return;
+        const activeRect = active.getBoundingClientRect();
+        const panelRect = panel.getBoundingClientRect();
+        const margin = 20;
+        if (activeRect.bottom > panelRect.bottom - margin) {
+          content.scrollBy({ top: activeRect.bottom - panelRect.bottom + margin, behavior: "auto" });
+        } else if (activeRect.top < panelRect.top + margin) {
+          content.scrollBy({ top: activeRect.top - panelRect.top - margin, behavior: "auto" });
+        }
+      });
+    };
+
+    content.addEventListener("focusin", handleFocusIn);
+    return () => {
+      content.removeEventListener("focusin", handleFocusIn);
+      if (focusScrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(focusScrollFrameRef.current);
+        focusScrollFrameRef.current = null;
+      }
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -118,7 +192,7 @@ export function Modal({
   const panelWidth = size === "full" ? "max-w-none" : size === "large" ? "max-w-2xl" : "max-w-lg";
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto overscroll-contain px-3 py-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:items-center sm:p-6">
+    <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-hidden overscroll-none px-3 py-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:items-center sm:p-6">
       <button
         type="button"
         aria-label="Close dialog"
@@ -128,11 +202,12 @@ export function Modal({
         className="fixed inset-0 cursor-default bg-slate-950/60 backdrop-blur-sm"
       />
       <section
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
-        className={"relative z-10 my-auto max-h-[calc(100dvh-1rem)] w-full overflow-y-auto overscroll-contain border-2 border-[#CBD5E1] ring-1 ring-[#94A3B8]/50 " + panelWidth + (size === "full" ? " min-h-[calc(100dvh-1rem)] rounded-xl" : " rounded-2xl shadow-2xl shadow-slate-950/25 sm:max-h-[calc(100dvh-3rem)]") + " bg-white"}
+        className={"relative z-10 my-auto flex w-full min-w-0 flex-col overflow-hidden border-2 border-[#CBD5E1] ring-1 ring-[#94A3B8]/50 " + panelWidth + (size === "full" ? " rounded-xl" : " rounded-2xl shadow-2xl shadow-slate-950/25") + " bg-white"}
       >
         <header className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 sm:px-6">
           <div>
@@ -150,7 +225,7 @@ export function Modal({
             <X size={18} />
           </button>
         </header>
-        <div className="px-5 py-5 sm:px-6">{children}</div>
+        <div ref={contentRef} className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6">{children}</div>
         {footer && <footer className="flex flex-wrap justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 sm:px-6">{footer}</footer>}
       </section>
     </div>
