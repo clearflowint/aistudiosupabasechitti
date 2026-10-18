@@ -21,10 +21,6 @@ function formatTimestamp(value: string): string {
   }).format(date);
 }
 
-function readableAction(row: CfcfActivityLogRow): string {
-  return row.description || (row.entity_type + " " + row.action_type);
-}
-
 const HIDDEN_FIELDS = new Set([
   "tenant_id", "product_id", "person_id", "actor_person_id", "created_at", "updated_at",
   "fund_id", "share_id", "cycle_id", "bill_id", "payment_id", "entry_id",
