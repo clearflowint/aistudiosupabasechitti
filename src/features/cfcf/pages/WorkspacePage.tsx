@@ -732,55 +732,185 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   }
 
   async function printFullFundReport(requiredBeforeArchive = false): Promise<boolean> {
-    const source = document.querySelector("[data-cfcf-full-fund-report]");
-    if (!(source instanceof HTMLElement)) {
-      setFullFundReportError("Full Fund report content is not ready. Please try again.");
+    if (isDownloadingFullFundPdf) return false;
+    if (!selectedFund) {
+      setFullFundReportError("Select a Fund before downloading its report.");
       return false;
     }
-    if (isDownloadingFullFundPdf) return false;
     setIsDownloadingFullFundPdf(true);
     try {
       setFullFundReportError(null);
-      // Plain text PDF generation avoids html2canvas, CSS color parsing and blank
-      // rasterized pages on iOS. The text comes directly from the visible report DOM.
-      const report = source.cloneNode(true) as HTMLElement;
-      report.querySelectorAll("button").forEach((button) => button.remove());
-      report.querySelectorAll("header, footer").forEach((element) => {
-        if (/clearflow|powered by/i.test(element.textContent ?? "")) element.remove();
-      });
-      const rawText = (report.innerText || report.textContent || "")
-        .replace(/\\u00a0/g, " ")
-        .replace(/[ \\t]+/g, " ")
-        .replace(/\\n{3,}/g, "\\n\\n")
-        .trim();
-      if (!rawText) throw new Error("The report contains no readable text.");
+      // Build a readable PDF from the same freshly loaded, tenant-scoped records
+      // used by the Full Fund Report. Do not flatten the rendered HTML into raw text.
       const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 14;
+      const margin = 15;
       const usableWidth = pageWidth - margin * 2;
-      const lines = rawText.split("\\n").flatMap((line) => {
-        const cleanLine = line.trim();
-        return cleanLine ? pdf.splitTextToSize(cleanLine, usableWidth) : [""];
-      });
       let y = margin;
-      pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(10);
-      for (const line of lines) {
-        if (!line) {
-          y += 2;
-          continue;
+
+      const ensureSpace = (height: number) => {
+        if (y + height > pageHeight - margin) {
+          pdf.addPage();
+          y = margin;
         }
-        const chunks = pdf.splitTextToSize(String(line), usableWidth);
-        for (const chunk of chunks) {
-          if (y > pageHeight - margin) {
-            pdf.addPage();
-            y = margin;
-          }
-          pdf.text(chunk, margin, y);
-          y += 5;
+      };
+      const writeLines = (value: string, options: { size?: number; bold?: boolean; gapAfter?: number } = {}) => {
+        const size = options.size ?? 9;
+        pdf.setFont("helvetica", options.bold ? "bold" : "normal");
+        pdf.setFontSize(size);
+        const normalized = String(value ?? "").replace(/\u00a0/g, " ").replace(/[\\t ]+/g, " ").trim();
+        const lines = pdf.splitTextToSize(normalized, usableWidth) as string[];
+        const lineHeight = size * 0.42;
+        ensureSpace(Math.max(lineHeight, lines.length * lineHeight) + (options.gapAfter ?? 1));
+        for (const line of lines) {
+          ensureSpace(lineHeight);
+          pdf.text(line, margin, y);
+          y += lineHeight;
+        }
+        y += options.gapAfter ?? 1;
+      };
+      const heading = (value: string) => {
+        y += 2;
+        ensureSpace(10);
+        pdf.setDrawColor(190, 200, 210);
+        pdf.line(margin, y, pageWidth - margin, y);
+        y += 5;
+        writeLines(value, { size: 12, bold: true, gapAfter: 2 });
+      };
+      const field = (label: string, value: unknown) => writeLines(label + ": " + String(value ?? "Not recorded"), { size: 9, gapAfter: 1 });
+      const record = (title: string, fields: Array<[string, unknown]>) => {
+        ensureSpace(12);
+        writeLines(title, { size: 10, bold: true, gapAfter: 1 });
+        for (const [label, value] of fields) field(label, value);
+        y += 2;
+      };
+      const paymentRows = ledgerItems.filter((item) => item.kind === "payment").slice().sort((a, b) => a.date.localeCompare(b.date));
+      const adjustmentRows = ledgerItems.filter((item) => item.kind === "fund-entry");
+
+      writeLines("CLEARFLOW · FULL FUND REPORT", { size: 16, bold: true, gapAfter: 3 });
+      writeLines(selectedFund.fund_name, { size: 13, bold: true, gapAfter: 2 });
+      field("Fund ID", selectedFund.fund_id);
+      field("Report date", new Date().toLocaleDateString("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }));
+      field("Start date", selectedFund.start_date ? formatDate(selectedFund.start_date) : "Not set");
+      field("Planned cycles", selectedFund.number_of_cycles ?? "Not set");
+      field("Saved cycles", cycleRows.length);
+      field("Share records", shares.length);
+      field("Billing entries", bills.length);
+      field("Payment entries", paymentRows.length);
+      field("Other adjustment entries", adjustmentRows.length);
+
+      heading("Workspace / Tenant Details");
+      field("Tenant ID", workspace.tenantId);
+      field("Authorized person", workspace.displayName || "Not available");
+      field("Person ID", workspace.personId);
+      field("Email", workspace.email || "Not available");
+
+      heading("1. Fund Summary (stored values)");
+      field("Fund Net Balance", formatINR(selectedFund.fund_net_balance ?? 0));
+      field("Total billed", formatINR(selectedFund.fund_total_billed_amount ?? 0));
+      field("Pending", formatINR(selectedFund.fund_total_pending_amount ?? 0));
+      field("Advance", formatINR(selectedFund.fund_total_advance ?? 0));
+      field("Withdrawn", formatINR(selectedFund.fund_total_withdrawn ?? 0));
+      field("Commissions", formatINR(selectedFund.fund_total_commissions ?? 0));
+
+      heading("2. Share-wise Summary");
+      if (!shares.length) writeLines("No Share records were returned for this Fund.");
+      for (const share of shares) {
+        const contact = contactById.get(share.contact_id);
+        record((contact?.name ?? "Contact unavailable") + " · Share " + share.share_id, [
+          ["Contact ID", share.contact_id],
+          ["Phone", contact?.phone || "Not recorded"],
+          ["Share status", share.status],
+          ["Payout status", share.payout_status === "drawn" ? "Drawn" : "Undrawn"],
+          ["Total billed (stored)", formatINR(share.share_total_billed_amount ?? 0)],
+          ["Total paid / net received (stored)", formatINR(share.share_net_payment_received ?? 0)],
+          ["Advance (stored)", formatINR(share.total_advance ?? 0)],
+          ["Pending (stored)", formatINR(share.total_pending ?? 0)],
+          ["Draw cycle", share.payout_status === "drawn" ? (share.payout_cycle_number ?? "Not recorded") : "Not drawn"],
+          ["Recorded payout", share.payout_status === "drawn" ? formatINR(share.withdrawn_amount ?? 0) : "Not drawn"],
+        ]);
+      }
+
+      heading("3. Saved Cycle Register");
+      if (!cycleRows.length) writeLines("No saved Cycles were returned for this Fund.");
+      for (const cycle of cycleRows) record("Cycle " + cycle.cycle_number, [
+        ["Cycle ID", cycle.cycle_id],
+        ["Planned payout", displayStoredAmount(cycle.planned_payout_amount)],
+        ["Commission", displayStoredAmount(cycle.commission_amount)],
+        ["Created", formatDate(cycle.created_at)],
+        ["Updated", formatDate(cycle.updated_at)],
+      ]);
+
+      heading("4. Cycle-wise Billing Details");
+      if (!cycleRows.length && !bills.length) writeLines("No saved Cycle or billing records were returned for this Fund.");
+      for (const cycle of cycleRows) {
+        const cycleBills = bills.filter((bill) => bill.cycle_id === cycle.cycle_id).slice().sort((a, b) => a.share_id.localeCompare(b.share_id));
+        writeLines("Cycle " + cycle.cycle_number + " · " + cycleBills.length + " saved billing record(s)", { size: 10, bold: true, gapAfter: 2 });
+        if (!cycleBills.length) writeLines("No billing entries recorded for this Cycle.");
+        for (const bill of cycleBills) {
+          const share = shares.find((item) => item.share_id === bill.share_id);
+          const contact = share ? contactById.get(share.contact_id) : undefined;
+          record((contact?.name ?? "Contact unavailable") + " · " + formatINR(bill.amount), [
+            ["Share ID", bill.share_id],
+            ["Billing ID", bill.bill_id],
+            ["Billing date", bill.bill_date ? formatDate(bill.bill_date) : "Not recorded"],
+            ["Saved", formatDate(bill.created_at)],
+          ]);
         }
       }
+      if (!cycleRows.length) {
+        for (const bill of bills) record("Share " + bill.share_id + " · " + formatINR(bill.amount), [
+          ["Billing ID", bill.bill_id], ["Cycle ID", bill.cycle_id],
+          ["Billing date", bill.bill_date ? formatDate(bill.bill_date) : "Not recorded"],
+        ]);
+      }
+
+      heading("5. Complete Payment Ledger");
+      if (!paymentRows.length) writeLines("No payment records were returned for this Fund.");
+      for (const item of paymentRows) {
+        const share = shares.find((row) => row.share_id === item.shareId);
+        const contact = share ? contactById.get(share.contact_id) : undefined;
+        record(formatDate(item.date) + " · " + (item.entryType === "credit" ? "Credit" : "Debit") + " · " + formatINR(item.amount), [
+          ["Payment ID", item.id],
+          ["Shareholder", contact?.name ?? "Contact unavailable"],
+          ["Share ID", item.shareId ?? "Not recorded"],
+          ["Mode", item.paymentType ?? "Not recorded"],
+          ["Remarks", item.remarks || "None"],
+        ]);
+      }
+
+      heading("6. Draw / Payout Register");
+      if (!shares.length) writeLines("No Share payout statuses were returned for this Fund.");
+      for (const share of shares) {
+        const contact = contactById.get(share.contact_id);
+        record((contact?.name ?? "Contact unavailable") + " · " + (share.payout_status === "drawn" ? "Drawn" : "Undrawn"), [
+          ["Share ID", share.share_id],
+          ["Cycle", share.payout_status === "drawn" ? (share.payout_cycle_number ?? "Not recorded") : "Not drawn"],
+          ["Recorded payout", share.payout_status === "drawn" ? formatINR(share.withdrawn_amount ?? 0) : "Not drawn"],
+        ]);
+      }
+
+      heading("7. Other Adjustments — Separate Ledger");
+      writeLines("These credits and debits are independent and are not included in Fund financial calculations, Share balances, Cycle billing, payments or payouts.");
+      if (fullFundReportAdjustmentsSummary) {
+        field("Adjustment entries", fullFundReportAdjustmentsSummary.entry_count);
+        field("Total credits", formatINR(fullFundReportAdjustmentsSummary.total_credits));
+        field("Total debits", formatINR(fullFundReportAdjustmentsSummary.total_debits));
+        field("Net adjustments (separate)", formatINR(fullFundReportAdjustmentsSummary.net_adjustments));
+      }
+      if (!adjustmentRows.length) writeLines("No adjustment entries were returned for this Fund.");
+      for (const item of adjustmentRows) record(formatDate(item.date) + " · " + item.entryType, [
+        ["Amount", formatINR(item.amount)],
+        ["Entry ID", item.id],
+        ["Category", adjustmentCategoryLabel(item.adjustmentCategory)],
+        ["Remarks", item.remarks || "None"],
+      ]);
+
+      heading("8. Report Notes");
+      writeLines("All figures above are shown from saved Fund/Share fields and saved ledger records. No new financial totals are derived by this report.");
+      writeLines("Generated from the currently authorized ClearFlow workspace. Keep this report with the Fund's business records.");
+
       pdf.save("ClearFlow-Full-Fund-Report.pdf");
       if (!requiredBeforeArchive) showDatabaseResult("Full Fund Report PDF downloaded.");
       return true;
