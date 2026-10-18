@@ -184,7 +184,7 @@ export async function listCfcfBills(tenantId: string, fundId: string): Promise<C
 
 export async function listCfcfActivityLog(tenantId: string): Promise<CfcfActivityLogRow[]> {
   const { data, error } = await supabase.from("cfcf_activity_log")
-    .select("action_id, product_id, tenant_id, actor_person_id, action_type, entity_type, entity_id, description, before_data, after_data, created_at")
+    .select("action_id, action_type, entity_type, description, created_at")
     .eq("product_id", cfcfConfig.productId).eq("tenant_id", tenantId)
     .order("created_at", { ascending: false }).order("action_id", { ascending: false }).limit(500);
   if (error) throw new Error("Unable to load manager activity: " + error.message);
