@@ -460,3 +460,72 @@ grant execute on function public.cfcf_save_automation_schedule(text, text, text,
 grant execute on function public.cfcf_list_automation_schedules(text, text) to authenticated;
 grant execute on function public.cfcf_list_automation_jobs(text, text, integer) to authenticated;
 grant execute on function public.cfcf_create_manual_automation_job(text, text, text) to authenticated;
+
+
+-- Initialize a newly enabled schedule only while this execution still owns its lease.
+-- This avoids a stale evaluator overwriting a schedule edited by the Manager.
+create or replace function public.cfcf_initialize_automation_schedule(
+  p_schedule_id uuid,
+  p_next_run_at timestamptz
+)
+returns setof public.cfcf_automation_schedules
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if p_schedule_id is null or p_next_run_at is null or p_next_run_at <= now() then
+    raise exception 'Initial schedule timestamp must be in the future' using errcode = '22023';
+  end if;
+
+  return query
+  update public.cfcf_automation_schedules s
+  set next_run_at = p_next_run_at,
+      claimed_until = null,
+      last_error = null,
+      updated_at = now()
+  where s.schedule_id = p_schedule_id
+    and s.product_id = 'CFCF'
+    and s.is_enabled = true
+    and s.next_run_at is null
+    and s.claimed_until > now()
+  returning s.*;
+end;
+$$;
+
+revoke all on function public.cfcf_initialize_automation_schedule(uuid, timestamptz) from public, anon, authenticated;
+grant execute on function public.cfcf_initialize_automation_schedule(uuid, timestamptz) to service_role;
+
+-- Explicit failure recovery hook for n8n Error Workflows.
+-- A stale error handler cannot clear a lease that has already expired or been reclaimed.
+create or replace function public.cfcf_release_automation_schedule_claim(
+  p_schedule_id uuid,
+  p_error text default null
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_updated integer;
+begin
+  if p_schedule_id is null then
+    return false;
+  end if;
+
+  update public.cfcf_automation_schedules
+  set claimed_until = null,
+      last_error = left(nullif(btrim(p_error), ''), 1000),
+      updated_at = now()
+  where schedule_id = p_schedule_id
+    and product_id = 'CFCF'
+    and claimed_until > now();
+
+  get diagnostics v_updated = row_count;
+  return v_updated = 1;
+end;
+$$;
+
+revoke all on function public.cfcf_release_automation_schedule_claim(uuid, text) from public, anon, authenticated;
+grant execute on function public.cfcf_release_automation_schedule_claim(uuid, text) to service_role;
