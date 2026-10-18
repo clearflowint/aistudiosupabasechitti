@@ -759,7 +759,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         const size = options.size ?? 9;
         pdf.setFont("helvetica", options.bold ? "bold" : "normal");
         pdf.setFontSize(size);
-        const normalized = String(value ?? "").replace(/\u00a0/g, " ").replace(/[\\t ]+/g, " ").trim();
+        const normalized = String(value ?? "").replace(/\u00a0/g, " ").replace(/₹/g, "INR ").replace(/[\t ]+/g, " ").trim();
         const lines = pdf.splitTextToSize(normalized, usableWidth) as string[];
         const lineHeight = size * 0.42;
         ensureSpace(Math.max(lineHeight, lines.length * lineHeight) + (options.gapAfter ?? 1));
@@ -772,17 +772,26 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       };
       const heading = (value: string) => {
         y += 2;
-        ensureSpace(10);
-        pdf.setDrawColor(190, 200, 210);
-        pdf.line(margin, y, pageWidth - margin, y);
-        y += 5;
-        writeLines(value, { size: 12, bold: true, gapAfter: 2 });
+        ensureSpace(13);
+        pdf.setFillColor(232, 239, 247);
+        pdf.roundedRect(margin, y - 2, usableWidth, 9, 1.5, 1.5, "F");
+        pdf.setTextColor(25, 55, 90);
+        y += 1;
+        writeLines(value, { size: 11, bold: true, gapAfter: 2 });
+        pdf.setTextColor(30, 41, 59);
       };
       const field = (label: string, value: unknown) => writeLines(label + ": " + String(value ?? "Not recorded"), { size: 9, gapAfter: 1 });
       const record = (title: string, fields: Array<[string, unknown]>) => {
-        ensureSpace(12);
-        writeLines(title, { size: 10, bold: true, gapAfter: 1 });
+        ensureSpace(14);
+        pdf.setFillColor(247, 249, 252);
+        pdf.roundedRect(margin, y - 1, usableWidth, 6, 1, 1, "F");
+        pdf.setTextColor(25, 55, 90);
+        y += 2;
+        writeLines(title, { size: 9.5, bold: true, gapAfter: 1 });
+        pdf.setTextColor(30, 41, 59);
         for (const [label, value] of fields) field(label, value);
+        pdf.setDrawColor(225, 230, 236);
+        pdf.line(margin, y, pageWidth - margin, y);
         y += 2;
       };
       const paymentRows = ledgerItems.filter((item) => item.kind === "payment").slice().sort((a, b) => a.date.localeCompare(b.date));
@@ -911,6 +920,23 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       writeLines("All figures above are shown from saved Fund/Share fields and saved ledger records. No new financial totals are derived by this report.");
       writeLines("Generated from the currently authorized ClearFlow workspace. Keep this report with the Fund's business records.");
 
+      // Add a consistent ClearFlow Automations header and footer to every page.
+      const pageCount = pdf.getNumberOfPages();
+      for (let page = 1; page <= pageCount; page += 1) {
+        pdf.setPage(page);
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(8);
+        pdf.setTextColor(35, 69, 105);
+        pdf.text("ClearFlow Automations", margin, 8);
+        pdf.setDrawColor(205, 214, 224);
+        pdf.line(margin, 10, pageWidth - margin, 10);
+        pdf.line(margin, pageHeight - 11, pageWidth - margin, pageHeight - 11);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
+        pdf.setTextColor(90, 100, 112);
+        pdf.text("ClearFlow Automations · Full Fund Report", margin, pageHeight - 6);
+        pdf.text("Page " + page + " of " + pageCount, pageWidth - margin, pageHeight - 6, { align: "right" });
+      }
       const filename = "ClearFlow-Full-Fund-Report.pdf";
       const blob = pdf.output("blob");
       const file = new File([blob], filename, { type: "application/pdf" });
