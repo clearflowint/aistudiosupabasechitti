@@ -282,7 +282,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setFullFundReportError("Full Fund report content is not ready. Please close and reopen the report, then try again.");
       return;
     }
-    const reportMarkup = source.innerHTML;
+    const reportMarkup = cleanFullFundReportMarkup(source.innerHTML);
     const safeTitle = selectedFund.fund_name.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const reportHtml = "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>ClearFlow Full Fund Report - " +
       safeTitle +
@@ -738,6 +738,28 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     }
   }
 
+  // CFCF PRODUCT: Reports expose only the Fund ID and Share IDs as identifiers.
+  // Strip tenant/person/contact/cycle/bill/payment IDs from both downloaded and archived HTML.
+  function cleanFullFundReportMarkup(markup: string): string {
+    const container = document.createElement("div");
+    container.innerHTML = markup;
+    const hiddenLabels = new Set(["Tenant ID", "Person ID"]);
+    container.querySelectorAll<HTMLElement>("*").forEach((element) => {
+      if (element.children.length === 0 && hiddenLabels.has((element.textContent ?? "").trim())) {
+        const card = element.closest("div.rounded-xl");
+        if (card) card.remove();
+        else element.remove();
+      }
+    });
+    // These identifiers are inline metadata rather than separate cards.
+    container.innerHTML = container.innerHTML
+      .replace(/\s*·\s*Contact ID\s*·\s*[^<]+/gi, "")
+      .replace(new RegExp("<p>\\s*Cycle ID\\s*·\\s*[^<]*</p>", "gi"), "")
+      .replace(/(Share ID\s*·\s*[^<]*?)\s*·\s*Billing ID\s*·\s*[^<]*/gi, "$1")
+      .replace(/Payment ID\s*·\s*[^<]*?\s*·\s*Share\s*·/gi, "Share ·");
+    return container.innerHTML;
+  }
+
   async function downloadFullFundReport(requiredBeforeArchive = false): Promise<boolean> {
     if (isDownloadingFullFundReport) return false;
     if (!selectedFund) {
@@ -754,7 +776,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
 
       // Download the same database-backed report shown in the Full Fund Report modal.
       // Keep the HTML self-contained so it can be opened offline or shared through WhatsApp.
-      const reportMarkup = source.innerHTML;
+      const reportMarkup = cleanFullFundReportMarkup(source.innerHTML);
       const safeTitle = selectedFund.fund_name
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
