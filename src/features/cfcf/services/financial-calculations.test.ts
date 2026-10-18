@@ -127,7 +127,7 @@ test("Fund net balance may be negative; commissions are read from Cycle rows and
     [],
     [adjustment({ amount: 200 }), adjustment({ entry_id: "adjustment-2", entry_type: "debit", amount: 350 })],
   );
-  assert.equal(result.fundNetBalance, -650); // billed 100 - withdrawn 500 - pending 100 - commissions 150
+  assert.equal(result.fundNetBalance, -650); // net payments 0 - withdrawn 500 - commissions 150
   assert.equal(result.otherAmount, -150);
   assert.equal(result.fundTotalBilledAmount, 100);
   assert.equal(result.fundTotalWithdrawn, 500);
@@ -202,4 +202,18 @@ test("preserves exact net payment totals when gross ledger sums exceed the safe 
   ]);
   assert.equal(result.shares[0].shareNetPaymentReceived, Number.MAX_SAFE_INTEGER);
   assert.equal(result.shares[0].totalAdvance, Number.MAX_SAFE_INTEGER);
+});
+
+test("Fund net balance uses net payments received, withdrawn payouts and commissions only", () => {
+  const result = calculate(
+    [share({ payout_status: "drawn", withdrawn_amount: 500 })],
+    [bill({ amount: 100 }), bill({ bill_id: 502, cycle_id: 2, amount: 900, bill_date: "2026-02-01" })],
+    [payment({ amount: 1200 })],
+  );
+  assert.equal(result.fundTotalBilledAmount, 1000);
+  assert.equal(result.fundTotalPendingAmount, 0);
+  assert.equal(result.fundNetPaymentReceived, 1200);
+  assert.equal(result.fundTotalWithdrawn, 500);
+  assert.equal(result.fundTotalCommissions, 150);
+  assert.equal(result.fundNetBalance, 550); // 1200 - 500 - 150; billed/pending do not enter the formula.
 });
