@@ -791,8 +791,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             clonedDocument.querySelectorAll("style, link[rel='stylesheet']").forEach((node) => node.remove());
             clonedDocument.querySelectorAll<HTMLElement>("[style]").forEach((element) => {
               const inline = element.getAttribute("style") ?? "";
-              if (/oklch\\(/i.test(inline)) {
-                element.setAttribute("style", inline.replace(/oklch\\([^)]*\\)/gi, "#64748b"));
+              if (/oklch\(/i.test(inline)) {
+                element.setAttribute("style", inline.replace(/oklch\([^)]*\)/gi, "#64748b"));
               }
             });
             const clonedRoot = clonedDocument.body.lastElementChild;
