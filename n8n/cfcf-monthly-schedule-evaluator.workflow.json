@@ -47,7 +47,7 @@
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "const { DateTime } = require('luxon');\n\nfunction nextMonthlyRun(schedule, after) {\n  const zone = schedule.timezone || 'Asia/Kolkata';\n  const [hour, minute, second = '0'] = String(schedule.time_of_day).split(':');\n  const cursor = after.setZone(zone).startOf('month');\n\n  for (let offset = 0; offset < 15; offset++) {\n    const month = cursor.plus({ months: offset });\n    const day = Math.min(Number(schedule.day_of_month), month.daysInMonth);\n    const candidate = month.set({\n      day,\n      hour: Number(hour),\n      minute: Number(minute),\n      second: Number(second),\n      millisecond: 0,\n    });\n    if (candidate.toMillis() > after.toMillis()) return candidate.toUTC().toISO();\n  }\n  throw new Error('Unable to calculate the next monthly run');\n}\n\n// HTTP Request may return a JSON array directly or as a body property.\n// Empty claim results intentionally produce no output items.\nconst rows = items.flatMap(({ json }) => {\n  const payload = json.body ?? json;\n  if (Array.isArray(payload)) return payload;\n  if (payload && payload.schedule_id) return [payload];\n  return [];\n});\n\nconst now = DateTime.now();\nreturn rows.map(schedule => {\n  if (!schedule.schedule_id || !schedule.time_of_day || !schedule.day_of_month) {\n    throw new Error('Claimed schedule is missing required fields');\n  }\n\n  const next = nextMonthlyRun(schedule, now);\n  if (!schedule.next_run_at) {\n    return { json: { action: 'initialize', schedule_id: schedule.schedule_id, next_run_at: next } };\n  }\n\n  return {\n    json: {\n      action: 'enqueue',\n      schedule_id: schedule.schedule_id,\n      scheduled_for: schedule.next_run_at,\n      next_run_at: next,\n    },\n  };\n});"
+        "jsCode": "const { DateTime } = require('luxon');\n\nfunction nextMonthlyRun(schedule, after) {\n  const zone = schedule.timezone || 'Asia/Kolkata';\n  const [hour, minute, second = '0'] = String(schedule.time_of_day).split(':');\n  const cursor = after.setZone(zone).startOf('month');\n\n  for (let offset = 0; offset < 15; offset++) {\n    const month = cursor.plus({ months: offset });\n    const day = Math.min(Number(schedule.day_of_month), month.daysInMonth);\n    const candidate = month.set({\n      day,\n      hour: Number(hour),\n      minute: Number(minute),\n      second: Number(second),\n      millisecond: 0,\n    });\n    if (candidate.toMillis() > after.toMillis()) return candidate.toUTC().toISO();\n  }\n  throw new Error('Unable to calculate the next monthly run');\n}\n\n// HTTP Request may return a JSON array directly or as a body property.\n// Empty claim results intentionally produce no output items.\nconst rows = items.flatMap(({ json }) => {\n  const payload = json.body ?? json;\n  if (Array.isArray(payload)) return payload;\n  if (payload && payload.schedule_id) return [payload];\n  return [];\n});\n\nconst now = DateTime.now();\nreturn rows.map(schedule => {\n  if (!schedule.schedule_id || !schedule.time_of_day || !schedule.day_of_month) {\n    throw new Error('Claimed schedule is missing required fields');\n  }\n\n  const next = nextMonthlyRun(schedule, now);\n  if (!schedule.next_run_at) {\n    return { json: { action: 'initialize', schedule_id: schedule.schedule_id, next_run_at: next, claimed_until: schedule.claimed_until } };\n  }\n\n  return {\n    json: {\n      action: 'enqueue',\n      schedule_id: schedule.schedule_id,\n      scheduled_for: schedule.next_run_at,\n      next_run_at: next,\n    },\n  };\n});"
       },
       "id": "cfcf-calculate-occurrence",
       "name": "Calculate Monthly Occurrence",
@@ -101,7 +101,7 @@
         "genericAuthType": "httpCustomAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { p_schedule_id: $json.schedule_id, p_next_run_at: $json.next_run_at } }}",
+        "jsonBody": "={{ { p_schedule_id: $json.schedule_id, p_next_run_at: $json.next_run_at, p_claimed_until: $json.claimed_until } }}",
         "options": {}
       },
       "id": "cfcf-initialize-schedule",
@@ -113,7 +113,7 @@
         180
       ],
       "notesInFlow": true,
-      "notes": "SETUP REQUIRED: use the same Supabase Custom Auth credential as the claim node. This only initializes a future run; it does not send or queue anything."
+      "notes": "SETUP REQUIRED: use the same Supabase Custom Auth credential as the claim node. The claimed_until value is passed back so a stale execution cannot initialize a schedule after its lease has been replaced. This only initializes a future run; it does not send or queue anything."
     },
     {
       "parameters": {
