@@ -58,7 +58,6 @@ import {
   type CfcfFundOtherAdjustmentSummary,
 } from "../services/workspace.service";
 import type { CfcfBillRow, CfcfContactRow, CfcfFundRow, CfcfShareRow } from "../types/database.types";
-import { jsPDF } from "jspdf";
 
 type WorkspaceTab = "shares" | "ledger";
 type WorkspaceSectionTab = "fund-summary" | "shares";
@@ -111,7 +110,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [isArchiveConfirmOpen, setIsArchiveConfirmOpen] = useState(false);
   const [isArchiveRequested, setIsArchiveRequested] = useState(false);
   const [archiveReportHtml, setArchiveReportHtml] = useState<string | null>(null);
-  const [isDownloadingFullFundPdf, setIsDownloadingFullFundPdf] = useState(false);
+  const [isDownloadingFullFundReport, setIsDownloadingFullFundPdf] = useState(false);
   const [archivingError, setArchivingError] = useState<string | null>(null);
   const [deletingArchivedId, setDeletingArchivedId] = useState<string | null>(null);
   const [archivedDeleteTarget, setArchivedDeleteTarget] = useState<CfcfArchivedFundRow | null>(null);
@@ -273,7 +272,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   }, [workspace.tenantId]);
 
   async function archiveSelectedFund() {
-    if (!selectedFund || isArchivingFund || isDownloadingFullFundPdf) return;
+    if (!selectedFund || isArchivingFund || isDownloadingFullFundReport) return;
     const source = document.querySelector("[data-cfcf-full-fund-report]");
     if (!(source instanceof HTMLElement)) {
       setFullFundReportError("Full Fund report content is not ready. Please close and reopen the report, then try again.");
@@ -291,20 +290,20 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     setArchiveTypedId("");
     setArchivingError(null);
     setFullFundReportError(null);
-    const pdfReady = await printFullFundReport(true);
-    if (!pdfReady) return;
+    const reportReady = await downloadFullFundReport(true);
+    if (!reportReady) return;
     setIsFullFundReportOpen(false);
     setIsArchiveConfirmOpen(true);
   }
 
   useEffect(() => {
-    if (!isArchiveRequested || !isFullFundReportOpen || isLoadingFullFundReport || isDownloadingFullFundPdf || isArchivingFund) return;
+    if (!isArchiveRequested || !isFullFundReportOpen || isLoadingFullFundReport || isDownloadingFullFundReport || isArchivingFund) return;
     setIsArchiveRequested(false);
     void archiveSelectedFund();
-  }, [isArchiveRequested, isFullFundReportOpen, isLoadingFullFundReport, isDownloadingFullFundPdf, isArchivingFund, selectedFundId]);
+  }, [isArchiveRequested, isFullFundReportOpen, isLoadingFullFundReport, isDownloadingFullFundReport, isArchivingFund, selectedFundId]);
 
   async function requestArchiveSelectedFund() {
-    if (!selectedFund || isLoadingFullFundReport || isArchivingFund || isDownloadingFullFundPdf) return;
+    if (!selectedFund || isLoadingFullFundReport || isArchivingFund || isDownloadingFullFundReport) return;
     setIsArchiveRequested(true);
     await openFullFundReport();
   }
@@ -731,250 +730,66 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     }
   }
 
-  async function printFullFundReport(requiredBeforeArchive = false): Promise<boolean> {
-    if (isDownloadingFullFundPdf) return false;
+  async function downloadFullFundReport(requiredBeforeArchive = false): Promise<boolean> {
+    if (isDownloadingFullFundReport) return false;
     if (!selectedFund) {
       setFullFundReportError("Select a Fund before downloading its report.");
       return false;
     }
-    setIsDownloadingFullFundPdf(true);
+    setIsDownloadingFullFundReport(true);
     try {
       setFullFundReportError(null);
-      // Build a readable PDF from the same freshly loaded, tenant-scoped records
-      // used by the Full Fund Report. Do not flatten the rendered HTML into raw text.
-      const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 15;
-      const usableWidth = pageWidth - margin * 2;
-      let y = margin;
-
-      const ensureSpace = (height: number) => {
-        if (y + height > pageHeight - margin) {
-          pdf.addPage();
-          y = margin;
-        }
-      };
-      const writeLines = (value: string, options: { size?: number; bold?: boolean; gapAfter?: number } = {}) => {
-        const size = options.size ?? 9;
-        pdf.setFont("helvetica", options.bold ? "bold" : "normal");
-        pdf.setFontSize(size);
-        const normalized = String(value ?? "").replace(/\u00a0/g, " ").replace(/₹/g, "INR ").replace(/[\t ]+/g, " ").trim();
-        const lines = pdf.splitTextToSize(normalized, usableWidth) as string[];
-        const lineHeight = size * 0.42;
-        ensureSpace(Math.max(lineHeight, lines.length * lineHeight) + (options.gapAfter ?? 1));
-        for (const line of lines) {
-          ensureSpace(lineHeight);
-          pdf.text(line, margin, y);
-          y += lineHeight;
-        }
-        y += options.gapAfter ?? 1;
-      };
-      const heading = (value: string) => {
-        y += 2;
-        ensureSpace(13);
-        pdf.setFillColor(232, 239, 247);
-        pdf.roundedRect(margin, y - 2, usableWidth, 9, 1.5, 1.5, "F");
-        pdf.setTextColor(25, 55, 90);
-        y += 1;
-        writeLines(value, { size: 11, bold: true, gapAfter: 2 });
-        pdf.setTextColor(30, 41, 59);
-      };
-      const field = (label: string, value: unknown) => writeLines(label + ": " + String(value ?? "Not recorded"), { size: 9, gapAfter: 1 });
-      const record = (title: string, fields: Array<[string, unknown]>) => {
-        ensureSpace(14);
-        pdf.setFillColor(247, 249, 252);
-        pdf.roundedRect(margin, y - 1, usableWidth, 6, 1, 1, "F");
-        pdf.setTextColor(25, 55, 90);
-        y += 2;
-        writeLines(title, { size: 9.5, bold: true, gapAfter: 1 });
-        pdf.setTextColor(30, 41, 59);
-        for (const [label, value] of fields) field(label, value);
-        pdf.setDrawColor(225, 230, 236);
-        pdf.line(margin, y, pageWidth - margin, y);
-        y += 2;
-      };
-      const paymentRows = ledgerItems.filter((item) => item.kind === "payment").slice().sort((a, b) => a.date.localeCompare(b.date));
-      const adjustmentRows = ledgerItems.filter((item) => item.kind === "fund-entry");
-
-      writeLines("CLEARFLOW · FULL FUND REPORT", { size: 16, bold: true, gapAfter: 3 });
-      writeLines(selectedFund.fund_name, { size: 13, bold: true, gapAfter: 2 });
-      field("Fund ID", selectedFund.fund_id);
-      field("Report date", new Date().toLocaleDateString("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }));
-      field("Start date", selectedFund.start_date ? formatDate(selectedFund.start_date) : "Not set");
-      field("Planned cycles", selectedFund.number_of_cycles ?? "Not set");
-      field("Saved cycles", cycleRows.length);
-      field("Share records", shares.length);
-      field("Billing entries", bills.length);
-      field("Payment entries", paymentRows.length);
-      field("Other adjustment entries", adjustmentRows.length);
-
-      heading("Workspace / Tenant Details");
-      field("Tenant ID", workspace.tenantId);
-      field("Authorized person", workspace.displayName || "Not available");
-      field("Person ID", workspace.personId);
-      field("Email", workspace.email || "Not available");
-
-      heading("1. Fund Summary (stored values)");
-      field("Fund Net Balance", formatINR(selectedFund.fund_net_balance ?? 0));
-      field("Total billed", formatINR(selectedFund.fund_total_billed_amount ?? 0));
-      field("Pending", formatINR(selectedFund.fund_total_pending_amount ?? 0));
-      field("Advance", formatINR(selectedFund.fund_total_advance ?? 0));
-      field("Withdrawn", formatINR(selectedFund.fund_total_withdrawn ?? 0));
-      field("Commissions", formatINR(selectedFund.fund_total_commissions ?? 0));
-
-      heading("2. Share-wise Summary");
-      if (!shares.length) writeLines("No Share records were returned for this Fund.");
-      for (const share of shares) {
-        const contact = contactById.get(share.contact_id);
-        record((contact?.name ?? "Contact unavailable") + " · Share " + share.share_id, [
-          ["Contact ID", share.contact_id],
-          ["Phone", contact?.phone || "Not recorded"],
-          ["Share status", share.status],
-          ["Payout status", share.payout_status === "drawn" ? "Drawn" : "Undrawn"],
-          ["Total billed (stored)", formatINR(share.share_total_billed_amount ?? 0)],
-          ["Total paid / net received (stored)", formatINR(share.share_net_payment_received ?? 0)],
-          ["Advance (stored)", formatINR(share.total_advance ?? 0)],
-          ["Pending (stored)", formatINR(share.total_pending ?? 0)],
-          ["Draw cycle", share.payout_status === "drawn" ? (share.payout_cycle_number ?? "Not recorded") : "Not drawn"],
-          ["Recorded payout", share.payout_status === "drawn" ? formatINR(share.withdrawn_amount ?? 0) : "Not drawn"],
-        ]);
+      const source = document.querySelector("[data-cfcf-full-fund-report]");
+      if (!(source instanceof HTMLElement)) {
+        throw new Error("Full Fund Report content is not ready. Please close and reopen the report, then try again.");
       }
 
-      heading("3. Saved Cycle Register");
-      if (!cycleRows.length) writeLines("No saved Cycles were returned for this Fund.");
-      for (const cycle of cycleRows) record("Cycle " + cycle.cycle_number, [
-        ["Cycle ID", cycle.cycle_id],
-        ["Planned payout", displayStoredAmount(cycle.planned_payout_amount)],
-        ["Commission", displayStoredAmount(cycle.commission_amount)],
-        ["Created", formatDate(cycle.created_at)],
-        ["Updated", formatDate(cycle.updated_at)],
-      ]);
+      // Download the same database-backed report shown in the Full Fund Report modal.
+      // Keep the HTML self-contained so it can be opened offline or shared through WhatsApp.
+      const reportMarkup = source.innerHTML;
+      const safeTitle = selectedFund.fund_name
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+      const html = "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>ClearFlow Full Fund Report - " +
+        safeTitle +
+        "</title><style>" +
+        "*,*::before,*::after{box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;color:#0f172a;background:#fff;margin:0;padding:16px;line-height:1.5}main{max-width:900px;margin:0 auto}header{max-width:900px;margin:0 auto 16px;padding:8px 0 14px;border-bottom:2px solid #0f172a;text-align:center}header .brand{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#475569;font-weight:700}header h1{font-size:22px;margin:4px 0;font-weight:800}header p{font-size:12px;color:#64748b;margin:0}section,article{margin-bottom:14px;break-inside:avoid}h2,h3,h4{margin:8px 0;font-weight:700}p{margin:6px 0}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.rounded-xl{border-radius:12px}.border{border:1px solid #cbd5e1}.p-3{padding:12px}.p-4{padding:16px}.bg-slate-50{background:#f8fafc}.text-xs{font-size:12px}.text-sm{font-size:14px}.text-base{font-size:16px}.text-xl{font-size:22px}.font-bold,.font-semibold{font-weight:700}.uppercase{text-transform:uppercase}.tracking-wide{letter-spacing:.04em}.text-slate-500{color:#64748b}.text-slate-600{color:#475569}.text-slate-900{color:#0f172a}.text-amber-900{color:#78350f}.bg-amber-50{background:#fffbeb}.border-amber-200{border-color:#fde68a}.break-all,.break-words{overflow-wrap:anywhere;word-break:break-word}button{display:none!important}@media(max-width:480px){body{padding:10px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.p-3{padding:10px}.p-4{padding:12px}}@media print{body{padding:0}section,article{break-inside:avoid}}" +
+        "</style></head><body><header><div class=\"brand\">ClearFlow Automations</div><h1>Full Fund Report</h1><p>" +
+        safeTitle +
+        "</p></header><main>" +
+        reportMarkup +
+        "</main><footer style=\"max-width:900px;margin:20px auto 0;padding-top:10px;border-top:1px solid #cbd5e1;text-align:center;color:#64748b;font-size:11px\">Generated from saved ClearFlow Fund records · Keep this file as a readable report backup</footer></body></html>";
 
-      heading("4. Cycle-wise Billing Details");
-      if (!cycleRows.length && !bills.length) writeLines("No saved Cycle or billing records were returned for this Fund.");
-      for (const cycle of cycleRows) {
-        const cycleBills = bills.filter((bill) => bill.cycle_id === cycle.cycle_id).slice().sort((a, b) => a.share_id.localeCompare(b.share_id));
-        writeLines("Cycle " + cycle.cycle_number + " · " + cycleBills.length + " saved billing record(s)", { size: 10, bold: true, gapAfter: 2 });
-        if (!cycleBills.length) writeLines("No billing entries recorded for this Cycle.");
-        for (const bill of cycleBills) {
-          const share = shares.find((item) => item.share_id === bill.share_id);
-          const contact = share ? contactById.get(share.contact_id) : undefined;
-          record((contact?.name ?? "Contact unavailable") + " · " + formatINR(bill.amount), [
-            ["Share ID", bill.share_id],
-            ["Billing ID", bill.bill_id],
-            ["Billing date", bill.bill_date ? formatDate(bill.bill_date) : "Not recorded"],
-            ["Saved", formatDate(bill.created_at)],
-          ]);
-        }
-      }
-      if (!cycleRows.length) {
-        for (const bill of bills) record("Share " + bill.share_id + " · " + formatINR(bill.amount), [
-          ["Billing ID", bill.bill_id], ["Cycle ID", bill.cycle_id],
-          ["Billing date", bill.bill_date ? formatDate(bill.bill_date) : "Not recorded"],
-        ]);
-      }
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const safeFileName = selectedFund.fund_name
+        .trim()
+        .replace(/[^a-z0-9-_]+/gi, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 60) || "Fund";
+      link.href = url;
+      link.download = "ClearFlow-" + safeFileName + "-Full-Fund-Report.html";
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 
-      heading("5. Complete Payment Ledger");
-      if (!paymentRows.length) writeLines("No payment records were returned for this Fund.");
-      for (const item of paymentRows) {
-        const share = shares.find((row) => row.share_id === item.shareId);
-        const contact = share ? contactById.get(share.contact_id) : undefined;
-        record(formatDate(item.date) + " · " + (item.entryType === "credit" ? "Credit" : "Debit") + " · " + formatINR(item.amount), [
-          ["Payment ID", item.id],
-          ["Shareholder", contact?.name ?? "Contact unavailable"],
-          ["Share ID", item.shareId ?? "Not recorded"],
-          ["Mode", item.paymentType ?? "Not recorded"],
-          ["Remarks", item.remarks || "None"],
-        ]);
-      }
-
-      heading("6. Draw / Payout Register");
-      if (!shares.length) writeLines("No Share payout statuses were returned for this Fund.");
-      for (const share of shares) {
-        const contact = contactById.get(share.contact_id);
-        record((contact?.name ?? "Contact unavailable") + " · " + (share.payout_status === "drawn" ? "Drawn" : "Undrawn"), [
-          ["Share ID", share.share_id],
-          ["Cycle", share.payout_status === "drawn" ? (share.payout_cycle_number ?? "Not recorded") : "Not drawn"],
-          ["Recorded payout", share.payout_status === "drawn" ? formatINR(share.withdrawn_amount ?? 0) : "Not drawn"],
-        ]);
-      }
-
-      heading("7. Other Adjustments — Separate Ledger");
-      writeLines("These credits and debits are independent and are not included in Fund financial calculations, Share balances, Cycle billing, payments or payouts.");
-      if (fullFundReportAdjustmentsSummary) {
-        field("Adjustment entries", fullFundReportAdjustmentsSummary.entry_count);
-        field("Total credits", formatINR(fullFundReportAdjustmentsSummary.total_credits));
-        field("Total debits", formatINR(fullFundReportAdjustmentsSummary.total_debits));
-        field("Net adjustments (separate)", formatINR(fullFundReportAdjustmentsSummary.net_adjustments));
-      }
-      if (!adjustmentRows.length) writeLines("No adjustment entries were returned for this Fund.");
-      for (const item of adjustmentRows) record(formatDate(item.date) + " · " + item.entryType, [
-        ["Amount", formatINR(item.amount)],
-        ["Entry ID", item.id],
-        ["Category", adjustmentCategoryLabel(item.adjustmentCategory)],
-        ["Remarks", item.remarks || "None"],
-      ]);
-
-      heading("8. Report Notes");
-      writeLines("All figures above are shown from saved Fund/Share fields and saved ledger records. No new financial totals are derived by this report.");
-      writeLines("Generated from the currently authorized ClearFlow workspace. Keep this report with the Fund's business records.");
-
-      // Add a consistent ClearFlow Automations header and footer to every page.
-      const pageCount = pdf.getNumberOfPages();
-      for (let page = 1; page <= pageCount; page += 1) {
-        pdf.setPage(page);
-        pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(8);
-        pdf.setTextColor(35, 69, 105);
-        pdf.text("ClearFlow Automations", margin, 8);
-        pdf.setDrawColor(205, 214, 224);
-        pdf.line(margin, 10, pageWidth - margin, 10);
-        pdf.line(margin, pageHeight - 11, pageWidth - margin, pageHeight - 11);
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(8);
-        pdf.setTextColor(90, 100, 112);
-        pdf.text("ClearFlow Automations · Full Fund Report", margin, pageHeight - 6);
-        pdf.text("Page " + page + " of " + pageCount, pageWidth - margin, pageHeight - 6, { align: "right" });
-      }
-      const filename = "ClearFlow-Full-Fund-Report.pdf";
-      const blob = pdf.output("blob");
-      const file = new File([blob], filename, { type: "application/pdf" });
-      // On iOS, offer the native share sheet so Save to Files is available
-      // directly, rather than first navigating to a PDF viewer tab.
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-      if (isIOS && typeof navigator.share === "function" &&
-          typeof navigator.canShare === "function" && navigator.canShare({ files: [file] })) {
-        try {
-          await navigator.share({ files: [file], title: selectedFund.fund_name + " · Full Fund Report" });
-        } catch (shareError) {
-          if (shareError instanceof Error && shareError.name === "AbortError") {
-            setFullFundReportError("PDF sharing was cancelled. The Fund was not changed.");
-            return false;
-          }
-          throw shareError;
-        }
-      } else {
-        // Blob URL download with a filename for browsers that support the download attribute.
-        const url = URL.createObjectURL(blob);
-        const anchor = document.createElement("a");
-        anchor.href = url;
-        anchor.download = filename;
-        anchor.style.display = "none";
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-      }
-      if (!requiredBeforeArchive) showDatabaseResult(isIOS ? "PDF ready. Choose Save to Files in the iPhone share sheet to store it." : "Full Fund Report PDF download started.");
+      showDatabaseResult(requiredBeforeArchive
+        ? "Full Fund Report HTML download started. Confirm the download, then continue with the archive confirmation."
+        : "Full Fund Report HTML download started. You can open it offline or share it through WhatsApp.");
       return true;
     } catch (error) {
-      const message = error instanceof Error ? "PDF download failed: " + error.message + ". Your Fund data is unchanged. Please retry." : "PDF download failed. Your Fund data is unchanged. Please retry.";
+      const message = error instanceof Error
+        ? "HTML report download failed: " + error.message + ". Your Fund data is unchanged. Please retry."
+        : "HTML report download failed. Your Fund data is unchanged. Please retry.";
       setFullFundReportError(message);
       return false;
     } finally {
-      setIsDownloadingFullFundPdf(false);
+      setIsDownloadingFullFundReport(false);
     }
   }
   function printFundReport() {
@@ -1842,10 +1657,10 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           </section>
 
           <section className="space-y-2 border-t border-slate-200 pt-4">
-            <button type="button" onClick={() => void openFullFundReport()} disabled={isLoadingFullFundReport || isArchivingFund || isDownloadingFullFundPdf} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 text-sm font-semibold text-sky-800 shadow-sm hover:bg-sky-100 disabled:opacity-50">
+            <button type="button" onClick={() => void openFullFundReport()} disabled={isLoadingFullFundReport || isArchivingFund || isDownloadingFullFundReport} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 text-sm font-semibold text-sky-800 shadow-sm hover:bg-sky-100 disabled:opacity-50">
               <FileText size={17}/> {isLoadingFullFundReport ? "Preparing report…" : "Full Fund Report"}
             </button>
-            <button type="button" onClick={() => void requestArchiveSelectedFund()} disabled={isLoadingFullFundReport || isArchivingFund || isDownloadingFullFundPdf} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 text-sm font-semibold text-amber-900 shadow-sm hover:bg-amber-100 disabled:opacity-50">
+            <button type="button" onClick={() => void requestArchiveSelectedFund()} disabled={isLoadingFullFundReport || isArchivingFund || isDownloadingFullFundReport} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 text-sm font-semibold text-amber-900 shadow-sm hover:bg-amber-100 disabled:opacity-50">
               <Archive size={17}/> Archive Fund
             </button>
             <p className="text-center text-xs leading-5 text-slate-500">Archiving is separate from the report modal and requires successful PDF generation before permanent removal.</p>
@@ -2418,7 +2233,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
 
       <Modal isOpen={isFullFundReportOpen} title="Full Fund Report" description="Database-backed Full Fund Report. Download the complete PDF report here." size="large" onClose={() => setIsFullFundReportOpen(false)}>
         <div className="space-y-4">
-          <div className="sticky top-0 z-10 -mx-1 flex flex-wrap gap-2 border-b border-slate-100 bg-white px-1 py-2"><button type="button" onClick={() => void printFullFundReport()} disabled={!selectedFund || isLoadingFullFundReport || isDownloadingFullFundPdf || isArchivingFund} className="min-h-11 flex-1 rounded-xl bg-violet-700 px-4 text-sm font-semibold text-white disabled:opacity-40">{isDownloadingFullFundPdf ? "Generating PDF…" : "Download PDF"}</button><button type="button" onClick={() => setIsFullFundReportOpen(false)} disabled={isArchivingFund} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Close</button></div>
+          <div className="sticky top-0 z-10 -mx-1 flex flex-wrap gap-2 border-b border-slate-100 bg-white px-1 py-2"><button type="button" onClick={() => void downloadFullFundReport()} disabled={!selectedFund || isLoadingFullFundReport || isDownloadingFullFundReport || isArchivingFund} className="min-h-11 flex-1 rounded-xl bg-violet-700 px-4 text-sm font-semibold text-white disabled:opacity-40">{isDownloadingFullFundReport ? "Generating PDF…" : "Download PDF"}</button><button type="button" onClick={() => setIsFullFundReportOpen(false)} disabled={isArchivingFund} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Close</button></div>
           {fullFundReportError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{fullFundReportError}</p>}
           {selectedFund && <div data-cfcf-full-fund-report className="space-y-4 text-slate-900">
             <section className="report-section rounded-xl border border-slate-200 bg-slate-50 p-4">
