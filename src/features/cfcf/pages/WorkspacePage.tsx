@@ -799,7 +799,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     if (!source) return null;
     const content = source.innerHTML;
     return "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>ClearFlow Fund Summary</title><style>" +
-      "body{font-family:Arial,sans-serif;color:#0f172a;padding:16px;max-width:1000px;margin:auto;line-height:1.45}*{box-sizing:border-box}h1,h2,h3,p{margin:6px 0}.brand{text-align:center;font-weight:800;font-size:16px;padding:4px 0 12px;border-bottom:2px solid #0f172a;margin-bottom:12px}.generated{font-size:12px;color:#475569;margin-bottom:14px}.summary-page{margin:0 0 24px}.summary-page[hidden]{display:block!important}.summary-page h3{font-size:17px;margin:12px 0 8px}.summary-meta{font-size:13px;margin:4px 0 12px}.summary-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}.summary-table th,.summary-table td{border:1px solid #cbd5e1;padding:6px 4px;text-align:left;vertical-align:top;overflow-wrap:anywhere;word-break:break-word}.summary-table th{background:#f1f5f9;font-weight:700}.summary-table td:first-child{font-weight:600}.page-break{break-before:page;page-break-before:always}@media(max-width:600px){body{padding:8px}.summary-table{font-size:10px}.summary-table th,.summary-table td{padding:4px 2px}}@media print{body{padding:0}.summary-page{break-after:page;page-break-after:always}.summary-page:last-child{break-after:auto;page-break-after:auto}}button{display:none!important}" +
+      "body{font-family:Arial,sans-serif;color:#0f172a;padding:16px;max-width:1000px;margin:auto;line-height:1.45}*{box-sizing:border-box}h1,h2,h3,p{margin:6px 0}.brand{text-align:center;font-weight:800;font-size:16px;padding:4px 0 12px;border-bottom:2px solid #0f172a;margin-bottom:12px}.generated{font-size:12px;color:#475569;margin-bottom:14px}.summary-page{margin:0 0 24px}.summary-page[hidden]{display:block!important}.summary-page h3{font-size:17px;margin:12px 0 8px}.summary-meta{font-size:13px;margin:4px 0 12px}.summary-table-wrap{width:100%;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}.summary-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}.summary-table.share-table{min-width:900px;table-layout:auto}.summary-table th,.summary-table td{border:1px solid #cbd5e1;padding:6px 8px;text-align:left;vertical-align:top;white-space:normal;overflow-wrap:normal;word-break:normal}.summary-table th{background:#f1f5f9;font-weight:700}.summary-table td:first-child{font-weight:600}.page-break{break-before:page;page-break-before:always}@media(max-width:600px){body{padding:8px}.summary-table{font-size:12px}.summary-table th,.summary-table td{padding:6px 8px}}@media print{body{padding:0}.summary-page{break-after:page;page-break-after:always}.summary-page:last-child{break-after:auto;page-break-after:auto}.summary-table-wrap{overflow:visible}.summary-table.share-table{min-width:900px}}button{display:none!important}" +
       "</style></head><body>" + content + "</body></html>";
   }
 
@@ -2444,6 +2444,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                   </tbody>
                 </table>
               </div>
+              <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700"><span className="font-semibold">Net Balance formula:</span> Net payments received − Total withdrawn − Total commission. The displayed Net Balance is the stored Fund value; this report does not recalculate it.</p>
               <p className="text-xs text-slate-500">Other Adjustments are excluded from Fund financials and remain available in the separate Adjustments ledger.</p>
             </section>
             <section hidden={fundSummaryPage !== 2} className="summary-page space-y-3">
@@ -2453,8 +2454,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                 <p className="mt-1 text-xs text-slate-600">Summary generated · {fundSummaryGeneratedAt || "Not generated"}</p>
               </header>
               <h3 className="text-base font-bold">Page 2 of 2 · Share-wise Summary</h3>
-              {shares.length ? <div className="overflow-hidden rounded-lg border border-slate-200">
-                <table className="summary-table w-full table-fixed border-collapse text-xs">
+              {shares.length ? <div className="summary-table-wrap overflow-x-auto rounded-lg border border-slate-200">
+                <table className="summary-table share-table min-w-[900px] border-collapse text-xs">
                   <thead><tr>
                     <th className="border border-slate-200 bg-slate-50 p-1 text-left">Share ID</th>
                     <th className="border border-slate-200 bg-slate-50 p-1 text-left">Member</th>
