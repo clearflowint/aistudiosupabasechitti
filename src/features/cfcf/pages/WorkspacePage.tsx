@@ -765,6 +765,29 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         image: { type: "jpeg", quality: 0.98 },
         html2canvas: {
           scale: 2, useCORS: true, logging: false, backgroundColor: "#ffffff", windowWidth: 794,
+          onclone: (clonedDocument: Document) => {
+            // html2canvas cannot parse Tailwind v4's OKLCH color functions. Replace
+            // those color tokens in the cloned stylesheets with a PDF-safe fallback,
+            // preserving the rest of the report's styling and layout.
+            clonedDocument.querySelectorAll("style").forEach((node) => {
+              node.textContent = (node.textContent ?? "").replace(/oklch\\([^)]*\\)/gi, "#64748b");
+            });
+            clonedDocument.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]').forEach((node) => {
+              try {
+                const sourceSheet = Array.from(document.styleSheets).find((sheet) => sheet.href === node.href);
+                const rules = sourceSheet ? Array.from(sourceSheet.cssRules).map((rule) => rule.cssText).join("\\n") : "";
+                if (rules) {
+                  const safeStyle = clonedDocument.createElement("style");
+                  safeStyle.textContent = rules.replace(/oklch\\([^)]*\\)/gi, "#64748b");
+                  node.replaceWith(safeStyle);
+                } else {
+                  node.remove();
+                }
+              } catch {
+                node.remove();
+              }
+            });
+          },
         },
         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
         pagebreak: { mode: ["css", "legacy"], avoid: [".record", ".metric", "h2"] },
