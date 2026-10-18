@@ -282,7 +282,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setFullFundReportError("Full Fund report content is not ready. Please close and reopen the report, then try again.");
       return;
     }
-    const reportMarkup = source.innerHTML;
+    const reportMarkup = cleanFullFundReportMarkup(source.innerHTML);
     const safeTitle = selectedFund.fund_name.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const reportHtml = "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>ClearFlow Full Fund Report - " +
       safeTitle +
