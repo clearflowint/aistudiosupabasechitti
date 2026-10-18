@@ -25,7 +25,7 @@ One row per configured slot:
 - `is_enabled`, `next_run_at`, `last_run_at`, `claimed_until`, `last_error`
 - timestamps
 
-Unique constraint on tenant + fund + job type + slot prevents duplicate slots. RLS is enabled and direct `anon`/ `authenticated` table access is revoked. Manager-facing reads/writes must be exposed later through authenticated owner-checking RPCs; never grant browser users the service-role key.
+Unique constraint on tenant + fund + job type + slot prevents duplicate slots. RLS is enabled and direct `anon`/ `authenticated` table access is revoked. Manager access is through owner-checked RPCs: `cfcf_save_automation_schedule`, `cfcf_list_automation_schedules`, `cfcf_list_automation_jobs`, and `cfcf_create_manual_automation_job`. Never grant browser users the service-role key.
 
 ### `cfcf_automation_jobs`
 
@@ -43,6 +43,7 @@ The row is the single source of truth for Manager Home and Workspace job history
 
 - `cfcf_claim_due_automation_schedules(p_limit)` claims due schedules for five minutes using `FOR UPDATE SKIP LOCKED`.
 - `cfcf_claim_automation_jobs(p_limit)` claims queued/delayed jobs for five minutes and increments the attempt count.
+- `cfcf_enqueue_scheduled_automation_job(schedule_id, scheduled_for, next_run_at)` creates the scheduled job and advances the recurrence in one transaction. Its idempotency key returns the existing job after an n8n timeout/retry.
 - Both claim functions are executable only by `service_role`. n8n must use credentials stored in n8n, never browser variables. Manager RPCs are executable by `authenticated` but verify `auth.uid()` and `is_active_tenant_owner('CFCF', tenant_id)` on every call.
 
 The n8n workflow must initialize `next_run_at` for newly enabled schedules without immediately executing them, clear `claimed_until` on successful processing, calculate and store the next monthly run, and record an error/release claim when an execution fails. Claims expire so crashed executions can be recovered. Expired `processing` jobs can be reclaimed; after eight attempts, n8n must surface a final failure rather than loop indefinitely.
@@ -95,7 +96,7 @@ return items.map(item => ({
 
 1. Schedule Trigger runs every minute.
 2. Call `POST /rest/v1/rpc/cfcf_claim_due_automation_schedules` and `POST /rest/v1/rpc/cfcf_claim_automation_jobs` using stored n8n credentials. Newly created schedules may have `next_run_at = null`; initialize their next future monthly occurrence and release the claim without running a job immediately.
-3. For a claimed schedule, resolve the tenant/fund from current saved data, create a job with an idempotency key such as `schedule:<schedule_id>:<scheduled-for-UTC>`, and advance `next_run_at`. Use an upsert/unique key so overlapping executions cannot create duplicates.
+3. For a claimed schedule with a real due timestamp, compute the next monthly occurrence in n8n and call `cfcf_enqueue_scheduled_automation_job(schedule_id, scheduled_for, next_run_at)`. This transaction creates the job and advances the schedule atomically. If `next_run_at` is null, initialize it to the next future occurrence and release the claim without creating a job.
 4. For each claimed job, validate the job type and ownership, then load only the required fund, share, bill and contact data.
 5. Pending reminders use saved pending/billing values; they must not invent dues or recalculate CFCF financial ledgers. Reports read saved records and render an HTML/CSV artifact. No PDF generation.
 6. Process recipients in n8n with bounded concurrency, provider-specific rate limits and retries only for transient failures. Never put phone numbers, message bodies or secrets into routine execution logs.
@@ -106,7 +107,7 @@ return items.map(item => ({
 ## Still required before production activation
 
 - Add the mobile-first manager UI for schedule setup, manual triggers and job history using the owner-checked RPCs.
-- Configure n8n's Supabase credential and WAHA/provider credential in the n8n credential store.
+- Import/configure the workflow in the n8n instance at `https://n8nclearflow.duckdns.org`; configure the Supabase service-role credential and WAHA/provider credential in n8n's credential store. Do not put secrets in the workflow JSON, source code, or browser variables.
 - Finish the workflow's provider nodes and report delivery destination.
 - Verify manual and scheduled paths with a test tenant, including month-end dates, duplicate execution, claim expiry, retries, and manager push notifications.
 - Keep campaign launch disabled until the separate campaign acceptance/callback path has its own end-to-end test.
