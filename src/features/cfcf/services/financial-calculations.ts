@@ -24,6 +24,7 @@ export interface CfcfShareFinancialSummary {
 export interface CfcfFundFinancialSummary {
   fundId: string;
   numberOfShares: number;
+  fundNetPaymentReceived: number;
   fundTotalBilledAmount: number;
   fundTotalPendingAmount: number;
   fundTotalAdvance: number;
@@ -143,6 +144,18 @@ export function calculateCfcfFundFinancialSummary(
     };
   });
 
+  const fundNetPaymentReceived = checkedTotal(
+    payments.filter((payment) => payment.fund_id === fund.fund_id && payment.tenant_id === fund.tenant_id && payment.product_id === fund.product_id)
+      .map((payment) => {
+        const amount = wholeRupees(payment.amount, "Payment " + payment.payment_id);
+        if (payment.entry_type === "credit") return amount;
+        if (payment.entry_type === "debit") return -amount;
+        throw new Error("Unsupported payment type in Payment " + payment.payment_id + ".");
+      }),
+    "Fund net payment received",
+  );
+  if (fundNetPaymentReceived < 0) throw new Error("Fund has net debits exceeding credits.");
+
   const billed = checkedTotal(shareSummaries.map((share) => share.shareTotalBilledAmount), "Fund billed total");
   const pending = checkedTotal(shareSummaries.map((share) => share.totalPending), "Fund pending total");
   const advance = checkedTotal(shareSummaries.map((share) => share.totalAdvance), "Fund advance total");
@@ -174,6 +187,7 @@ export function calculateCfcfFundFinancialSummary(
   return {
     fundId: fund.fund_id,
     numberOfShares: scopedShares.length,
+    fundNetPaymentReceived,
     fundTotalBilledAmount: billed,
     fundTotalPendingAmount: pending,
     fundTotalAdvance: advance,
