@@ -1517,7 +1517,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                   <span>Planned cycles: {selectedFund.number_of_cycles ?? "Not set"}</span>
                   <span>Cycle progress: {savedCycleNumbers().at(-1) ?? 0} / {selectedFund.number_of_cycles ?? "Not set"}</span>
                 </div>
-                <div className="mt-2 grid grid-cols-3 gap-2">
+                <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <div className="rounded-lg bg-slate-50 px-2 py-2"><p className="text-[11px] text-slate-500">Total payments received</p><p className="mt-1 text-sm font-bold tabular-nums text-slate-900">{formatINR(selectedFund.fund_net_payment_received ?? 0)}</p></div>
                   <div className="rounded-lg bg-slate-50 px-2 py-2"><p className="text-[11px] text-slate-500">Advance</p><p className="mt-1 text-sm font-bold tabular-nums text-slate-900">{formatINR(selectedFund.fund_total_advance ?? 0)}</p></div>
                   <div className="rounded-lg bg-slate-50 px-2 py-2"><p className="text-[11px] text-slate-500">Withdrawn</p><p className="mt-1 text-sm font-bold tabular-nums text-slate-900">{formatINR(selectedFund.fund_total_withdrawn ?? 0)}</p></div>
                   <div className="rounded-lg bg-slate-50 px-2 py-2"><p className="text-[11px] text-slate-500">Net balance</p><p className={["mt-1 text-sm font-bold tabular-nums", (selectedFund.fund_net_balance ?? 0) < 0 ? "text-rose-600" : (selectedFund.fund_net_balance ?? 0) > 0 ? "text-emerald-700" : "text-slate-900"].join(" ")}>{(selectedFund.fund_net_balance ?? 0) > 0 ? "+" : (selectedFund.fund_net_balance ?? 0) < 0 ? "−" : ""}{formatINR(Math.abs(selectedFund.fund_net_balance ?? 0))}</p></div>
