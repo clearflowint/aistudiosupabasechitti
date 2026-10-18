@@ -39,6 +39,14 @@ One row per run, manual or scheduled:
 
 The row is the single source of truth for Manager Home and Workspace job history. Composite foreign keys enforce that the job tenant/product pair exists and that any fund target belongs to that same tenant/product. No separate events/history table is planned initially.
 
+## Shared n8n tenant-isolation rule
+
+Every CFCF n8n workflow must carry the trusted `product_id` and `tenant_id` from the claimed job or an owner-checked request. When loading records for a job, filter by `product_id = 'CFCF'` and that job's `tenant_id`; add `fund_id`, contact/share/cycle IDs as applicable. Do not fetch a record by its ID alone and assume it belongs to the right tenant.
+
+For writes, use the same tenant/product scope and validate that related fund/contact/share/cycle records belong to it. The automation job table now enforces tenant/product and fund/tenant/product foreign keys. Keep legitimate n8n inserts and updates straightforward; use existing RPCs or scoped Supabase REST operations rather than adding a new security wrapper per workflow. Never trust tenant identity supplied by a WhatsApp sender or other external payload as the authority for a database target.
+
+The central worker may claim jobs for multiple tenants. That is intentional: each returned job carries its own tenant/fund scope, and all later reads, recipient selection, and writes must stay within that one job's scope.
+
 ## Atomic claim functions
 
 - `cfcf_claim_due_automation_schedules(p_limit)` claims due schedules for five minutes using `FOR UPDATE SKIP LOCKED`.
