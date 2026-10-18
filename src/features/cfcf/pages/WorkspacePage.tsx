@@ -785,6 +785,26 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         image: { type: "jpeg", quality: 0.98 },
         html2canvas: {
           scale: 2, useCORS: true, logging: false, backgroundColor: "#ffffff", windowWidth: 794,
+          onclone: (clonedDocument: Document) => {
+            // The report is already styled inline above. Remove app stylesheets so
+            // html2canvas never encounters Tailwind's unsupported oklch() values.
+            clonedDocument.querySelectorAll("style, link[rel='stylesheet']").forEach((node) => node.remove());
+            clonedDocument.querySelectorAll<HTMLElement>("[style]").forEach((element) => {
+              const inline = element.getAttribute("style") ?? "";
+              if (/oklch\\(/i.test(inline)) {
+                element.setAttribute("style", inline.replace(/oklch\\([^)]*\\)/gi, "#64748b"));
+              }
+            });
+            const clonedRoot = clonedDocument.body.lastElementChild;
+            if (clonedRoot instanceof HTMLElement) {
+              clonedRoot.style.position = "static";
+              clonedRoot.style.left = "auto";
+              clonedRoot.style.top = "auto";
+              clonedRoot.style.zIndex = "auto";
+              clonedRoot.style.backgroundColor = "#ffffff";
+              clonedRoot.style.color = "#0f172a";
+            }
+          },
         },
         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
         pagebreak: { mode: ["css", "legacy"], avoid: [".record", ".metric", "h2"] },
@@ -794,9 +814,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     } catch (error) {
       const message = error instanceof Error ? "PDF download failed: " + error.message + ". Your Fund data is unchanged. Please retry." : "PDF download failed. Your Fund data is unchanged. Please retry.";
       setFullFundReportError(message);
-      // Keep PDF failures inside the Full Fund Report modal instead of stacking a second
-      // result modal over it; nested fixed-body modals can become stuck on iOS Safari.
-      if (!requiredBeforeArchive && !isFullFundReportOpen) showDatabaseResult(message, "error");
+      // Always release the busy state and keep the failure local to the report modal.
+      // Do not stack a second modal on top of the report on iOS Safari.
       return false;
     } finally {
       reportRoot?.remove();
