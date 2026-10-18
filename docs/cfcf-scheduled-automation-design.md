@@ -43,6 +43,7 @@ The row is the single source of truth for Manager Home and Workspace job history
 
 - `cfcf_claim_due_automation_schedules(p_limit)` claims due schedules for five minutes using `FOR UPDATE SKIP LOCKED`.
 - `cfcf_claim_automation_jobs(p_limit)` claims queued/delayed jobs for five minutes and increments the attempt count.
+- `cfcf_fail_exhausted_automation_jobs(p_limit)` marks jobs failed after eight attempts once any active claim has expired; the worker should call this before claiming work.
 - `cfcf_enqueue_scheduled_automation_job(schedule_id, scheduled_for, next_run_at)` creates the scheduled job and advances the recurrence in one transaction. Its idempotency key returns the existing job after an n8n timeout/retry.
 - Both claim functions are executable only by `service_role`. n8n must use credentials stored in n8n, never browser variables. Manager RPCs are executable by `authenticated` but verify `auth.uid()` and `is_active_tenant_owner('CFCF', tenant_id)` on every call.
 
@@ -107,7 +108,7 @@ The workflow is deliberately inactive and contains no credentials or real Supaba
 ## n8n processing contract
 
 1. Schedule Trigger runs every minute.
-2. Call `POST /rest/v1/rpc/cfcf_claim_due_automation_schedules` and `POST /rest/v1/rpc/cfcf_claim_automation_jobs` using stored n8n credentials. Newly created schedules may have `next_run_at = null`; initialize their next future monthly occurrence and release the claim without running a job immediately.
+2. Call `POST /rest/v1/rpc/cfcf_fail_exhausted_automation_jobs` first, then call `POST /rest/v1/rpc/cfcf_claim_due_automation_schedules` and `POST /rest/v1/rpc/cfcf_claim_automation_jobs` using stored n8n credentials. Newly created schedules may have `next_run_at = null`; initialize their next future monthly occurrence and release the claim without running a job immediately.
 3. For a claimed schedule with a real due timestamp, compute the next monthly occurrence in n8n and call `cfcf_enqueue_scheduled_automation_job(schedule_id, scheduled_for, next_run_at)`. This transaction creates the job and advances the schedule atomically. If `next_run_at` is null, initialize it to the next future occurrence and release the claim without creating a job.
 4. For each claimed job, validate the job type and ownership, then load only the required fund, share, bill and contact data.
 5. Pending reminders use saved pending/billing values; they must not invent dues or recalculate CFCF financial ledgers. Reports read saved records and render an HTML/CSV artifact. No PDF generation.
