@@ -111,7 +111,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [isArchiveConfirmOpen, setIsArchiveConfirmOpen] = useState(false);
   const [isArchiveRequested, setIsArchiveRequested] = useState(false);
   const [archiveReportHtml, setArchiveReportHtml] = useState<string | null>(null);
-  const [archivePdfReady, setArchivePdfReady] = useState(false);
+  const [archiveReportReady, setArchiveReportReady] = useState(false);
   const [isDownloadingFullFundReport, setIsDownloadingFullFundReport] = useState(false);
   const [archivingError, setArchivingError] = useState<string | null>(null);
   const [deletingArchivedId, setDeletingArchivedId] = useState<string | null>(null);
@@ -298,7 +298,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     // archive confirmation flow. Downloading the report never archives the Fund.
     const reportReady = await downloadFullFundReport(true);
     if (!reportReady) return;
-    setArchivePdfReady(true);
+    setArchiveReportReady(true);
     setIsFullFundReportOpen(false);
     setIsArchiveConfirmOpen(true);
   }
@@ -319,7 +319,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     if (!selectedFund || isArchivingFund || archiveStep !== 3 || !archiveAcknowledged) return;
     const typedId = archiveTypedId.trim();
     if (typedId.toLowerCase() !== workspace.email.trim().toLowerCase()) return;
-    if (!archiveReportHtml || !archivePdfReady) {
+    if (!archiveReportHtml || !archiveReportReady) {
       setArchivingError("Generate the Full Fund HTML backup successfully before archiving. No Fund records have been changed.");
       return;
     }
@@ -333,7 +333,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setArchiveAcknowledged(false);
       setArchiveTypedId("");
       setArchiveReportHtml(null);
-      setArchivePdfReady(false);
+      setArchiveReportReady(false);
       setIsFullFundReportOpen(false);
       setSelectedFundId("");
       setShares([]);
@@ -355,8 +355,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
 
   async function downloadArchivedFundReport(archive: CfcfArchivedFundRow, reportResult = true): Promise<void> {
     try {
-      // Archived reports are immutable snapshots. Download the stored HTML directly rather
-      // than converting it to PDF, which has been unreliable on iOS Safari.
+      // Archived reports are immutable snapshots. Download the stored HTML directly.
       const html = archive.report_html;
       if (!html || !html.trim()) {
         throw new Error("The archived report HTML is empty.");
@@ -400,9 +399,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     setDeletingArchivedId(archive.archive_id);
     setArchivedDeleteError(null);
     try {
-      // Delete directly after the explicit three-step confirmation. PDF generation/download
-      // can hang on iOS Safari and must not block the database deletion. Users can download
-      // the archived report separately before entering this permanent-deletion flow.
+      // Delete directly after the explicit three-step confirmation. Report downloads are separate from this permanent-deletion flow.
       setArchivedDeleteError("Deleting the archived Fund and its saved report…");
       await deleteCfcfArchivedFund(workspace.tenantId, archive.archive_id);
       setArchivedFunds((current) => current.filter((item) => item.archive_id !== archive.archive_id));
@@ -410,7 +407,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setArchivedDeleteStep(1);
       setArchivedDeleteAcknowledged(false);
       setArchivedDeleteTypedId("");
-      showDatabaseResult("The archived Fund and its saved report were permanently deleted from the database. No PDF was generated or downloaded as part of deletion.");
+      showDatabaseResult("The archived Fund and its saved report were permanently deleted from the database. No report download was triggered as part of deletion.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to delete archived report.";
       setArchivedDeleteError(message);
@@ -1711,7 +1708,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             <button type="button" onClick={() => void requestArchiveSelectedFund()} disabled={isLoadingFullFundReport || isArchivingFund || isDownloadingFullFundReport} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 text-sm font-semibold text-amber-900 shadow-sm hover:bg-amber-100 disabled:opacity-50">
               <Archive size={17}/> Archive Fund
             </button>
-            <p className="text-center text-xs leading-5 text-slate-500">Review the archive confirmation and download the Full Fund PDF before permanent removal.</p>
+            <p className="text-center text-xs leading-5 text-slate-500">Review the archive confirmation and download the Full Fund HTML report before permanent removal.</p>
           </section>
           </>
           )}
@@ -2364,7 +2361,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           {archiveStep === 1 && <div className="space-y-3">
             <p className="text-sm leading-5 text-slate-700">Review the Fund identity and the permanent consequences before continuing.</p>
             <p className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-800">Full Fund HTML backup download was started. Archiving has not started.</p>
-            <button type="button" onClick={() => setArchiveStep(2)} disabled={!archivePdfReady} className="min-h-11 w-full rounded-xl bg-amber-700 px-4 text-sm font-semibold text-white disabled:opacity-40">Continue to archive review</button>
+            <button type="button" onClick={() => setArchiveStep(2)} disabled={!archiveReportReady} className="min-h-11 w-full rounded-xl bg-amber-700 px-4 text-sm font-semibold text-white disabled:opacity-40">Continue to archive review</button>
           </div>}
           {archiveStep === 2 && <div className="space-y-3">
             <label className="flex items-start gap-3 rounded-xl border border-amber-300 p-3 text-sm leading-5 text-slate-700"><input type="checkbox" checked={archiveAcknowledged} onChange={(event) => setArchiveAcknowledged(event.target.checked)} className="mt-1 h-4 w-4 shrink-0"/><span>I understand this permanently deletes the Fund's operational financial records. The report is temporary, and the original Fund cannot be restored.</span></label>
