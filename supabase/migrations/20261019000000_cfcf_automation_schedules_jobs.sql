@@ -466,7 +466,8 @@ grant execute on function public.cfcf_create_manual_automation_job(text, text, t
 -- This avoids a stale evaluator overwriting a schedule edited by the Manager.
 create or replace function public.cfcf_initialize_automation_schedule(
   p_schedule_id uuid,
-  p_next_run_at timestamptz
+  p_next_run_at timestamptz,
+  p_claimed_until timestamptz
 )
 returns setof public.cfcf_automation_schedules
 language plpgsql
@@ -474,8 +475,9 @@ security definer
 set search_path = public, pg_temp
 as $$
 begin
-  if p_schedule_id is null or p_next_run_at is null or p_next_run_at <= now() then
-    raise exception 'Initial schedule timestamp must be in the future' using errcode = '22023';
+  if p_schedule_id is null or p_next_run_at is null or p_next_run_at <= now()
+     or p_claimed_until is null then
+    raise exception 'Initial schedule timestamp or claim is invalid' using errcode = '22023';
   end if;
 
   return query
@@ -488,13 +490,14 @@ begin
     and s.product_id = 'CFCF'
     and s.is_enabled = true
     and s.next_run_at is null
+    and s.claimed_until = p_claimed_until
     and s.claimed_until > now()
   returning s.*;
 end;
 $$;
 
-revoke all on function public.cfcf_initialize_automation_schedule(uuid, timestamptz) from public, anon, authenticated;
-grant execute on function public.cfcf_initialize_automation_schedule(uuid, timestamptz) to service_role;
+revoke all on function public.cfcf_initialize_automation_schedule(uuid, timestamptz, timestamptz) from public, anon, authenticated;
+grant execute on function public.cfcf_initialize_automation_schedule(uuid, timestamptz, timestamptz) to service_role;
 
 -- Explicit failure recovery hook for n8n Error Workflows.
 -- A stale error handler cannot clear a lease that has already expired or been reclaimed.
