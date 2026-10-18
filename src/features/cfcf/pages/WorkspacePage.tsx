@@ -333,21 +333,20 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       const pdfModule = await import("html2pdf.js");
       const parsed = new DOMParser().parseFromString(archive.report_html, "text/html");
       reportRoot = document.createElement("div");
-      reportRoot.style.cssText = "position:fixed;left:-10000px;top:0;width:794px;background:#fff;color:#0f172a;font-family:Arial,sans-serif;font-size:12px;line-height:1.45;padding:28px;box-sizing:border-box;overflow-wrap:anywhere";
-      // Archived reports may contain Tailwind v4 OKLCH colors unsupported by html2canvas.
-      // Remove stored styles and normalize modern color functions to safe RGB before rendering PDF.
+      reportRoot.id = "clearflow-archived-pdf-root";
+      reportRoot.style.cssText = "position:fixed;left:-10000px;top:0;width:794px;background:#ffffff;color:#0f172a;font-family:Arial,sans-serif;font-size:12px;line-height:1.45;padding:28px;box-sizing:border-box;overflow-wrap:anywhere";
+      // html2canvas can fail while parsing Tailwind v4 OKLCH colors from either the archived
+      // markup or the live app stylesheet. Build a plain, PDF-safe copy without utility classes.
       const contentRoot = document.createElement("div");
       contentRoot.innerHTML = parsed.body.innerHTML;
-      // Do not copy archived <style> blocks: html2canvas cannot parse oklch()/oklab()/color().
-      // Inline report content gets a conservative, PDF-safe palette instead.
       contentRoot.querySelectorAll<HTMLElement>("*").forEach((element) => {
-        const style = element.getAttribute("style");
-        if (style && /oklch\(|oklab\(|color\(/i.test(style)) {
-          element.removeAttribute("style");
-        }
+        element.removeAttribute("class");
+        element.removeAttribute("style");
         element.style.color = "#0f172a";
         element.style.backgroundColor = "#ffffff";
         element.style.borderColor = "#cbd5e1";
+        element.style.fontFamily = "Arial, sans-serif";
+        element.style.overflowWrap = "anywhere";
       });
       reportRoot.appendChild(contentRoot);
       document.body.appendChild(reportRoot);
@@ -355,9 +354,24 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         margin: [8, 8, 10, 8],
         filename: "ClearFlow-Archived-Fund-" + archive.fund_id + ".pdf",
         image: { type: "jpeg", quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: "#ffffff", windowWidth: 794 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: "#ffffff",
+          windowWidth: 794,
+          onclone: (clonedDocument: Document) => {
+            // The cloned PDF document does not need the app's Tailwind stylesheet.
+            clonedDocument.querySelectorAll('style, link[rel="stylesheet"]').forEach((node) => node.remove());
+            const clonedRoot = clonedDocument.getElementById("clearflow-archived-pdf-root");
+            if (clonedRoot instanceof HTMLElement) {
+              clonedRoot.style.color = "#0f172a";
+              clonedRoot.style.backgroundColor = "#ffffff";
+            }
+          },
+        },
         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-        pagebreak: { mode: ["css", "legacy"], avoid: [".record", ".metric", "h2"] },
+        pagebreak: { mode: ["css", "legacy"] },
       }).from(reportRoot).save();
       if (reportResult) showDatabaseResult("Downloaded the archived Full Fund PDF report.");
     } catch (error) {
