@@ -283,8 +283,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     const safeTitle = selectedFund.fund_name.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const reportHtml = "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>ClearFlow Full Fund Report - " +
       safeTitle +
-      "</title><style>body{font-family:Arial,sans-serif;color:#0f172a;padding:20px;max-width:900px;margin:auto;line-height:1.45}button{display:none!important}.report-section{margin-bottom:16px;break-inside:auto}section,article{break-inside:avoid}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.rounded-xl{border-radius:12px}.border{border:1px solid #cbd5e1}.p-3,.p-4{padding:12px}.bg-slate-50{background:#f8fafc}.text-xs{font-size:12px}.text-sm{font-size:14px}.text-base{font-size:16px}.text-xl{font-size:22px}.font-bold,.font-semibold{font-weight:700}.text-slate-500{color:#64748b}.text-slate-600{color:#475569}.text-slate-900{color:#0f172a}.break-all,.break-words{overflow-wrap:anywhere;word-break:break-word}h1,h2,h3,p{margin-top:8px;margin-bottom:8px}</style></head><body><header style=\"text-align:center;font-weight:800;padding-bottom:12px;border-bottom:1px solid #cbd5e1\">Powered by ClearFlow Automations · Archived Full Fund Report</header>" +
-      reportMarkup + "<footer style=\"margin-top:20px;padding-top:8px;border-top:1px solid #cbd5e1;text-align:center;font-size:10px\">ClearFlow · Archived on " + new Date().toLocaleString("en-IN") + "</footer></body></html>";
+      "</title><style>body{font-family:Arial,sans-serif;color:#0f172a;padding:20px;max-width:900px;margin:auto;line-height:1.45}button{display:none!important}.report-section{margin-bottom:16px;break-inside:auto}section,article{break-inside:avoid}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.rounded-xl{border-radius:12px}.border{border:1px solid #cbd5e1}.p-3,.p-4{padding:12px}.bg-slate-50{background:#f8fafc}.text-xs{font-size:12px}.text-sm{font-size:14px}.text-base{font-size:16px}.text-xl{font-size:22px}.font-bold,.font-semibold{font-weight:700}.text-slate-500{color:#64748b}.text-slate-600{color:#475569}.text-slate-900{color:#0f172a}.break-all,.break-words{overflow-wrap:anywhere;word-break:break-word}h1,h2,h3,p{margin-top:8px;margin-bottom:8px}</style></head><body><header style=\"text-align:center;font-weight:800;padding-bottom:12px;border-bottom:1px solid #cbd5e1\">Archived Full Fund Report</header>" +
+      reportMarkup + "</body></html>";
     setArchiveReportHtml(reportHtml);
     setArchiveStep(1);
     setArchiveAcknowledged(false);
@@ -742,14 +742,10 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     try {
       setFullFundReportError(null);
       reportRoot = document.createElement("div");
-      reportRoot.style.cssText = "position:fixed;left:0;top:0;z-index:99;width:794px;min-height:100px;background:#fff;color:#0f172a;font-family:Arial,sans-serif;font-size:12px;line-height:1.45;padding:28px;box-sizing:border-box;overflow-wrap:anywhere";
+      reportRoot.style.cssText = "position:fixed;left:0;top:0;z-index:2147483000;width:794px;min-height:100px;background:#fff;color:#0f172a;font-family:Arial,sans-serif;font-size:12px;line-height:1.45;padding:28px;box-sizing:border-box;overflow-wrap:anywhere";
       const style = document.createElement("style");
-      style.textContent = "*{box-sizing:border-box}h1{font-size:22px;margin:0 0 6px}h2{font-size:15px;margin:18px 0 8px;break-after:avoid}h3{font-size:12px;margin:10px 0 5px}.report-section{margin-bottom:16px;break-inside:auto}.record{border:1px solid #cbd5e1;border-radius:7px;padding:9px;margin:6px 0;break-inside:avoid}.muted{color:#64748b}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.metric{border:1px solid #cbd5e1;border-radius:6px;padding:8px;break-inside:avoid;min-width:0}.metric-label{font-size:9px;color:#64748b}.metric-value{font-size:12px;font-weight:700;margin-top:3px;overflow-wrap:anywhere;word-break:break-word}.pill{display:inline-block;border:1px solid #cbd5e1;border-radius:10px;padding:2px 6px;font-size:9px}p{margin:3px 0;overflow-wrap:anywhere;word-break:break-word}.entry-amount{font-weight:700}.entry-meta{font-size:9px;color:#64748b;overflow-wrap:anywhere;word-break:break-word}.disclaimer{border:1px solid #fcd34d;background:#fffbeb;padding:9px;border-radius:6px}.brand-header{text-align:center;font-size:18px;font-weight:800;letter-spacing:.35px;padding:0 0 12px;margin-bottom:14px;border-bottom:1px solid #cbd5e1}.report-footer{margin-top:20px;padding-top:8px;border-top:1px solid #cbd5e1;font-size:10px;color:#475569;text-align:center}.no-pdf{display:none!important}";
+      style.textContent = "*{box-sizing:border-box}h1{font-size:22px;margin:0 0 6px}h2{font-size:15px;margin:18px 0 8px;break-after:avoid}h3{font-size:12px;margin:10px 0 5px}.report-section{margin-bottom:16px;break-inside:auto}.record{border:1px solid #cbd5e1;border-radius:7px;padding:9px;margin:6px 0;break-inside:avoid}.muted{color:#64748b}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.metric{border:1px solid #cbd5e1;border-radius:6px;padding:8px;break-inside:avoid;min-width:0}.metric-label{font-size:9px;color:#64748b}.metric-value{font-size:12px;font-weight:700;margin-top:3px;overflow-wrap:anywhere;word-break:break-word}.pill{display:inline-block;border:1px solid #cbd5e1;border-radius:10px;padding:2px 6px;font-size:9px}p{margin:3px 0;overflow-wrap:anywhere;word-break:break-word}.entry-amount{font-weight:700}.entry-meta{font-size:9px;color:#64748b;overflow-wrap:anywhere;word-break:break-word}.disclaimer{border:1px solid #fcd34d;background:#fffbeb;padding:9px;border-radius:6px}.no-pdf{display:none!important}";
       reportRoot.appendChild(style);
-      const header = document.createElement("header");
-      header.className = "brand-header";
-      header.textContent = "Powered by ClearFlow Automations";
-      reportRoot.appendChild(header);
       const reportContent = source.cloneNode(true) as HTMLElement;
       reportContent.removeAttribute("data-cfcf-full-fund-report");
       reportContent.querySelectorAll("button").forEach((button) => button.remove());
@@ -782,10 +778,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         clone.style.boxSizing = "border-box";
       });
       reportRoot.appendChild(reportContent);
-      const footer = document.createElement("footer");
-      footer.className = "report-footer";
-      footer.textContent = "Powered by ClearFlow Automations · ClearFlow Full Fund Report · Generated " + new Date().toLocaleString("en-IN");
-      reportRoot.appendChild(footer);
       document.body.appendChild(reportRoot);
       await html2pdf().set({
         margin: [8, 8, 10, 8],
@@ -816,7 +808,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     if (!content) { showDatabaseResult("Fund report content is not ready to print."); return; }
     const printWindow = window.open("", "_blank", "width=900,height=700");
     if (!printWindow) { showDatabaseResult("Allow pop-ups to print or save the Fund report."); return; }
-    printWindow.document.write("<!doctype html><html><head><title>ClearFlow Fund Summary</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><style>body{font-family:Arial,sans-serif;color:#0f172a;padding:24px;max-width:900px;margin:auto}.brand-header{text-align:center;font-size:13px;font-weight:700;letter-spacing:.3px;padding-bottom:10px;margin-bottom:16px;border-bottom:1px solid #cbd5e1}.brand-footer{text-align:center;margin-top:24px;padding-top:10px;border-top:1px solid #cbd5e1;font-size:10px;font-weight:700;color:#475569}button{display:none!important}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}section,article{break-inside:avoid}p,h3,h4{margin-top:8px;margin-bottom:8px}.border{border:1px solid #cbd5e1}.rounded-xl{border-radius:12px}.p-3,.p-4{padding:12px}.bg-slate-50{background:#f8fafc}.text-xs{font-size:12px}.text-sm{font-size:14px}.font-bold,.font-semibold{font-weight:700}</style></head><body><header class=\"brand-header\">Powered by ClearFlow Automations</header>" + content + "<footer class=\"brand-footer\">Powered by ClearFlow Automations</footer></body></html>");
+    printWindow.document.write("<!doctype html><html><head><title>ClearFlow Fund Summary</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><style>body{font-family:Arial,sans-serif;color:#0f172a;padding:24px;max-width:900px;margin:auto}button{display:none!important}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}section,article{break-inside:avoid}p,h3,h4{margin-top:8px;margin-bottom:8px}.border{border:1px solid #cbd5e1}.rounded-xl{border-radius:12px}.p-3,.p-4{padding:12px}.bg-slate-50{background:#f8fafc}.text-xs{font-size:12px}.text-sm{font-size:14px}.font-bold,.font-semibold{font-weight:700}</style></head><body>" + content + "</body></html>");
     printWindow.document.close(); printWindow.focus(); printWindow.print();
   }
 
