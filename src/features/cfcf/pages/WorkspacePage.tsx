@@ -770,15 +770,15 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
             // those color tokens in the cloned stylesheets with a PDF-safe fallback,
             // preserving the rest of the report's styling and layout.
             clonedDocument.querySelectorAll("style").forEach((node) => {
-              node.textContent = (node.textContent ?? "").replace(/oklch\\([^)]*\\)/gi, "#64748b");
+              node.textContent = (node.textContent ?? "").replace(/oklch\([^)]*\)/gi, "#64748b");
             });
             clonedDocument.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]').forEach((node) => {
               try {
                 const sourceSheet = Array.from(document.styleSheets).find((sheet) => sheet.href === node.href);
-                const rules = sourceSheet ? Array.from(sourceSheet.cssRules).map((rule) => rule.cssText).join("\\n") : "";
+                const rules = sourceSheet ? Array.from(sourceSheet.cssRules).map((rule) => rule.cssText).join("\n") : "";
                 if (rules) {
                   const safeStyle = clonedDocument.createElement("style");
-                  safeStyle.textContent = rules.replace(/oklch\\([^)]*\\)/gi, "#64748b");
+                  safeStyle.textContent = rules.replace(/oklch\([^)]*\)/gi, "#64748b");
                   node.replaceWith(safeStyle);
                 } else {
                   node.remove();
@@ -795,7 +795,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       if (!requiredBeforeArchive) showDatabaseResult("PDF generation completed. On iPhone, confirm the file appears in Downloads or Files before closing the report.");
       return true;
     } catch (error) {
-      const message = error instanceof Error ? "PDF download failed: " + error.message + ". The Fund has not been archived. Please retry." : "PDF download failed. The Fund has not been archived. Please retry.";
+      const message = error instanceof Error ? "PDF download failed: " + error.message + ". Your Fund data is unchanged. Please retry." : "PDF download failed. Your Fund data is unchanged. Please retry.";
       setFullFundReportError(message);
       // Keep PDF failures inside the Full Fund Report modal instead of stacking a second
       // result modal over it; nested fixed-body modals can become stuck on iOS Safari.
