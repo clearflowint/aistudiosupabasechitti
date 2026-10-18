@@ -1516,10 +1516,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                       <span>Start · {selectedFund.start_date ? formatDate(selectedFund.start_date) : "Not set"}</span>
                     </div>
                   </div>
-                  <div className="shrink-0 text-right">
-                    <p className="text-xs font-medium text-slate-500">Pending</p>
-                    <p className="text-[1.1rem] font-bold leading-tight tabular-nums text-rose-600">{formatINR(selectedFund.fund_total_pending_amount ?? 0)}</p>
-                  </div>
                 </div>
                 <div className="mt-3 rounded-xl bg-rose-50 px-3 py-3">
                   <p className="text-xs font-medium text-rose-700">Pending from members</p>
