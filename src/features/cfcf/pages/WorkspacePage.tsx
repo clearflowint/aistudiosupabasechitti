@@ -238,6 +238,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [isCycleStatementOpen, setIsCycleStatementOpen] = useState(false);
   const [isFundEditOpen, setIsFundEditOpen] = useState(false);
   const [isFundReportOpen, setIsFundReportOpen] = useState(false);
+  const [fundSummaryPage, setFundSummaryPage] = useState<1 | 2>(1);
+  const [fundSummaryGeneratedAt, setFundSummaryGeneratedAt] = useState("");
   const [isFullFundReportOpen, setIsFullFundReportOpen] = useState(false);
   const [isLoadingFullFundReport, setIsLoadingFullFundReport] = useState(false);
   const [fullFundReportError, setFullFundReportError] = useState<string | null>(null);
@@ -792,13 +794,46 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setIsDownloadingFullFundReport(false);
     }
   }
+  function getFundSummaryDocumentHtml(): string | null {
+    const source = document.querySelector("[data-cfcf-fund-report]");
+    if (!source) return null;
+    const content = source.innerHTML;
+    return "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>ClearFlow Fund Summary</title><style>" +
+      "body{font-family:Arial,sans-serif;color:#0f172a;padding:16px;max-width:1000px;margin:auto;line-height:1.45}*{box-sizing:border-box}h1,h2,h3,p{margin:6px 0}.brand{text-align:center;font-weight:800;font-size:16px;padding:4px 0 12px;border-bottom:2px solid #0f172a;margin-bottom:12px}.generated{font-size:12px;color:#475569;margin-bottom:14px}.summary-page{margin:0 0 24px}.summary-page[hidden]{display:block!important}.summary-page h3{font-size:17px;margin:12px 0 8px}.summary-meta{font-size:13px;margin:4px 0 12px}.summary-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}.summary-table th,.summary-table td{border:1px solid #cbd5e1;padding:6px 4px;text-align:left;vertical-align:top;overflow-wrap:anywhere;word-break:break-word}.summary-table th{background:#f1f5f9;font-weight:700}.summary-table td:first-child{font-weight:600}.page-break{break-before:page;page-break-before:always}@media(max-width:600px){body{padding:8px}.summary-table{font-size:10px}.summary-table th,.summary-table td{padding:4px 2px}}@media print{body{padding:0}.summary-page{break-after:page;page-break-after:always}.summary-page:last-child{break-after:auto;page-break-after:auto}}button{display:none!important}" +
+      "</style></head><body>" + content + "</body></html>";
+  }
+
+  function downloadFundSummaryHtml() {
+    const html = getFundSummaryDocumentHtml();
+    if (!html || !selectedFund) { showDatabaseResult("Fund Summary content is not ready to download."); return; }
+    try {
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const safeName = selectedFund.fund_name.trim().replace(/[^a-z0-9-_]+/gi, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "Fund";
+      link.href = url;
+      link.download = "ClearFlow-" + safeName + "-Fund-Summary.html";
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      showDatabaseResult("Fund Summary HTML download started. The file contains both summary pages and can be opened offline.");
+    } catch (error) {
+      showDatabaseResult(error instanceof Error ? "Fund Summary HTML download failed: " + error.message : "Fund Summary HTML download failed. Please retry.", "error");
+    }
+  }
+
   function printFundReport() {
-    const content = document.querySelector("[data-cfcf-fund-report]")?.innerHTML;
-    if (!content) { showDatabaseResult("Fund report content is not ready to print."); return; }
+    const html = getFundSummaryDocumentHtml();
+    if (!html) { showDatabaseResult("Fund Summary content is not ready to print."); return; }
     const printWindow = window.open("", "_blank", "width=900,height=700");
-    if (!printWindow) { showDatabaseResult("Allow pop-ups to print or save the Fund report."); return; }
-    printWindow.document.write("<!doctype html><html><head><title>ClearFlow Fund Summary</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><style>body{font-family:Arial,sans-serif;color:#0f172a;padding:24px;max-width:900px;margin:auto}button{display:none!important}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}section,article{break-inside:avoid}p,h3,h4{margin-top:8px;margin-bottom:8px}.border{border:1px solid #cbd5e1}.rounded-xl{border-radius:12px}.p-3,.p-4{padding:12px}.bg-slate-50{background:#f8fafc}.text-xs{font-size:12px}.text-sm{font-size:14px}.font-bold,.font-semibold{font-weight:700}</style></head><body>" + content + "</body></html>");
-    printWindow.document.close(); printWindow.focus(); printWindow.print();
+    if (!printWindow) { showDatabaseResult("Allow pop-ups to print or save the Fund Summary."); return; }
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
   }
 
   function billedCycleNumbers(fundShares: CfcfShareRow[] = shares): number[] {
@@ -1543,7 +1578,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                 </div>
                 <div className="mt-3 grid grid-cols-3 gap-1.5 border-t border-slate-100 pt-3">
                   <button type="button" onClick={() => { setFundEditForm({ fundName: selectedFund.fund_name ?? "", startDate: selectedFund.start_date ?? "", numberOfCycles: selectedFund.number_of_cycles == null ? "" : String(selectedFund.number_of_cycles) }); setFundEditError(null); setIsFundEditOpen(true); }} className="inline-flex min-h-10 min-w-0 items-center justify-center gap-1 rounded-lg border border-slate-200 px-1 py-2 text-[11px] font-semibold text-slate-700"><Pencil size={14} className="shrink-0"/> <span className="text-center leading-tight">Edit Fund</span></button>
-                  <button type="button" onClick={() => setIsFundReportOpen(true)} className="inline-flex min-h-10 min-w-0 items-center justify-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-1 py-2 text-[11px] font-semibold text-sky-800"><FileText size={14} className="shrink-0"/> <span className="text-center leading-tight">Fund Summary</span></button>
+                  <button type="button" onClick={() => { setFundSummaryPage(1); setFundSummaryGeneratedAt(new Date().toLocaleString("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true })); setIsFundReportOpen(true); }} className="inline-flex min-h-10 min-w-0 items-center justify-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-1 py-2 text-[11px] font-semibold text-sky-800"><FileText size={14} className="shrink-0"/> <span className="text-center leading-tight">Fund Summary</span></button>
                   <button type="button" onClick={() => void openFullFundReport()} disabled={isLoadingFullFundReport} className="inline-flex min-h-10 min-w-0 items-center justify-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-1 py-2 text-[11px] font-semibold text-violet-800 disabled:opacity-50"><FileText size={14} className="shrink-0"/> <span className="text-center leading-tight">{isLoadingFullFundReport ? "Loading…" : "Full Report"}</span></button>
                 </div>
               </article>
@@ -2378,15 +2413,85 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         </div>}
       </Modal>
 
-      <Modal isOpen={isFundReportOpen} title="Fund Summary" description="A concise view of saved Fund and Share values. Other Adjustments are separate and are not included in Fund financials." size="large" onClose={() => setIsFundReportOpen(false)}>
+      <Modal isOpen={isFundReportOpen} title="Fund Summary" description="Two-page summary of stored Fund and Share values. Other Adjustments are separate and excluded from Fund financials." size="full" onClose={() => setIsFundReportOpen(false)}>
         {selectedFund && <div className="space-y-4">
           <div data-cfcf-fund-report className="space-y-4 text-slate-900">
-            <section className="rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">ClearFlow · Fund Summary</p><h3 className="mt-1 text-xl font-bold">{selectedFund.fund_name}</h3><p className="mt-1 break-all text-xs text-slate-500">Fund ID · {selectedFund.fund_id}</p><p className="mt-1 text-sm">Report date · {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</p><p className="mt-1 text-sm">Start date · {selectedFund.start_date ? formatDate(selectedFund.start_date) : "Not set"} · Planned Cycles · {selectedFund.number_of_cycles ?? "Not set"}</p></section>
-            <section><h4 className="font-semibold">Stored Fund ledger summary</h4><div className="mt-2 grid grid-cols-2 gap-2"><StoredValue label="Net balance" value={formatINR(selectedFund.fund_net_balance ?? 0)}/><StoredValue label="Total billed" value={formatINR(selectedFund.fund_total_billed_amount ?? 0)}/><StoredValue label="Pending" value={formatINR(selectedFund.fund_total_pending_amount ?? 0)}/><StoredValue label="Advance" value={formatINR(selectedFund.fund_total_advance ?? 0)}/><StoredValue label="Withdrawn" value={formatINR(selectedFund.fund_total_withdrawn ?? 0)}/><StoredValue label="Commissions" value={formatINR(selectedFund.fund_total_commissions ?? 0)}/></div></section>
-            <section className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm"><p className="font-semibold">Other Adjustments are separate</p><p>Credits and debits recorded under Adjustments are not included in Fund financials or this summary. Open the separate Adjustments button to view that ledger.</p></section>
-            <section><h4 className="font-semibold">Shares in this Fund</h4>{shares.length ? <div className="mt-2 space-y-2">{shares.map((share) => { const contact = contactById.get(share.contact_id); return <article key={share.share_id} className="rounded-xl border border-slate-200 p-3"><p className="font-semibold">{contact?.name ?? "Share"}</p><p className="break-all text-xs text-slate-500">Share ID · {share.share_id}</p><div className="mt-2 grid grid-cols-2 gap-2"><StoredValue label="Billed (stored)" value={formatINR(share.share_total_billed_amount ?? 0)}/><StoredValue label="Pending (stored)" value={formatINR(share.total_pending ?? 0)}/><StoredValue label="Advance (stored)" value={formatINR(share.total_advance ?? 0)}/><StoredValue label="Net received (stored)" value={formatINR(share.share_net_payment_received ?? 0)}/><StoredValue label="Payout status" value={share.payout_status ?? "Not set"}/></div></article>; })}</div> : <p className="mt-2 text-sm text-slate-500">No Shares are currently loaded for this Fund.</p>}</section>
+            <header className="border-b-2 border-slate-900 pb-3 text-center">
+              <p className="text-base font-extrabold tracking-wide">Powered by ClearFlow Automations</p>
+              <h3 className="mt-2 text-lg font-bold">Fund Summary</h3>
+              <p className="mt-1 text-xs text-slate-600">Summary generated · {fundSummaryGeneratedAt || "Not generated"}</p>
+            </header>
+            <section hidden={fundSummaryPage !== 1} className="summary-page space-y-4">
+              <h3 className="text-base font-bold">Page 1 of 2 · Fund Financial Summary</h3>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+                <p className="font-bold">{selectedFund.fund_name}</p>
+                <p className="break-all text-xs text-slate-600">Fund ID · {selectedFund.fund_id}</p>
+                <p className="mt-1">Start date · {selectedFund.start_date ? formatDate(selectedFund.start_date) : "Not set"}</p>
+                <p>Planned cycles · {selectedFund.number_of_cycles ?? "Not set"}</p>
+                <p>Report date · {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</p>
+              </div>
+              <div className="overflow-hidden rounded-lg border border-slate-200">
+                <table className="summary-table w-full table-fixed border-collapse text-sm">
+                  <thead><tr><th className="border border-slate-200 bg-slate-50 p-2 text-left">Financial detail</th><th className="border border-slate-200 bg-slate-50 p-2 text-left">Stored value</th></tr></thead>
+                  <tbody>
+                    <tr><td className="border border-slate-200 p-2">Total billed</td><td className="border border-slate-200 p-2">{formatINR(selectedFund.fund_total_billed_amount ?? 0)}</td></tr>
+                    <tr><td className="border border-slate-200 p-2">Pending</td><td className="border border-slate-200 p-2">{formatINR(selectedFund.fund_total_pending_amount ?? 0)}</td></tr>
+                    <tr><td className="border border-slate-200 p-2">Advance</td><td className="border border-slate-200 p-2">{formatINR(selectedFund.fund_total_advance ?? 0)}</td></tr>
+                    <tr><td className="border border-slate-200 p-2">Net payments received</td><td className="border border-slate-200 p-2">{formatINR(selectedFund.fund_net_payment_received ?? 0)}</td></tr>
+                    <tr><td className="border border-slate-200 p-2">Total withdrawn</td><td className="border border-slate-200 p-2">{formatINR(selectedFund.fund_total_withdrawn ?? 0)}</td></tr>
+                    <tr><td className="border border-slate-200 p-2">Total commission</td><td className="border border-slate-200 p-2">{formatINR(selectedFund.fund_total_commissions ?? 0)}</td></tr>
+                    <tr><td className="border border-slate-200 p-2 font-bold">Net Balance</td><td className="border border-slate-200 p-2 font-bold">{formatINR(selectedFund.fund_net_balance ?? 0)}</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-xs text-slate-500">Other Adjustments are excluded from Fund financials and remain available in the separate Adjustments ledger.</p>
+            </section>
+            <section hidden={fundSummaryPage !== 2} className="summary-page space-y-3">
+              <h3 className="text-base font-bold">Page 2 of 2 · Share-wise Summary</h3>
+              {shares.length ? <div className="overflow-hidden rounded-lg border border-slate-200">
+                <table className="summary-table w-full table-fixed border-collapse text-xs">
+                  <thead><tr>
+                    <th className="border border-slate-200 bg-slate-50 p-1 text-left">Share ID</th>
+                    <th className="border border-slate-200 bg-slate-50 p-1 text-left">Member</th>
+                    <th className="border border-slate-200 bg-slate-50 p-1 text-left">Billed</th>
+                    <th className="border border-slate-200 bg-slate-50 p-1 text-left">Pending</th>
+                    <th className="border border-slate-200 bg-slate-50 p-1 text-left">Advance</th>
+                    <th className="border border-slate-200 bg-slate-50 p-1 text-left">Net received</th>
+                    <th className="border border-slate-200 bg-slate-50 p-1 text-left">Payout amount</th>
+                    <th className="border border-slate-200 bg-slate-50 p-1 text-left">Payout cycle</th>
+                    <th className="border border-slate-200 bg-slate-50 p-1 text-left">Status</th>
+                  </tr></thead>
+                  <tbody>{shares.map((share) => {
+                    const contact = contactById.get(share.contact_id);
+                    const recordStatus = share.status === "active" ? "Active" : share.status === "inactive" ? "Inactive" : "Closed";
+                    const payoutStatus = share.payout_status === "drawn" ? "Drawn" : "Undrawn";
+                    return <tr key={share.share_id}>
+                      <td className="border border-slate-200 p-1 break-all">{share.share_id}</td>
+                      <td className="border border-slate-200 p-1 break-words">{contact?.name ?? "Unknown member"}</td>
+                      <td className="border border-slate-200 p-1">{formatINR(share.share_total_billed_amount ?? 0)}</td>
+                      <td className="border border-slate-200 p-1">{formatINR(share.total_pending ?? 0)}</td>
+                      <td className="border border-slate-200 p-1">{formatINR(share.total_advance ?? 0)}</td>
+                      <td className="border border-slate-200 p-1">{formatINR(share.share_net_payment_received ?? 0)}</td>
+                      <td className="border border-slate-200 p-1">{share.payout_status === "drawn" ? formatINR(share.withdrawn_amount ?? 0) : "—"}</td>
+                      <td className="border border-slate-200 p-1">{share.payout_status === "drawn" && share.payout_cycle_number != null ? share.payout_cycle_number : "—"}</td>
+                      <td className="border border-slate-200 p-1">{payoutStatus}<br/>{recordStatus}</td>
+                    </tr>;
+                  })}</tbody>
+                </table>
+              </div> : <p className="text-sm text-slate-500">No Shares are currently loaded for this Fund.</p>}
+              <p className="text-xs text-slate-500">Includes all Shares currently present in the database for this Fund. Deleted Shares are not recoverable from the current data.</p>
+            </section>
           </div>
-          <div className="flex justify-end gap-2 border-t border-slate-100 pt-3"><button type="button" onClick={() => setIsFundReportOpen(false)} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Close</button><button type="button" onClick={printFundReport} className="min-h-11 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white">Print / Save Summary</button></div>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+            <p className="text-xs font-medium text-slate-500">Page {fundSummaryPage} of 2</p>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => setFundSummaryPage(1)} disabled={fundSummaryPage === 1} className="min-h-11 rounded-xl border border-slate-200 px-3 text-sm disabled:opacity-40">Previous</button>
+              <button type="button" onClick={() => setFundSummaryPage(2)} disabled={fundSummaryPage === 2} className="min-h-11 rounded-xl border border-slate-200 px-3 text-sm disabled:opacity-40">Next</button>
+              <button type="button" onClick={downloadFundSummaryHtml} className="min-h-11 rounded-xl border border-sky-200 bg-sky-50 px-3 text-sm font-semibold text-sky-800">Download HTML</button>
+              <button type="button" onClick={printFundReport} className="min-h-11 rounded-xl bg-slate-900 px-3 text-sm font-semibold text-white">Print / Save Summary</button>
+              <button type="button" onClick={() => setIsFundReportOpen(false)} className="min-h-11 rounded-xl border border-slate-200 px-3 text-sm">Close</button>
+            </div>
+          </div>
         </div>}
       </Modal>
 
