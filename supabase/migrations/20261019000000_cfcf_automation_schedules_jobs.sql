@@ -147,6 +147,88 @@ revoke all on function public.cfcf_claim_automation_jobs(integer) from public, a
 grant execute on function public.cfcf_claim_automation_jobs(integer) to service_role;
 
 
+
+-- Atomically create one scheduled job and advance its recurrence.
+-- n8n calculates the next monthly timestamp; Supabase enforces idempotency and ownership.
+create or replace function public.cfcf_enqueue_scheduled_automation_job(
+  p_schedule_id uuid,
+  p_scheduled_for timestamptz,
+  p_next_run_at timestamptz
+)
+returns public.cfcf_automation_jobs
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $
+declare
+  v_schedule public.cfcf_automation_schedules%rowtype;
+  v_job public.cfcf_automation_jobs%rowtype;
+  v_key text;
+begin
+  if p_schedule_id is null or p_scheduled_for is null or p_next_run_at is null
+     or p_next_run_at <= p_scheduled_for then
+    raise exception 'Scheduled run timestamps are invalid' using errcode = '22023';
+  end if;
+
+  select * into v_schedule
+  from public.cfcf_automation_schedules
+  where schedule_id = p_schedule_id
+  for update;
+
+  if not found then
+    raise exception 'Automation schedule not found' using errcode = 'P0002';
+  end if;
+
+  v_key := 'schedule:' || v_schedule.schedule_id::text || ':' ||
+    to_char(p_scheduled_for at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"');
+
+  -- An n8n timeout/retry after a successful commit returns the existing job.
+  select * into v_job from public.cfcf_automation_jobs
+  where idempotency_key = v_key;
+  if found then
+    return v_job;
+  end if;
+
+  if not v_schedule.is_enabled
+     or v_schedule.next_run_at is distinct from p_scheduled_for
+     or v_schedule.claimed_until is null
+     or v_schedule.claimed_until < now() then
+    raise exception 'Schedule is not currently claimed for this occurrence' using errcode = '40001';
+  end if;
+
+  insert into public.cfcf_automation_jobs (
+    product_id, tenant_id, fund_id, fund_name, job_type, trigger_type,
+    schedule_id, scheduled_for, idempotency_key, status, accepted_at
+  )
+  select
+    v_schedule.product_id, v_schedule.tenant_id, v_schedule.fund_id,
+    coalesce(f.fund_name, ''), v_schedule.job_type, 'scheduled',
+    v_schedule.schedule_id, p_scheduled_for, v_key, 'queued', now()
+  from public.cfcf_funds f
+  where f.product_id = v_schedule.product_id
+    and f.tenant_id = v_schedule.tenant_id
+    and f.fund_id = v_schedule.fund_id
+  returning * into v_job;
+
+  if not found then
+    raise exception 'Fund for automation schedule no longer exists' using errcode = 'P0002';
+  end if;
+
+  update public.cfcf_automation_schedules
+  set last_run_at = p_scheduled_for,
+      next_run_at = p_next_run_at,
+      claimed_until = null,
+      last_error = null,
+      updated_at = now()
+  where schedule_id = v_schedule.schedule_id;
+
+  return v_job;
+end;
+$;
+
+revoke all on function public.cfcf_enqueue_scheduled_automation_job(uuid, timestamptz, timestamptz) from public, anon, authenticated;
+grant execute on function public.cfcf_enqueue_scheduled_automation_job(uuid, timestamptz, timestamptz) to service_role;
+
 -- Manager-facing RPCs: browser users never receive service_role access.
 create or replace function public.cfcf_save_automation_schedule(
   p_tenant_id text,
