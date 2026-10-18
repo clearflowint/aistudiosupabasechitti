@@ -58,6 +58,7 @@ import {
   type CfcfFundOtherAdjustmentSummary,
 } from "../services/workspace.service";
 import type { CfcfBillRow, CfcfContactRow, CfcfFundRow, CfcfShareRow } from "../types/database.types";
+import html2pdf from "html2pdf.js";
 
 type WorkspaceTab = "shares" | "ledger";
 type WorkspaceSectionTab = "fund-summary" | "shares";
@@ -108,6 +109,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [archiveAcknowledged, setArchiveAcknowledged] = useState(false);
   const [archiveTypedId, setArchiveTypedId] = useState("");
   const [isArchiveConfirmOpen, setIsArchiveConfirmOpen] = useState(false);
+  const [archiveReportHtml, setArchiveReportHtml] = useState<string | null>(null);
+  const [isDownloadingFullFundPdf, setIsDownloadingFullFundPdf] = useState(false);
   const [archivingError, setArchivingError] = useState<string | null>(null);
   const [deletingArchivedId, setDeletingArchivedId] = useState<string | null>(null);
   const [archivedDeleteTarget, setArchivedDeleteTarget] = useState<CfcfArchivedFundRow | null>(null);
@@ -269,16 +272,27 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   }, [workspace.tenantId]);
 
   async function archiveSelectedFund() {
-    if (!selectedFund || isArchivingFund) return;
+    if (!selectedFund || isArchivingFund || isDownloadingFullFundPdf) return;
     const source = document.querySelector("[data-cfcf-full-fund-report]");
     if (!(source instanceof HTMLElement)) {
-      setFullFundReportError("Open the complete Fund report and wait for it to load before archiving.");
+      setFullFundReportError("Full Fund report content is not ready. Please close and reopen the report, then try again.");
       return;
     }
+    const reportMarkup = source.innerHTML;
+    const safeTitle = selectedFund.fund_name.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const reportHtml = "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>ClearFlow Full Fund Report - " +
+      safeTitle +
+      "</title><style>body{font-family:Arial,sans-serif;color:#0f172a;padding:20px;max-width:900px;margin:auto;line-height:1.45}button{display:none!important}.report-section{margin-bottom:16px;break-inside:auto}section,article{break-inside:avoid}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.rounded-xl{border-radius:12px}.border{border:1px solid #cbd5e1}.p-3,.p-4{padding:12px}.bg-slate-50{background:#f8fafc}.text-xs{font-size:12px}.text-sm{font-size:14px}.text-base{font-size:16px}.text-xl{font-size:22px}.font-bold,.font-semibold{font-weight:700}.text-slate-500{color:#64748b}.text-slate-600{color:#475569}.text-slate-900{color:#0f172a}.break-all,.break-words{overflow-wrap:anywhere;word-break:break-word}h1,h2,h3,p{margin-top:8px;margin-bottom:8px}</style></head><body><header style=\"text-align:center;font-weight:800;padding-bottom:12px;border-bottom:1px solid #cbd5e1\">Powered by ClearFlow Automations · Archived Full Fund Report</header>" +
+      reportMarkup + "<footer style=\"margin-top:20px;padding-top:8px;border-top:1px solid #cbd5e1;text-align:center;font-size:10px\">ClearFlow · Archived on " + new Date().toLocaleString("en-IN") + "</footer></body></html>";
+    setArchiveReportHtml(reportHtml);
     setArchiveStep(1);
     setArchiveAcknowledged(false);
     setArchiveTypedId("");
     setArchivingError(null);
+    setFullFundReportError(null);
+    const pdfReady = await printFullFundReport(true);
+    if (!pdfReady) return;
+    setIsFullFundReportOpen(false);
     setIsArchiveConfirmOpen(true);
   }
 
@@ -286,27 +300,20 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     if (!selectedFund || isArchivingFund || archiveStep !== 3 || !archiveAcknowledged) return;
     const typedId = archiveTypedId.trim();
     if (typedId.toLowerCase() !== workspace.email.trim().toLowerCase()) return;
-    const source = document.querySelector("[data-cfcf-full-fund-report]");
-    if (!(source instanceof HTMLElement)) {
-      setFullFundReportError("Open the complete Fund report and wait for it to load before archiving.");
+    if (!archiveReportHtml) {
+      setArchivingError("The report snapshot is missing. Reopen the Full Fund Report and try again.");
       return;
     }
     if (!beginAction("archive-fund")) return;
     setIsArchivingFund(true);
-    setFullFundReportError(null);
-
+    setArchivingError(null);
     try {
-      const reportMarkup = source.innerHTML;
-      const safeTitle = selectedFund.fund_name.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-      const reportHtml = "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>ClearFlow Full Fund Report - " +
-        safeTitle +
-        "</title><style>body{font-family:Arial,sans-serif;color:#0f172a;padding:20px;max-width:900px;margin:auto;line-height:1.45}button{display:none!important}.report-section{margin-bottom:16px;break-inside:auto}section,article{break-inside:avoid}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.rounded-xl{border-radius:12px}.border{border:1px solid #cbd5e1}.p-3,.p-4{padding:12px}.bg-slate-50{background:#f8fafc}.text-xs{font-size:12px}.text-sm{font-size:14px}.text-base{font-size:16px}.text-xl{font-size:22px}.font-bold,.font-semibold{font-weight:700}.text-slate-500{color:#64748b}.text-slate-600{color:#475569}.text-slate-900{color:#0f172a}.break-all,.break-words{overflow-wrap:anywhere;word-break:break-word}h1,h2,h3,p{margin-top:8px;margin-bottom:8px}@media print{body{padding:0}.report-section{break-inside:auto}}</style></head><body><header style=\"text-align:center;font-weight:800;padding-bottom:12px;border-bottom:1px solid #cbd5e1\">Powered by ClearFlow Automations · Archived Full Fund Report</header>" +
-        reportMarkup + "<footer style=\"margin-top:20px;padding-top:8px;border-top:1px solid #cbd5e1;text-align:center;font-size:10px\">ClearFlow · Archived on " + new Date().toLocaleString("en-IN") + "</footer></body></html>";
-      await archiveCfcfFundWithReport(workspace.tenantId, selectedFund.fund_id, reportHtml);
+      await archiveCfcfFundWithReport(workspace.tenantId, selectedFund.fund_id, archiveReportHtml);
       setIsArchiveConfirmOpen(false);
       setArchiveStep(1);
       setArchiveAcknowledged(false);
       setArchiveTypedId("");
+      setArchiveReportHtml(null);
       setIsFullFundReportOpen(false);
       setSelectedFundId("");
       setShares([]);
@@ -319,7 +326,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to archive this Fund.";
       setArchivingError(message);
-      setFullFundReportError(message);
       showDatabaseResult(message, "error");
     } finally {
       endAction("archive-fund");
@@ -330,7 +336,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   async function downloadArchivedFundReport(archive: CfcfArchivedFundRow, reportResult = true): Promise<void> {
     let reportRoot: HTMLDivElement | null = null;
     try {
-      const pdfModule = await import("html2pdf.js");
+      // Static bundle avoids iOS lazy-chunk requests receiving the SPA HTML fallback.
       const parsed = new DOMParser().parseFromString(archive.report_html, "text/html");
       reportRoot = document.createElement("div");
       reportRoot.id = "clearflow-archived-pdf-root";
@@ -350,7 +356,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       });
       reportRoot.appendChild(contentRoot);
       document.body.appendChild(reportRoot);
-      await pdfModule.default().set({
+      await html2pdf().set({
         margin: [8, 8, 10, 8],
         filename: "ClearFlow-Archived-Fund-" + archive.fund_id + ".pdf",
         image: { type: "jpeg", quality: 0.98 },
@@ -711,17 +717,17 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     }
   }
 
-  async function printFullFundReport() {
+  async function printFullFundReport(requiredBeforeArchive = false): Promise<boolean> {
     const source = document.querySelector("[data-cfcf-full-fund-report]");
     if (!(source instanceof HTMLElement)) {
       setFullFundReportError("Full Fund report content is not ready. Please try again.");
-      return;
+      return false;
     }
-
+    if (isDownloadingFullFundPdf) return false;
     let reportRoot: HTMLDivElement | null = null;
+    setIsDownloadingFullFundPdf(true);
     try {
-      setFullFundReportError("");
-      const pdfModule = await import("html2pdf.js");
+      setFullFundReportError(null);
       reportRoot = document.createElement("div");
       reportRoot.style.cssText = "position:fixed;left:-10000px;top:0;width:794px;background:#fff;color:#0f172a;font-family:Arial,sans-serif;font-size:12px;line-height:1.45;padding:28px;box-sizing:border-box;overflow-wrap:anywhere";
       const style = document.createElement("style");
@@ -733,29 +739,40 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       reportRoot.appendChild(header);
       const reportContent = source.cloneNode(true) as HTMLElement;
       reportContent.removeAttribute("data-cfcf-full-fund-report");
+      reportContent.querySelectorAll("button").forEach((button) => button.classList.add("no-pdf"));
       reportRoot.appendChild(reportContent);
       const footer = document.createElement("footer");
       footer.className = "report-footer";
-      footer.innerHTML = "<strong>Powered by ClearFlow Automations</strong><br>ClearFlow · Full Fund Report · Generated " + new Date().toLocaleString("en-IN");
+      footer.textContent = "Powered by ClearFlow Automations · ClearFlow Full Fund Report · Generated " + new Date().toLocaleString("en-IN");
       reportRoot.appendChild(footer);
       document.body.appendChild(reportRoot);
-
-      await pdfModule.default().set({
+      await html2pdf().set({
         margin: [8, 8, 10, 8],
         filename: "ClearFlow-Full-Fund-Report.pdf",
         image: { type: "jpeg", quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: "#ffffff", windowWidth: 794 },
+        html2canvas: {
+          scale: 2, useCORS: true, logging: false, backgroundColor: "#ffffff", windowWidth: 794,
+          onclone: (clonedDocument: Document) => {
+            clonedDocument.querySelectorAll("style, link[rel='stylesheet']").forEach((node) => node.remove());
+            if (clonedDocument.body) {
+              clonedDocument.body.style.color = "#0f172a";
+              clonedDocument.body.style.backgroundColor = "#ffffff";
+            }
+          },
+        },
         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
         pagebreak: { mode: ["css", "legacy"], avoid: [".record", ".metric", "h2"] },
       }).from(reportRoot).save();
-
-      showDatabaseResult("Downloaded ClearFlow-Full-Fund-Report.pdf.");
+      if (!requiredBeforeArchive) showDatabaseResult("PDF generation completed. On iPhone, confirm the file appears in Downloads or Files before closing the report.");
+      return true;
     } catch (error) {
-      setFullFundReportError(error instanceof Error
-        ? "PDF download failed: " + error.message + ". Please try again."
-        : "PDF download failed. Please try again.");
+      const message = error instanceof Error ? "PDF download failed: " + error.message + ". The Fund has not been archived. Please retry." : "PDF download failed. The Fund has not been archived. Please retry.";
+      setFullFundReportError(message);
+      if (!requiredBeforeArchive) showDatabaseResult(message, "error");
+      return false;
     } finally {
       reportRoot?.remove();
+      setIsDownloadingFullFundPdf(false);
     }
   }
   function printFundReport() {
@@ -2194,9 +2211,9 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         {isLoadingArchivedFunds ? <p className="mt-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Loading Archived Funds…</p> : archivedFunds.length === 0 ? <p className="mt-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No archived Funds yet.</p> : <div className="mt-3 space-y-2">{archivedFunds.map((archive) => <article key={archive.archive_id} className="rounded-xl border border-slate-200 p-3"><div className="min-w-0"><h3 className="break-words text-sm font-bold text-slate-900">{archive.fund_name}</h3><p className="mt-1 break-all text-xs text-slate-500">Fund ID · {archive.fund_id}</p><p className="mt-1 text-xs text-slate-500">Archived · {new Date(archive.archived_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })} · Expires · {new Date(archive.expires_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</p></div><div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={() => downloadArchivedFundReport(archive)} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg bg-violet-700 px-2 text-xs font-semibold text-white"><Download size={14}/> Download Full PDF Report</button><button type="button" onClick={() => void handleDeleteArchivedFund(archive)} disabled={deletingArchivedId === archive.archive_id} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2 text-xs font-semibold text-rose-800 disabled:opacity-50"><Trash2 size={14}/>{deletingArchivedId === archive.archive_id ? "Deleting…" : "Delete Archived Fund"}</button></div></article>)}</div>}
       </section>}
 
-      <Modal isOpen={isFullFundReportOpen} title="Full Fund Report" description="Download a report file and open the full report in a separate browser tab. The report is mobile-friendly; use its own Print / Save as PDF control only if you need a PDF." size="large" onClose={() => setIsFullFundReportOpen(false)}>
+      <Modal isOpen={isFullFundReportOpen} title="Full Fund Report" description="Database-backed Full Fund Report. Download the PDF here; archiving is a separate confirmation flow and requires successful PDF generation." size="large" onClose={() => setIsFullFundReportOpen(false)}>
         <div className="space-y-4">
-          <div className="sticky top-0 z-10 -mx-1 flex flex-wrap gap-2 border-b border-slate-100 bg-white px-1 py-2"><button type="button" onClick={printFullFundReport} disabled={!selectedFund || isLoadingFullFundReport || !!fullFundReportError || isArchivingFund} className="min-h-11 flex-1 rounded-xl bg-violet-700 px-4 text-sm font-semibold text-white disabled:opacity-40">Download PDF</button><button type="button" onClick={() => void archiveSelectedFund()} disabled={!selectedFund || isLoadingFullFundReport || isArchivingFund || !!fullFundReportError} className="min-h-11 flex-1 rounded-xl bg-amber-600 px-4 text-sm font-semibold text-white disabled:opacity-40">{isArchivingFund ? "Archiving…" : "Archive Fund"}</button><button type="button" onClick={() => setIsFullFundReportOpen(false)} disabled={isArchivingFund} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Close</button></div>
+          <div className="sticky top-0 z-10 -mx-1 flex flex-wrap gap-2 border-b border-slate-100 bg-white px-1 py-2"><button type="button" onClick={() => void printFullFundReport()} disabled={!selectedFund || isLoadingFullFundReport || isDownloadingFullFundPdf || isArchivingFund} className="min-h-11 flex-1 rounded-xl bg-violet-700 px-4 text-sm font-semibold text-white disabled:opacity-40">{isDownloadingFullFundPdf ? "Generating PDF…" : "Download PDF"}</button><button type="button" onClick={() => void archiveSelectedFund()} disabled={!selectedFund || isLoadingFullFundReport || isDownloadingFullFundPdf || isArchivingFund || !!fullFundReportError} className="min-h-11 flex-1 rounded-xl bg-amber-600 px-4 text-sm font-semibold text-white disabled:opacity-40">{isArchivingFund ? "Archiving…" : "Archive Fund"}</button><button type="button" onClick={() => setIsFullFundReportOpen(false)} disabled={isArchivingFund} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Close</button></div>
           {fullFundReportError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{fullFundReportError}</p>}
           {selectedFund && <div data-cfcf-full-fund-report className="space-y-4 text-slate-900">
             <section className="report-section rounded-xl border border-slate-200 bg-slate-50 p-4">
