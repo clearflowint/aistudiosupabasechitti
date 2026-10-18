@@ -78,7 +78,7 @@ export function ActivityLogPage({ workspace }: ActivityLogPageProps) {
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-slate-100 text-xs font-bold text-slate-600">#{row.action_id}</span>
               <div className="min-w-0 flex-1">
                 <p className="break-words text-sm font-semibold text-slate-900">{recordTitle(row)}</p>
-                <p className="mt-1 break-words text-xs text-slate-600">{row.description}</p>
+                <p className="mt-1 break-words text-xs text-slate-600">{row.entity_type.replace(/_/g, " ")} · {actionVerb(row.action_type)}</p>
                 <p className="mt-1.5 text-xs text-slate-500">{formatTimestamp(row.created_at)}</p>
               </div>
             </article>

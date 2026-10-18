@@ -74,17 +74,9 @@ Deno.serve(async (req: Request) => {
     const campaignId = cleanText(body.campaign_id, 80);
     const tenantId = cleanText(body.tenant_id, 160);
     const rawStatus = cleanText(body.status, 32).toLowerCase();
-    const statusMap: Record<string, string> = {
-      success: "sent",
-      completed: "sent",
-      delivered: "sent",
-      sent: "sent",
-      partial: "partial",
-      partially_sent: "partial",
-      error: "failed",
-      failed: "failed",
-    };
-    const status = statusMap[rawStatus];
+    // Only accept the documented terminal states. In particular, "delivered" must not be
+    // silently mapped to "sent": provider acceptance is not proof of delivery/read.
+    const status = terminalStatuses.has(rawStatus) ? rawStatus : null;
     if (!campaignId || !tenantId || !status || !terminalStatuses.has(status)) {
       return response(400, { error: "campaign_id, tenant_id and a terminal status are required." });
     }
@@ -200,7 +192,7 @@ Deno.serve(async (req: Request) => {
     const chunk = contactIds.slice(offset, offset + 500);
     const { data, error } = await admin
       .from("contacts")
-      .select("contact_id, product_id, tenant_id, name, phone, email, remarks, created_at, updated_at")
+      .select("contact_id, name, phone, email")
       .eq("product_id", "CFCF")
       .eq("tenant_id", tenantId)
       .in("contact_id", chunk);
