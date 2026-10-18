@@ -797,7 +797,9 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     } catch (error) {
       const message = error instanceof Error ? "PDF download failed: " + error.message + ". The Fund has not been archived. Please retry." : "PDF download failed. The Fund has not been archived. Please retry.";
       setFullFundReportError(message);
-      if (!requiredBeforeArchive) showDatabaseResult(message, "error");
+      // Keep PDF failures inside the Full Fund Report modal instead of stacking a second
+      // result modal over it; nested fixed-body modals can become stuck on iOS Safari.
+      if (!requiredBeforeArchive && !isFullFundReportOpen) showDatabaseResult(message, "error");
       return false;
     } finally {
       reportRoot?.remove();
