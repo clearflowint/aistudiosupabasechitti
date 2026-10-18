@@ -109,6 +109,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [archiveAcknowledged, setArchiveAcknowledged] = useState(false);
   const [archiveTypedId, setArchiveTypedId] = useState("");
   const [isArchiveConfirmOpen, setIsArchiveConfirmOpen] = useState(false);
+  const [isArchiveRequested, setIsArchiveRequested] = useState(false);
   const [archiveReportHtml, setArchiveReportHtml] = useState<string | null>(null);
   const [isDownloadingFullFundPdf, setIsDownloadingFullFundPdf] = useState(false);
   const [archivingError, setArchivingError] = useState<string | null>(null);
@@ -294,6 +295,18 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     if (!pdfReady) return;
     setIsFullFundReportOpen(false);
     setIsArchiveConfirmOpen(true);
+  }
+
+  useEffect(() => {
+    if (!isArchiveRequested || !isFullFundReportOpen || isLoadingFullFundReport || isDownloadingFullFundPdf || isArchivingFund) return;
+    setIsArchiveRequested(false);
+    void archiveSelectedFund();
+  }, [isArchiveRequested, isFullFundReportOpen, isLoadingFullFundReport, isDownloadingFullFundPdf, isArchivingFund, selectedFund?.fund_id]);
+
+  async function requestArchiveSelectedFund() {
+    if (!selectedFund || isLoadingFullFundReport || isArchivingFund || isDownloadingFullFundPdf) return;
+    setIsArchiveRequested(true);
+    await openFullFundReport();
   }
 
   async function confirmArchiveSelectedFund() {
@@ -1633,10 +1646,13 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           </section>
 
           <section className="space-y-2 border-t border-slate-200 pt-4">
-            <button type="button" onClick={() => void openFullFundReport()} disabled={isLoadingFullFundReport} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 text-sm font-semibold text-amber-900 shadow-sm hover:bg-amber-100 disabled:opacity-50">
-              <Archive size={17}/> {isLoadingFullFundReport ? "Preparing report…" : "Archive Fund"}
+            <button type="button" onClick={() => void openFullFundReport()} disabled={isLoadingFullFundReport || isArchivingFund || isDownloadingFullFundPdf} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 text-sm font-semibold text-sky-800 shadow-sm hover:bg-sky-100 disabled:opacity-50">
+              <FileText size={17}/> {isLoadingFullFundReport ? "Preparing report…" : "Full Fund Report"}
             </button>
-            <p className="text-center text-xs leading-5 text-slate-500">Danger zone · Archive only when you are ready to remove this Fund’s operational records after saving its full report.</p>
+            <button type="button" onClick={() => void requestArchiveSelectedFund()} disabled={isLoadingFullFundReport || isArchivingFund || isDownloadingFullFundPdf} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 text-sm font-semibold text-amber-900 shadow-sm hover:bg-amber-100 disabled:opacity-50">
+              <Archive size={17}/> Archive Fund
+            </button>
+            <p className="text-center text-xs leading-5 text-slate-500">Archiving is separate from the report modal and requires successful PDF generation before permanent removal.</p>
           </section>
           </>
           )}
