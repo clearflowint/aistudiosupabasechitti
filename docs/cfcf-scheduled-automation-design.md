@@ -12,7 +12,7 @@
 
 ## Existing database context inspected
 
-CFCF already has `cfcf_funds`, `cfcf_cycles`, `cfcf_bills`, `cfcf_shares`, and `cfcf_payments`. The existing `clearflow_push_subscriptions`, `clearflow_push_outbox`, and `clearflow_claim_push_outbox` support the PWA push channel. The live CFCF product origin is active with push enabled. No new automation tables or production data have been changed by this design branch.
+CFCF already has `cfcf_funds`, `cfcf_cycles`, `cfcf_bills`, `cfcf_shares`, and `cfcf_payments`. The existing `clearflow_push_subscriptions`, `clearflow_push_outbox`, and `clearflow_claim_push_outbox` support the PWA push channel. The live CFCF product origin is active with push enabled. The automation schedule/job tables are deployed in production; both currently contain zero rows. A follow-up migration adds composite foreign keys so every automation job's tenant/product and optional fund target must match.
 
 ## Proposed tables
 
@@ -37,7 +37,7 @@ One row per run, manual or scheduled:
 - progress: `recipient_count`, `processed_count`, `success_count`, `failed_count`, `skipped_count`, `progress_message`, `error_summary`, `result_summary`, `output_url`
 - timestamps: `created_at`, `accepted_at`, `started_at`, `completed_at`, `updated_at`
 
-The row is the single source of truth for Manager Home and Workspace job history. No separate events/history table is planned initially.
+The row is the single source of truth for Manager Home and Workspace job history. Composite foreign keys enforce that the job tenant/product pair exists and that any fund target belongs to that same tenant/product. No separate events/history table is planned initially.
 
 ## Atomic claim functions
 
@@ -45,7 +45,7 @@ The row is the single source of truth for Manager Home and Workspace job history
 - `cfcf_claim_automation_jobs(p_limit)` claims queued/delayed jobs for five minutes and increments the attempt count.
 - `cfcf_fail_exhausted_automation_jobs(p_limit)` marks jobs failed after eight attempts once any active claim has expired; the worker should call this before claiming work.
 - `cfcf_initialize_automation_schedule(schedule_id, next_run_at, claimed_until)` initializes only a an enabled schedule whose `next_run_at` is null and whose current claim lease exactly matches the lease returned to that evaluator; it atomically releases the claim and prevents a stale evaluator from using a newer execution's lease.
-- `cfcf_release_automation_schedule_claim(schedule_id, error)` is the n8n Error Workflow recovery hook. It records a bounded error and releases only an unexpired claim, so stale handlers cannot clear a newer lease.
+- `cfcf_release_automation_schedule_claim(schedule_id, error)` currently releases an unexpired claim by schedule ID. Do not wire it into recovery yet: a stale error execution could release a newer lease. Lease-safe recovery needs the expected claim timestamp and should only be added if the workflow can reliably pass it.
 - `cfcf_enqueue_scheduled_automation_job(schedule_id, scheduled_for, next_run_at)` creates the scheduled job and advances the recurrence in one transaction. Its idempotency key returns the existing job after an n8n timeout/retry.
 - Both claim functions are executable only by `service_role`. n8n must use credentials stored in n8n, never browser variables. Manager RPCs are executable by `authenticated` but verify `auth.uid()` and `is_active_tenant_owner('CFCF', tenant_id)` on every call.
 
@@ -99,11 +99,7 @@ return items.map(item => ({
 
 The inactive workflow export is at `n8n/cfcf-monthly-schedule-evaluator.workflow.json`.
 
-1. Import it into `https://clearflow-automation.duckdns.org`.
-2. Replace `YOUR_SUPABASE_PROJECT_REF` in the HTTP Request nodes.
-3. Create/select an n8n **Custom Auth** credential containing both Supabase headers: `apikey` set to the service-role key and `Authorization` set to `Bearer <service-role-key>`. Assign it to each HTTP Request node. Keep this credential in n8n only.
-4. Leave the workflow inactive until the job-worker workflow is configured and tested. This evaluator only initializes schedules and queues due jobs; it does not send messages or process reports.
-5. Test with one non-production schedule and confirm that `next_run_at` advances and only one queued job is created for an occurrence.
+The evaluator has been configured in the dedicated n8n instance at `https://clearflow-automation.duckdns.org`, using the Supabase project URL and a Custom Auth credential stored in n8n. It remains inactive until the worker is configured and end-to-end tests pass. The evaluator only initializes schedules and queues due jobs; it does not send messages or process reports. Test with a non-production schedule and confirm `next_run_at` advances and only one queued job is created per occurrence.
 
 The workflow is deliberately inactive and contains no credentials or real Supabase project URL. Initialization calls the atomic `cfcf_initialize_automation_schedule` RPC and passes back the claimed lease timestamp, rather than directly PATCHing a schedule row. The failure-release RPC is available for an n8n Error Workflow; until that handler is configured, failed executions recover by lease expiry. I could not authenticate to the n8n UI from this environment, so import and credential assignment still need to be performed in the instance.
 
