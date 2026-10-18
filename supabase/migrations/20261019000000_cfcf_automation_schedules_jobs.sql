@@ -293,7 +293,7 @@ begin
     raise exception 'Fund not found in this workspace' using errcode = '42501';
   end if;
 
-  if p_job_type not in ('pending_due_reminder', 'report')
+  if p_job_type is null or p_job_type not in ('pending_due_reminder', 'report')
      or p_slot_number is null
      or (p_job_type = 'pending_due_reminder' and p_slot_number not between 1 and 3)
      or (p_job_type = 'report' and p_slot_number not between 1 and 2)
@@ -406,7 +406,7 @@ begin
   if auth.uid() is null or not public.is_active_tenant_owner('CFCF', p_tenant_id) then
     raise exception 'Workspace owner access is required' using errcode = '42501';
   end if;
-  if p_job_type not in ('pending_due_reminder', 'report') then
+  if p_job_type is null or p_job_type not in ('pending_due_reminder', 'report') then
     raise exception 'Manual job type is invalid' using errcode = '22023';
   end if;
 
