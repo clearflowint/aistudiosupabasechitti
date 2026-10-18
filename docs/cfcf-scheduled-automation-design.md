@@ -92,6 +92,18 @@ return items.map(item => ({
 }));
 ```
 
+## Importable n8n schedule evaluator
+
+The inactive workflow export is at `n8n/cfcf-monthly-schedule-evaluator.workflow.json`.
+
+1. Import it into `https://n8nclearflow.duckdns.org`.
+2. Replace `YOUR_SUPABASE_PROJECT_REF` in the three HTTP Request nodes.
+3. Create/select an n8n **Custom Auth** credential containing both Supabase headers: `apikey` set to the service-role key and `Authorization` set to `Bearer <service-role-key>`. Assign it to each HTTP Request node. Keep this credential in n8n only.
+4. Leave the workflow inactive until the job-worker workflow is configured and tested. This evaluator only initializes schedules and queues due jobs; it does not send messages or process reports.
+5. Test with one non-production schedule and confirm that `next_run_at` advances and only one queued job is created for an occurrence.
+
+The workflow is deliberately inactive and contains no credentials or real Supabase project URL. I could not authenticate to the n8n UI from this environment, so import and credential assignment still need to be performed in the instance.
+
 ## n8n processing contract
 
 1. Schedule Trigger runs every minute.
