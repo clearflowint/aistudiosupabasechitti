@@ -43,9 +43,15 @@ The row is the single source of truth for Manager Home and Workspace job history
 
 - `cfcf_claim_due_automation_schedules(p_limit)` claims due schedules for five minutes using `FOR UPDATE SKIP LOCKED`.
 - `cfcf_claim_automation_jobs(p_limit)` claims queued/delayed jobs for five minutes and increments the attempt count.
-- Both functions are executable only by `service_role`. n8n must use credentials stored in n8n, never browser variables.
+- Both claim functions are executable only by `service_role`. n8n must use credentials stored in n8n, never browser variables. Manager RPCs are executable by `authenticated` but verify `auth.uid()` and `is_active_tenant_owner('CFCF', tenant_id)` on every call.
 
 The n8n workflow must initialize `next_run_at` for newly enabled schedules without immediately executing them, clear `claimed_until` on successful processing, calculate and store the next monthly run, and record an error/release claim when an execution fails. Claims expire so crashed executions can be recovered. Expired `processing` jobs can be reclaimed; after eight attempts, n8n must surface a final failure rather than loop indefinitely.
+
+## Manual trigger protection
+
+- `cfcf_create_manual_automation_job` atomically creates a queued job only for the authenticated tenant owner and a fund in that tenant.
+- An advisory transaction lock serializes concurrent clicks. A manager can trigger pending reminders at most once per hour per Fund, and reports separately at most once per hour per Fund.
+- Campaigns are intentionally excluded from this job type for now; campaign launch remains a later phase.
 
 ## n8n Code node — monthly recurrence
 
@@ -99,7 +105,7 @@ return items.map(item => ({
 
 ## Still required before production activation
 
-- Add authenticated manager UI/RPCs for schedule setup and manual job creation.
+- Add the mobile-first manager UI for schedule setup, manual triggers and job history using the owner-checked RPCs.
 - Configure n8n's Supabase credential and WAHA/provider credential in the n8n credential store.
 - Finish the workflow's provider nodes and report delivery destination.
 - Verify manual and scheduled paths with a test tenant, including month-end dates, duplicate execution, claim expiry, retries, and manager push notifications.
