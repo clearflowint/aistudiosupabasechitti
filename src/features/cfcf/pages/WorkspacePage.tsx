@@ -413,7 +413,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setArchivedDeleteStep(1);
       setArchivedDeleteAcknowledged(false);
       setArchivedDeleteTypedId("");
-      showDatabaseResult("The archived Fund and its saved report were permanently deleted from the database. A PDF backup download was initiated.");
+      showDatabaseResult("The archived Fund and its saved report were permanently deleted from the database. No PDF was generated or downloaded as part of deletion.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to delete archived report.";
       setArchivedDeleteError(message);
