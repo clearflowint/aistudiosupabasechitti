@@ -369,6 +369,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       });
       reportRoot.appendChild(contentRoot);
       document.body.appendChild(reportRoot);
+      const html2pdf = (await import("html2pdf.js")).default;
       await html2pdf().set({
         margin: [8, 8, 10, 8],
         filename: "ClearFlow-Archived-Fund-" + archive.fund_id + ".pdf",
