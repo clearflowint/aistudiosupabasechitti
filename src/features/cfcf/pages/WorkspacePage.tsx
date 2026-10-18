@@ -58,7 +58,7 @@ import {
   type CfcfFundOtherAdjustmentSummary,
 } from "../services/workspace.service";
 import type { CfcfBillRow, CfcfContactRow, CfcfFundRow, CfcfShareRow } from "../types/database.types";
-import html2pdf from "html2pdf.js";
+import { jsPDF } from "jspdf";
 
 type WorkspaceTab = "shares" | "ledger";
 type WorkspaceSectionTab = "fund-summary" | "shares";
@@ -737,88 +737,57 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       return false;
     }
     if (isDownloadingFullFundPdf) return false;
-    let reportRoot: HTMLDivElement | null = null;
     setIsDownloadingFullFundPdf(true);
     try {
       setFullFundReportError(null);
-      reportRoot = document.createElement("div");
-      reportRoot.style.cssText = "position:fixed;left:0;top:0;z-index:2147483000;width:794px;min-height:100px;background:#fff;color:#0f172a;font-family:Arial,sans-serif;font-size:12px;line-height:1.45;padding:28px;box-sizing:border-box;overflow-wrap:anywhere";
-      const style = document.createElement("style");
-      style.textContent = "*{box-sizing:border-box}h1{font-size:22px;margin:0 0 6px}h2{font-size:15px;margin:18px 0 8px;break-after:avoid}h3{font-size:12px;margin:10px 0 5px}.report-section{margin-bottom:16px;break-inside:auto}.record{border:1px solid #cbd5e1;border-radius:7px;padding:9px;margin:6px 0;break-inside:avoid}.muted{color:#64748b}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.metric{border:1px solid #cbd5e1;border-radius:6px;padding:8px;break-inside:avoid;min-width:0}.metric-label{font-size:9px;color:#64748b}.metric-value{font-size:12px;font-weight:700;margin-top:3px;overflow-wrap:anywhere;word-break:break-word}.pill{display:inline-block;border:1px solid #cbd5e1;border-radius:10px;padding:2px 6px;font-size:9px}p{margin:3px 0;overflow-wrap:anywhere;word-break:break-word}.entry-amount{font-weight:700}.entry-meta{font-size:9px;color:#64748b;overflow-wrap:anywhere;word-break:break-word}.disclaimer{border:1px solid #fcd34d;background:#fffbeb;padding:9px;border-radius:6px}.no-pdf{display:none!important}";
-      reportRoot.appendChild(style);
-      const reportContent = source.cloneNode(true) as HTMLElement;
-      reportContent.removeAttribute("data-cfcf-full-fund-report");
-      reportContent.querySelectorAll("button").forEach((button) => button.remove());
-      // Inline browser-computed styles before capture. This avoids html2canvas
-      // parsing Tailwind OKLCH stylesheet tokens and prevents iOS from exporting blank pages.
-      const originalNodes = [source, ...Array.from(source.querySelectorAll<HTMLElement>("*"))];
-      const clonedNodes = [reportContent, ...Array.from(reportContent.querySelectorAll<HTMLElement>("*"))];
-      originalNodes.forEach((original, index) => {
-        const clone = clonedNodes[index];
-        if (!clone) return;
-        const computed = window.getComputedStyle(original);
-        clone.removeAttribute("class");
-        clone.removeAttribute("style");
-        clone.style.color = computed.color.startsWith("oklch") ? "#0f172a" : computed.color;
-        clone.style.backgroundColor = computed.backgroundColor.startsWith("oklch") ? "#ffffff" : computed.backgroundColor;
-        clone.style.borderColor = computed.borderColor.startsWith("oklch") ? "#cbd5e1" : computed.borderColor;
-        clone.style.fontFamily = "Arial, sans-serif";
-        clone.style.fontSize = computed.fontSize;
-        clone.style.fontWeight = computed.fontWeight;
-        clone.style.lineHeight = computed.lineHeight;
-        clone.style.textAlign = computed.textAlign;
-        clone.style.display = computed.display === "none" ? "block" : computed.display;
-        clone.style.width = computed.width;
-        clone.style.height = computed.height === "auto" ? "auto" : computed.height;
-        clone.style.margin = computed.margin;
-        clone.style.padding = computed.padding;
-        clone.style.border = computed.border.replace(/oklch\([^)]*\)/gi, "#cbd5e1");
-        clone.style.borderRadius = computed.borderRadius;
-        clone.style.overflowWrap = "anywhere";
-        clone.style.boxSizing = "border-box";
+      // Plain text PDF generation avoids html2canvas, CSS color parsing and blank
+      // rasterized pages on iOS. The text comes directly from the visible report DOM.
+      const report = source.cloneNode(true) as HTMLElement;
+      report.querySelectorAll("button").forEach((button) => button.remove());
+      report.querySelectorAll("header, footer").forEach((element) => {
+        if (/clearflow|powered by/i.test(element.textContent ?? "")) element.remove();
       });
-      reportRoot.appendChild(reportContent);
-      document.body.appendChild(reportRoot);
-      await html2pdf().set({
-        margin: [8, 8, 10, 8],
-        filename: "ClearFlow-Full-Fund-Report.pdf",
-        image: { type: "jpeg", quality: 0.98 },
-        html2canvas: {
-          scale: 2, useCORS: true, logging: false, backgroundColor: "#ffffff", windowWidth: 794,
-          onclone: (clonedDocument: Document) => {
-            // The report is already styled inline above. Remove app stylesheets so
-            // html2canvas never encounters Tailwind's unsupported oklch() values.
-            clonedDocument.querySelectorAll("style, link[rel='stylesheet']").forEach((node) => node.remove());
-            clonedDocument.querySelectorAll<HTMLElement>("[style]").forEach((element) => {
-              const inline = element.getAttribute("style") ?? "";
-              if (/oklch\(/i.test(inline)) {
-                element.setAttribute("style", inline.replace(/oklch\([^)]*\)/gi, "#64748b"));
-              }
-            });
-            const clonedRoot = clonedDocument.body.lastElementChild;
-            if (clonedRoot instanceof HTMLElement) {
-              clonedRoot.style.position = "static";
-              clonedRoot.style.left = "auto";
-              clonedRoot.style.top = "auto";
-              clonedRoot.style.zIndex = "auto";
-              clonedRoot.style.backgroundColor = "#ffffff";
-              clonedRoot.style.color = "#0f172a";
-            }
-          },
-        },
-        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-        pagebreak: { mode: ["css", "legacy"], avoid: [".record", ".metric", "h2"] },
-      }).from(reportRoot).save();
-      if (!requiredBeforeArchive) showDatabaseResult("PDF generation completed. On iPhone, confirm the file appears in Downloads or Files before closing the report.");
+      const rawText = (report.innerText || report.textContent || "")
+        .replace(/\\u00a0/g, " ")
+        .replace(/[ \\t]+/g, " ")
+        .replace(/\\n{3,}/g, "\\n\\n")
+        .trim();
+      if (!rawText) throw new Error("The report contains no readable text.");
+      const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 14;
+      const usableWidth = pageWidth - margin * 2;
+      const lines = rawText.split("\\n").flatMap((line) => {
+        const cleanLine = line.trim();
+        return cleanLine ? pdf.splitTextToSize(cleanLine, usableWidth) : [""];
+      });
+      let y = margin;
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(10);
+      for (const line of lines) {
+        if (!line) {
+          y += 2;
+          continue;
+        }
+        const chunks = pdf.splitTextToSize(String(line), usableWidth);
+        for (const chunk of chunks) {
+          if (y > pageHeight - margin) {
+            pdf.addPage();
+            y = margin;
+          }
+          pdf.text(chunk, margin, y);
+          y += 5;
+        }
+      }
+      pdf.save("ClearFlow-Full-Fund-Report.pdf");
+      if (!requiredBeforeArchive) showDatabaseResult("Full Fund Report PDF downloaded.");
       return true;
     } catch (error) {
       const message = error instanceof Error ? "PDF download failed: " + error.message + ". Your Fund data is unchanged. Please retry." : "PDF download failed. Your Fund data is unchanged. Please retry.";
       setFullFundReportError(message);
-      // Always release the busy state and keep the failure local to the report modal.
-      // Do not stack a second modal on top of the report on iOS Safari.
       return false;
     } finally {
-      reportRoot?.remove();
       setIsDownloadingFullFundPdf(false);
     }
   }
