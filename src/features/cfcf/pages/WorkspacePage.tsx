@@ -342,7 +342,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       // Inline report content gets a conservative, PDF-safe palette instead.
       contentRoot.querySelectorAll<HTMLElement>("*").forEach((element) => {
         const style = element.getAttribute("style");
-        if (style && /oklch\\(|oklab\\(|color\\(/i.test(style)) {
+        if (style && /oklch\(|oklab\(|color\(/i.test(style)) {
           element.removeAttribute("style");
         }
         element.style.color = "#0f172a";
