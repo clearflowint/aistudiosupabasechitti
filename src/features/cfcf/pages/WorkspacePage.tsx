@@ -353,7 +353,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       const parsed = new DOMParser().parseFromString(archive.report_html, "text/html");
       reportRoot = document.createElement("div");
       reportRoot.id = "clearflow-archived-pdf-root";
-      reportRoot.style.cssText = "position:fixed;left:0;top:0;z-index:2147483000;width:794px;min-height:100px;background:#ffffff;color:#0f172a;font-family:Arial,sans-serif;font-size:12px;line-height:1.45;padding:28px;box-sizing:border-box;overflow-wrap:anywhere";
+      reportRoot.style.cssText = "position:fixed;left:0;top:0;z-index:99;pointer-events:none;width:794px;min-height:100px;background:#ffffff;color:#0f172a;font-family:Arial,sans-serif;font-size:12px;line-height:1.45;padding:28px;box-sizing:border-box;overflow-wrap:anywhere";
       // html2canvas can fail while parsing Tailwind v4 OKLCH colors from either the archived
       // markup or the live app stylesheet. Build a plain, PDF-safe copy without utility classes.
       const contentRoot = document.createElement("div");
