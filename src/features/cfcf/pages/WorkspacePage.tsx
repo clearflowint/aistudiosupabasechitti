@@ -112,7 +112,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [isArchiveRequested, setIsArchiveRequested] = useState(false);
   const [archiveReportHtml, setArchiveReportHtml] = useState<string | null>(null);
   const [archivePdfReady, setArchivePdfReady] = useState(false);
-  const [isPreparingArchivePdf, setIsPreparingArchivePdf] = useState(false);
   const [isDownloadingFullFundReport, setIsDownloadingFullFundReport] = useState(false);
   const [archivingError, setArchivingError] = useState<string | null>(null);
   const [deletingArchivedId, setDeletingArchivedId] = useState<string | null>(null);
@@ -2372,8 +2371,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           </div>
           {archiveStep === 1 && <div className="space-y-3">
             <p className="text-sm leading-5 text-slate-700">Review the Fund identity and the permanent consequences before continuing.</p>
-            <button type="button" onClick={() => void downloadPreArchiveFundPdf()} disabled={isPreparingArchivePdf || archivePdfReady || !archiveReportHtml} className="min-h-11 w-full rounded-xl bg-violet-700 px-4 text-sm font-semibold text-white disabled:opacity-40">{isPreparingArchivePdf ? "Preparing Full Fund HTML…" : archivePdfReady ? "Full Fund HTML backup generated successfully" : "Download Full Fund HTML backup"}</button>
-            <button type="button" onClick={() => setArchiveStep(2)} disabled={!archivePdfReady || isPreparingArchivePdf} className="min-h-11 w-full rounded-xl bg-amber-700 px-4 text-sm font-semibold text-white disabled:opacity-40">Continue to archive review</button>
+            <p className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-800">Full Fund HTML backup download was started. Archiving has not started.</p>
+            <button type="button" onClick={() => setArchiveStep(2)} disabled={!archivePdfReady} className="min-h-11 w-full rounded-xl bg-amber-700 px-4 text-sm font-semibold text-white disabled:opacity-40">Continue to archive review</button>
           </div>}
           {archiveStep === 2 && <div className="space-y-3">
             <label className="flex items-start gap-3 rounded-xl border border-amber-300 p-3 text-sm leading-5 text-slate-700"><input type="checkbox" checked={archiveAcknowledged} onChange={(event) => setArchiveAcknowledged(event.target.checked)} className="mt-1 h-4 w-4 shrink-0"/><span>I understand this permanently deletes the Fund's operational financial records. The report is temporary, and the original Fund cannot be restored.</span></label>
