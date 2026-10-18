@@ -38,9 +38,6 @@ create table if not exists public.cfcf_automation_jobs (
   job_id uuid primary key default gen_random_uuid(),
   product_id text not null default 'CFCF' check (product_id = 'CFCF'),
   tenant_id text not null references public.tenants(tenant_id) on delete cascade,
-  tenant_name text not null,
-  tenant_email text not null,
-  tenant_phone text not null,
   fund_id text,
   fund_name text,
   job_type text not null check (job_type in ('pending_due_reminder', 'report')),
@@ -286,7 +283,6 @@ security definer
 set search_path = public, pg_temp
 as $$
 declare
-  v_tenant public.tenants%rowtype;
   v_fund public.cfcf_funds%rowtype;
   v_job public.cfcf_automation_jobs%rowtype;
   v_idempotency_key text;
@@ -301,9 +297,10 @@ begin
   -- Serialize same-fund, same-type manual requests to enforce one per hour.
   perform pg_advisory_xact_lock(hashtext(p_tenant_id), hashtext(p_fund_id || ':' || p_job_type));
 
-  select * into v_tenant from public.tenants t
-  where t.tenant_id = p_tenant_id and t.product_id = 'CFCF' and t.status = 'active';
-  if not found then
+  if not exists (
+    select 1 from public.tenants t
+    where t.tenant_id = p_tenant_id and t.product_id = 'CFCF' and t.status = 'active'
+  ) then
     raise exception 'Active CFCF workspace not found' using errcode = '42501';
   end if;
 
@@ -326,15 +323,12 @@ begin
     p_job_type || ':' || floor(extract(epoch from clock_timestamp()))::bigint::text;
 
   insert into public.cfcf_automation_jobs (
-    product_id, tenant_id, tenant_name, tenant_email, tenant_phone,
-    fund_id, fund_name, job_type, trigger_type, idempotency_key,
-    status
+    product_id, tenant_id, fund_id, fund_name, job_type, trigger_type,
+    idempotency_key, status
   )
   values (
-    'CFCF', p_tenant_id, coalesce(v_tenant.business_name, v_tenant.name, ''),
-    coalesce(v_tenant.email, ''), coalesce(v_tenant.phone, ''),
-    v_fund.fund_id, coalesce(v_fund.fund_name, ''), p_job_type, 'manual',
-    v_idempotency_key, 'queued'
+    'CFCF', p_tenant_id, v_fund.fund_id, coalesce(v_fund.fund_name, ''),
+    p_job_type, 'manual', v_idempotency_key, 'queued'
   )
   returning * into v_job;
 
