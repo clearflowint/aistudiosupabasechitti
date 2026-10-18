@@ -146,6 +146,40 @@ $$;
 revoke all on function public.cfcf_claim_automation_jobs(integer) from public, anon, authenticated;
 grant execute on function public.cfcf_claim_automation_jobs(integer) to service_role;
 
+-- Terminalize jobs that have exhausted retries so they do not remain queued forever.
+-- The worker should call this before claiming the next batch.
+create or replace function public.cfcf_fail_exhausted_automation_jobs(p_limit integer default 100)
+returns setof public.cfcf_automation_jobs
+language sql
+security definer
+set search_path = public, pg_temp
+as $
+  with exhausted as (
+    select job_id
+    from public.cfcf_automation_jobs
+    where product_id = 'CFCF'
+      and status in ('queued', 'delayed', 'processing')
+      and attempts >= 8
+      and (claimed_until is null or claimed_until < now())
+    order by updated_at
+    limit greatest(1, least(coalesce(p_limit, 100), 500))
+    for update skip locked
+  )
+  update public.cfcf_automation_jobs j
+  set status = 'failed',
+      error_summary = coalesce(j.error_summary, 'Maximum retry attempts exhausted'),
+      progress_message = 'Failed after maximum retry attempts',
+      completed_at = coalesce(j.completed_at, now()),
+      claimed_until = null,
+      updated_at = now()
+  from exhausted
+  where j.job_id = exhausted.job_id
+  returning j.*;
+$;
+
+revoke all on function public.cfcf_fail_exhausted_automation_jobs(integer) from public, anon, authenticated;
+grant execute on function public.cfcf_fail_exhausted_automation_jobs(integer) to service_role;
+
 
 
 -- Atomically create one scheduled job and advance its recurrence.
