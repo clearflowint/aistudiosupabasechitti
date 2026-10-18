@@ -17,11 +17,12 @@ Keep these values attached to each item through every n8n branch, split, merge, 
 Carry identifiers when the task needs them:
 
 - `fund_id`: when a task targets a particular CFCF Fund.
-- `person_id`: when a task is explicitly about one person.
 - `contact_id`, `share_id`, `cycle_id`, `schedule_id`: when the task targets those records.
 - A product-specific record ID for other ClearFlow products, with the same tenant/product validation rule.
 
-A CFCF pending-due reminder is usually Fund-scoped and may have multiple recipients. Do not assign one arbitrary `person_id` to that job; derive recipient person/contact IDs from the Fund's scoped saved records. Use `person_id` on a job only for genuinely person-targeted work, via a reviewed forward migration and scoped foreign key.
+**CFCF automation jobs do not need `person_id`.** Fund-level reminders and reports may involve multiple recipients, so the worker resolves recipients from the Fund's saved Share/Contact records. Do not add `person_id` to the CFCF automation job schema.
+
+Other ClearFlow products may use `person_id` if their workflow genuinely targets one person. Keep that product-specific and validate the person against the same tenant/product scope.
 
 ## Contact details
 
@@ -31,7 +32,9 @@ The live schema already has:
 - `persons`: `person_id`, `tenant_id`, `product_id`, `name`, `email`, `phone`, `status`.
 - `global_access_list`: links `product_id` + `tenant_id` to `person_id`, with `access_type = 'tenantowner'` for the owner relationship.
 
-When needed, n8n should fetch current contact details from Supabase using the trusted `product_id` and `tenant_id`, and then verify the owner/person relationship. Do not duplicate tenant email/phone into every durable job row by default. Keep owner contact and recipient contact as distinct roles; a tenant owner is not automatically the reminder recipient.
+When needed, n8n should fetch current tenant-owner contact details from Supabase using the trusted `product_id` and `tenant_id`, and verify the owner relationship. Do not duplicate tenant email/phone into every durable job row by default. Keep owner contact and recipient contact as distinct roles; a tenant owner is not automatically the reminder recipient.
+
+For CFCF reminders, the current schema supports recipient resolution through `cfcf_shares` (`product_id`, `tenant_id`, `fund_id`, `contact_id`) joined to `contacts` on the same contact, tenant and product scope. Use saved `total_pending` for pending reminders; do not recompute financial ledgers in n8n. Validate that any bill/cycle records used are scoped to the same product, tenant and Fund.
 
 ## Read/write rules
 
@@ -46,8 +49,8 @@ When needed, n8n should fetch current contact details from Supabase using the tr
 
 ## Current CFCF implementation status
 
-The deployed `cfcf_automation_jobs` table already carries `job_id`, `product_id`, `tenant_id`, and optional `fund_id`; composite foreign keys enforce tenant/product and fund/tenant/product consistency. The claim RPC returns the job row, not tenant/person contact details. The worker must therefore perform a separate, scoped lookup for contact data only when needed.
+The deployed `cfcf_automation_jobs` table already carries `job_id`, `product_id`, `tenant_id`, and optional `fund_id`; composite foreign keys enforce tenant/product and fund/tenant/product consistency. The claim RPC returns the job row, not tenant/person contact details. The worker must therefore perform a separate, scoped lookup for tenant contact or Fund recipient data only when needed.
 
-The current CFCF job schema has no `person_id`. That is intentional for Fund-level reminders/reports which may involve multiple people. If a future task is explicitly person-targeted, add an optional person reference with a composite foreign key to `persons(person_id, tenant_id, product_id)` in a new forward migration; do not edit/reapply a migration already deployed.
+The current CFCF job schema intentionally has no `person_id`; do not add one for CFCF. The worker must resolve recipients from the Fund's scoped Share/Contact records and may have multiple recipients per job.
 
 The schedule evaluator and worker must remain inactive until tenant-scoped reads/writes, recipient resolution, retry/idempotency, and a two-tenant isolation test pass. No live messages during these tests.
