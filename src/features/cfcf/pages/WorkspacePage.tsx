@@ -742,7 +742,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     try {
       setFullFundReportError(null);
       reportRoot = document.createElement("div");
-      reportRoot.style.cssText = "position:absolute;left:0;top:0;z-index:2147483000;width:794px;min-height:100px;background:#fff;color:#0f172a;font-family:Arial,sans-serif;font-size:12px;line-height:1.45;padding:28px;box-sizing:border-box;overflow-wrap:anywhere";
+      reportRoot.style.cssText = "position:fixed;left:0;top:0;z-index:99;width:794px;min-height:100px;background:#fff;color:#0f172a;font-family:Arial,sans-serif;font-size:12px;line-height:1.45;padding:28px;box-sizing:border-box;overflow-wrap:anywhere";
       const style = document.createElement("style");
       style.textContent = "*{box-sizing:border-box}h1{font-size:22px;margin:0 0 6px}h2{font-size:15px;margin:18px 0 8px;break-after:avoid}h3{font-size:12px;margin:10px 0 5px}.report-section{margin-bottom:16px;break-inside:auto}.record{border:1px solid #cbd5e1;border-radius:7px;padding:9px;margin:6px 0;break-inside:avoid}.muted{color:#64748b}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.metric{border:1px solid #cbd5e1;border-radius:6px;padding:8px;break-inside:avoid;min-width:0}.metric-label{font-size:9px;color:#64748b}.metric-value{font-size:12px;font-weight:700;margin-top:3px;overflow-wrap:anywhere;word-break:break-word}.pill{display:inline-block;border:1px solid #cbd5e1;border-radius:10px;padding:2px 6px;font-size:9px}p{margin:3px 0;overflow-wrap:anywhere;word-break:break-word}.entry-amount{font-weight:700}.entry-meta{font-size:9px;color:#64748b;overflow-wrap:anywhere;word-break:break-word}.disclaimer{border:1px solid #fcd34d;background:#fffbeb;padding:9px;border-radius:6px}.brand-header{text-align:center;font-size:18px;font-weight:800;letter-spacing:.35px;padding:0 0 12px;margin-bottom:14px;border-bottom:1px solid #cbd5e1}.report-footer{margin-top:20px;padding-top:8px;border-top:1px solid #cbd5e1;font-size:10px;color:#475569;text-align:center}.no-pdf{display:none!important}";
       reportRoot.appendChild(style);
@@ -752,7 +752,35 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       reportRoot.appendChild(header);
       const reportContent = source.cloneNode(true) as HTMLElement;
       reportContent.removeAttribute("data-cfcf-full-fund-report");
-      reportContent.querySelectorAll("button").forEach((button) => button.classList.add("no-pdf"));
+      reportContent.querySelectorAll("button").forEach((button) => button.remove());
+      // Inline browser-computed styles before capture. This avoids html2canvas
+      // parsing Tailwind OKLCH stylesheet tokens and prevents iOS from exporting blank pages.
+      const originalNodes = [source, ...Array.from(source.querySelectorAll<HTMLElement>("*"))];
+      const clonedNodes = [reportContent, ...Array.from(reportContent.querySelectorAll<HTMLElement>("*"))];
+      originalNodes.forEach((original, index) => {
+        const clone = clonedNodes[index];
+        if (!clone) return;
+        const computed = window.getComputedStyle(original);
+        clone.removeAttribute("class");
+        clone.removeAttribute("style");
+        clone.style.color = computed.color.startsWith("oklch") ? "#0f172a" : computed.color;
+        clone.style.backgroundColor = computed.backgroundColor.startsWith("oklch") ? "#ffffff" : computed.backgroundColor;
+        clone.style.borderColor = computed.borderColor.startsWith("oklch") ? "#cbd5e1" : computed.borderColor;
+        clone.style.fontFamily = "Arial, sans-serif";
+        clone.style.fontSize = computed.fontSize;
+        clone.style.fontWeight = computed.fontWeight;
+        clone.style.lineHeight = computed.lineHeight;
+        clone.style.textAlign = computed.textAlign;
+        clone.style.display = computed.display === "none" ? "block" : computed.display;
+        clone.style.width = computed.width;
+        clone.style.height = computed.height === "auto" ? "auto" : computed.height;
+        clone.style.margin = computed.margin;
+        clone.style.padding = computed.padding;
+        clone.style.border = computed.border.replace(/oklch\([^)]*\)/gi, "#cbd5e1");
+        clone.style.borderRadius = computed.borderRadius;
+        clone.style.overflowWrap = "anywhere";
+        clone.style.boxSizing = "border-box";
+      });
       reportRoot.appendChild(reportContent);
       const footer = document.createElement("footer");
       footer.className = "report-footer";
@@ -765,29 +793,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         image: { type: "jpeg", quality: 0.98 },
         html2canvas: {
           scale: 2, useCORS: true, logging: false, backgroundColor: "#ffffff", windowWidth: 794,
-          onclone: (clonedDocument: Document) => {
-            // html2canvas cannot parse Tailwind v4's OKLCH color functions. Replace
-            // those color tokens in the cloned stylesheets with a PDF-safe fallback,
-            // preserving the rest of the report's styling and layout.
-            clonedDocument.querySelectorAll("style").forEach((node) => {
-              node.textContent = (node.textContent ?? "").replace(/oklch\([^)]*\)/gi, "#64748b");
-            });
-            clonedDocument.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]').forEach((node) => {
-              try {
-                const sourceSheet = Array.from(document.styleSheets).find((sheet) => sheet.href === node.href);
-                const rules = sourceSheet ? Array.from(sourceSheet.cssRules).map((rule) => rule.cssText).join("\n") : "";
-                if (rules) {
-                  const safeStyle = clonedDocument.createElement("style");
-                  safeStyle.textContent = rules.replace(/oklch\([^)]*\)/gi, "#64748b");
-                  node.replaceWith(safeStyle);
-                } else {
-                  node.remove();
-                }
-              } catch {
-                node.remove();
-              }
-            });
-          },
         },
         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
         pagebreak: { mode: ["css", "legacy"], avoid: [".record", ".metric", "h2"] },
