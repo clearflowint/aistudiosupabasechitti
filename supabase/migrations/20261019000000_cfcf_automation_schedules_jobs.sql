@@ -40,7 +40,7 @@ create table if not exists public.cfcf_automation_jobs (
   tenant_phone text not null,
   fund_id text,
   fund_name text,
-  job_type text not null check (job_type in ('pending_due_reminder', 'report', 'campaign')),
+  job_type text not null check (job_type in ('pending_due_reminder', 'report')),
   trigger_type text not null check (trigger_type in ('manual', 'scheduled')),
   schedule_id uuid references public.cfcf_automation_schedules(schedule_id) on delete set null,
   scheduled_for timestamptz,
@@ -145,3 +145,206 @@ $$;
 
 revoke all on function public.cfcf_claim_automation_jobs(integer) from public, anon, authenticated;
 grant execute on function public.cfcf_claim_automation_jobs(integer) to service_role;
+
+
+-- Manager-facing RPCs: browser users never receive service_role access.
+create or replace function public.cfcf_save_automation_schedule(
+  p_tenant_id text,
+  p_fund_id text,
+  p_job_type text,
+  p_slot_number smallint,
+  p_day_of_month smallint,
+  p_time_of_day time,
+  p_timezone text default 'Asia/Kolkata',
+  p_is_enabled boolean default true
+)
+returns public.cfcf_automation_schedules
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_schedule public.cfcf_automation_schedules%rowtype;
+begin
+  if auth.uid() is null or not public.is_active_tenant_owner('CFCF', p_tenant_id) then
+    raise exception 'Workspace owner access is required' using errcode = '42501';
+  end if;
+
+  if p_fund_id is null or not exists (
+    select 1 from public.cfcf_funds f
+    where f.product_id = 'CFCF' and f.tenant_id = p_tenant_id and f.fund_id = p_fund_id
+  ) then
+    raise exception 'Fund not found in this workspace' using errcode = '42501';
+  end if;
+
+  if p_job_type not in ('pending_due_reminder', 'report')
+     or p_slot_number is null
+     or (p_job_type = 'pending_due_reminder' and p_slot_number not between 1 and 3)
+     or (p_job_type = 'report' and p_slot_number not between 1 and 2)
+     or p_day_of_month not between 1 and 31
+     or p_time_of_day is null
+     or nullif(btrim(p_timezone), '') is null then
+    raise exception 'Schedule settings are invalid' using errcode = '22023';
+  end if;
+
+  -- Validate timezone names before saving a schedule that n8n cannot evaluate.
+  perform now() at time zone p_timezone;
+
+  insert into public.cfcf_automation_schedules (
+    product_id, tenant_id, fund_id, job_type, slot_number,
+    day_of_month, time_of_day, timezone, is_enabled, next_run_at,
+    claimed_until, last_error, updated_at
+  )
+  values (
+    'CFCF', p_tenant_id, p_fund_id, p_job_type, p_slot_number,
+    p_day_of_month, p_time_of_day, p_timezone, coalesce(p_is_enabled, true), null,
+    null, null, now()
+  )
+  on conflict (product_id, tenant_id, fund_id, job_type, slot_number)
+  do update set
+    day_of_month = excluded.day_of_month,
+    time_of_day = excluded.time_of_day,
+    timezone = excluded.timezone,
+    is_enabled = excluded.is_enabled,
+    next_run_at = null,
+    claimed_until = null,
+    last_error = null,
+    updated_at = now()
+  returning * into v_schedule;
+
+  return v_schedule;
+end;
+$$;
+
+create or replace function public.cfcf_list_automation_schedules(
+  p_tenant_id text,
+  p_fund_id text
+)
+returns setof public.cfcf_automation_schedules
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if auth.uid() is null or not public.is_active_tenant_owner('CFCF', p_tenant_id) then
+    raise exception 'Workspace owner access is required' using errcode = '42501';
+  end if;
+  if not exists (
+    select 1 from public.cfcf_funds f
+    where f.product_id = 'CFCF' and f.tenant_id = p_tenant_id and f.fund_id = p_fund_id
+  ) then
+    raise exception 'Fund not found in this workspace' using errcode = '42501';
+  end if;
+
+  return query
+  select s.* from public.cfcf_automation_schedules s
+  where s.product_id = 'CFCF' and s.tenant_id = p_tenant_id and s.fund_id = p_fund_id
+  order by case s.job_type when 'pending_due_reminder' then 1 else 2 end, s.slot_number;
+end;
+$$;
+
+create or replace function public.cfcf_list_automation_jobs(
+  p_tenant_id text,
+  p_fund_id text,
+  p_limit integer default 30
+)
+returns setof public.cfcf_automation_jobs
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if auth.uid() is null or not public.is_active_tenant_owner('CFCF', p_tenant_id) then
+    raise exception 'Workspace owner access is required' using errcode = '42501';
+  end if;
+  if not exists (
+    select 1 from public.cfcf_funds f
+    where f.product_id = 'CFCF' and f.tenant_id = p_tenant_id and f.fund_id = p_fund_id
+  ) then
+    raise exception 'Fund not found in this workspace' using errcode = '42501';
+  end if;
+
+  return query
+  select j.* from public.cfcf_automation_jobs j
+  where j.product_id = 'CFCF' and j.tenant_id = p_tenant_id and j.fund_id = p_fund_id
+  order by j.created_at desc
+  limit greatest(1, least(coalesce(p_limit, 30), 100));
+end;
+$$;
+
+create or replace function public.cfcf_create_manual_automation_job(
+  p_tenant_id text,
+  p_fund_id text,
+  p_job_type text
+)
+returns public.cfcf_automation_jobs
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_tenant public.tenants%rowtype;
+  v_fund public.cfcf_funds%rowtype;
+  v_job public.cfcf_automation_jobs%rowtype;
+  v_idempotency_key text;
+begin
+  if auth.uid() is null or not public.is_active_tenant_owner('CFCF', p_tenant_id) then
+    raise exception 'Workspace owner access is required' using errcode = '42501';
+  end if;
+  if p_job_type not in ('pending_due_reminder', 'report') then
+    raise exception 'Manual job type is invalid' using errcode = '22023';
+  end if;
+
+  -- Serialize same-fund, same-type manual requests to enforce one per hour.
+  perform pg_advisory_xact_lock(hashtext(p_tenant_id), hashtext(p_fund_id || ':' || p_job_type));
+
+  select * into v_tenant from public.tenants t
+  where t.tenant_id = p_tenant_id and t.product_id = 'CFCF' and t.status = 'active';
+  if not found then
+    raise exception 'Active CFCF workspace not found' using errcode = '42501';
+  end if;
+
+  select * into v_fund from public.cfcf_funds f
+  where f.product_id = 'CFCF' and f.tenant_id = p_tenant_id and f.fund_id = p_fund_id;
+  if not found then
+    raise exception 'Fund not found in this workspace' using errcode = '42501';
+  end if;
+
+  if exists (
+    select 1 from public.cfcf_automation_jobs j
+    where j.product_id = 'CFCF' and j.tenant_id = p_tenant_id
+      and j.fund_id = p_fund_id and j.job_type = p_job_type
+      and j.trigger_type = 'manual' and j.created_at > now() - interval '1 hour'
+      and j.status <> 'cancelled'
+  ) then
+    raise exception 'This manual action is limited to once per hour for this Fund' using errcode = 'P0001';
+  end if;
+
+  v_idempotency_key := 'manual:' || p_tenant_id || ':' || p_fund_id || ':' ||
+    p_job_type || ':' || floor(extract(epoch from clock_timestamp()))::bigint::text;
+
+  insert into public.cfcf_automation_jobs (
+    product_id, tenant_id, tenant_name, tenant_email, tenant_phone,
+    fund_id, fund_name, job_type, trigger_type, idempotency_key,
+    status, accepted_at
+  )
+  values (
+    'CFCF', p_tenant_id, coalesce(v_tenant.business_name, v_tenant.name, ''),
+    coalesce(v_tenant.email, ''), coalesce(v_tenant.phone, ''),
+    v_fund.fund_id, coalesce(v_fund.fund_name, ''), p_job_type, 'manual',
+    v_idempotency_key, 'queued', now()
+  )
+  returning * into v_job;
+
+  return v_job;
+end;
+$$;
+
+revoke all on function public.cfcf_save_automation_schedule(text, text, text, smallint, smallint, time, text, boolean) from public, anon;
+revoke all on function public.cfcf_list_automation_schedules(text, text) from public, anon;
+revoke all on function public.cfcf_list_automation_jobs(text, text, integer) from public, anon;
+revoke all on function public.cfcf_create_manual_automation_job(text, text, text) from public, anon;
+grant execute on function public.cfcf_save_automation_schedule(text, text, text, smallint, smallint, time, text, boolean) to authenticated;
+grant execute on function public.cfcf_list_automation_schedules(text, text) to authenticated;
+grant execute on function public.cfcf_list_automation_jobs(text, text, integer) to authenticated;
+grant execute on function public.cfcf_create_manual_automation_job(text, text, text) to authenticated;
