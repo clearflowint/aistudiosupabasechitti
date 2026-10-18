@@ -911,8 +911,37 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       writeLines("All figures above are shown from saved Fund/Share fields and saved ledger records. No new financial totals are derived by this report.");
       writeLines("Generated from the currently authorized ClearFlow workspace. Keep this report with the Fund's business records.");
 
-      pdf.save("ClearFlow-Full-Fund-Report.pdf");
-      if (!requiredBeforeArchive) showDatabaseResult("Full Fund Report PDF downloaded.");
+      const filename = "ClearFlow-Full-Fund-Report.pdf";
+      const blob = pdf.output("blob");
+      const file = new File([blob], filename, { type: "application/pdf" });
+      // On iOS, offer the native share sheet so Save to Files is available
+      // directly, rather than first navigating to a PDF viewer tab.
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+      if (isIOS && typeof navigator.share === "function" &&
+          typeof navigator.canShare === "function" && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: selectedFund.fund_name + " · Full Fund Report" });
+        } catch (shareError) {
+          if (shareError instanceof Error && shareError.name === "AbortError") {
+            setFullFundReportError("PDF sharing was cancelled. The Fund was not changed.");
+            return false;
+          }
+          throw shareError;
+        }
+      } else {
+        // Blob URL download with a filename for browsers that support the download attribute.
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = filename;
+        anchor.style.display = "none";
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      }
+      if (!requiredBeforeArchive) showDatabaseResult(isIOS ? "PDF ready. Choose Save to Files in the iPhone share sheet to store it." : "Full Fund Report PDF download started.");
       return true;
     } catch (error) {
       const message = error instanceof Error ? "PDF download failed: " + error.message + ". Your Fund data is unchanged. Please retry." : "PDF download failed. Your Fund data is unchanged. Please retry.";
