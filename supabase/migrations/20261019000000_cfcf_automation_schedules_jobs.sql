@@ -193,7 +193,7 @@ returns public.cfcf_automation_jobs
 language plpgsql
 security definer
 set search_path = public, pg_temp
-as $
+as $$
 declare
   v_schedule public.cfcf_automation_schedules%rowtype;
   v_job public.cfcf_automation_jobs%rowtype;
@@ -258,7 +258,7 @@ begin
 
   return v_job;
 end;
-$;
+$$;
 
 revoke all on function public.cfcf_enqueue_scheduled_automation_job(uuid, timestamptz, timestamptz) from public, anon, authenticated;
 grant execute on function public.cfcf_enqueue_scheduled_automation_job(uuid, timestamptz, timestamptz) to service_role;
