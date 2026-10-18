@@ -753,10 +753,10 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     });
     // These identifiers are inline metadata rather than separate cards.
     container.innerHTML = container.innerHTML
-      .replace(/\\s*·\\s*Contact ID\\s*·\\s*[^<]+/gi, "")
-      .replace(/<p>\\s*Cycle ID\\s*·\\s*[^<]*<\\/p>/gi, "")
-      .replace(/(Share ID\\s*·\\s*[^<]*?)\\s*·\\s*Billing ID\\s*·\\s*[^<]*/gi, "$1")
-      .replace(/Payment ID\\s*·\\s*[^<]*?\\s*·\\s*Share\\s*·/gi, "Share ·");
+      .replace(/\s*·\s*Contact ID\s*·\s*[^<]+/gi, "")
+      .replace(new RegExp("<p>\\s*Cycle ID\\s*·\\s*[^<]*</p>", "gi"), "")
+      .replace(/(Share ID\s*·\s*[^<]*?)\s*·\s*Billing ID\s*·\s*[^<]*/gi, "$1")
+      .replace(/Payment ID\s*·\s*[^<]*?\s*·\s*Share\s*·/gi, "Share ·");
     return container.innerHTML;
   }
 
