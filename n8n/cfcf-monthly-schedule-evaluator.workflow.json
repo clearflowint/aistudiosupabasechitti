@@ -95,22 +95,13 @@
     },
     {
       "parameters": {
-        "method": "PATCH",
-        "url": "={{ 'https://YOUR_SUPABASE_PROJECT_REF.supabase.co/rest/v1/cfcf_automation_schedules?schedule_id=eq.' + $json.schedule_id }}",
+        "method": "POST",
+        "url": "https://YOUR_SUPABASE_PROJECT_REF.supabase.co/rest/v1/rpc/cfcf_initialize_automation_schedule",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Prefer",
-              "value": "return=minimal"
-            }
-          ]
-        },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { next_run_at: $json.next_run_at, claimed_until: null, last_error: null, updated_at: $now.toISO() } }}",
+        "jsonBody": "={{ { p_schedule_id: $json.schedule_id, p_next_run_at: $json.next_run_at } }}",
         "options": {}
       },
       "id": "cfcf-initialize-schedule",
