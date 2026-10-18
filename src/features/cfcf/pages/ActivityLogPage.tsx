@@ -1,5 +1,6 @@
 // CFCF PRODUCT: Read-only manager activity log for the current authorized tenant.
 // MIX: Uses the shared authorized workspace identity; database RLS limits rows to the tenant owner.
+// Display safety: render structured, human-readable fields only; never render raw audit JSON.
 
 import { useCallback, useEffect, useState } from "react";
 import { ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
