@@ -101,8 +101,8 @@ as $$
       and next_run_at <= now()
       and (claimed_until is null or claimed_until < now())
     order by next_run_at, created_at
-    for update skip locked
     limit greatest(1, least(coalesce(p_limit, 25), 100))
+    for update skip locked
   )
   update public.cfcf_automation_schedules s
   set claimed_until = now() + interval '5 minutes',
@@ -129,8 +129,8 @@ as $$
       and status in ('queued', 'delayed')
       and (claimed_until is null or claimed_until < now())
     order by created_at
-    for update skip locked
     limit greatest(1, least(coalesce(p_limit, 25), 100))
+    for update skip locked
   )
   update public.cfcf_automation_jobs j
   set status = 'processing',
