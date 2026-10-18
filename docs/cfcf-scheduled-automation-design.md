@@ -96,7 +96,7 @@ return items.map(item => ({
 
 The inactive workflow export is at `n8n/cfcf-monthly-schedule-evaluator.workflow.json`.
 
-1. Import it into `https://n8nclearflow.duckdns.org`.
+1. Import it into `https://clearflow-automation.duckdns.org`.
 2. Replace `YOUR_SUPABASE_PROJECT_REF` in the three HTTP Request nodes.
 3. Create/select an n8n **Custom Auth** credential containing both Supabase headers: `apikey` set to the service-role key and `Authorization` set to `Bearer <service-role-key>`. Assign it to each HTTP Request node. Keep this credential in n8n only.
 4. Leave the workflow inactive until the job-worker workflow is configured and tested. This evaluator only initializes schedules and queues due jobs; it does not send messages or process reports.
@@ -119,7 +119,7 @@ The workflow is deliberately inactive and contains no credentials or real Supaba
 ## Still required before production activation
 
 - Add the mobile-first manager UI for schedule setup, manual triggers and job history using the owner-checked RPCs.
-- Import/configure the workflow in the n8n instance at `https://n8nclearflow.duckdns.org`; configure the Supabase service-role credential and WAHA/provider credential in n8n's credential store. Do not put secrets in the workflow JSON, source code, or browser variables.
+- Import/configure the workflow in the n8n instance at `https://clearflow-automation.duckdns.org`; configure the Supabase service-role credential and WAHA/provider credential in n8n's credential store. Do not put secrets in the workflow JSON, source code, or browser variables.
 - Finish the workflow's provider nodes and report delivery destination.
 - Verify manual and scheduled paths with a test tenant, including month-end dates, duplicate execution, claim expiry, retries, and manager push notifications.
 - Keep campaign launch disabled until the separate campaign acceptance/callback path has its own end-to-end test.
