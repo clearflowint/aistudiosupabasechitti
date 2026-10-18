@@ -31,7 +31,7 @@ Unique constraint on tenant + fund + job type + slot prevents duplicate slots. R
 
 One row per run, manual or scheduled:
 - IDs and ownership: `job_id`, `product_id`, `tenant_id`
-- snapshots: `tenant_name`, `tenant_email`, `tenant_phone`, `fund_id`, `fund_name`
+- fund reference/snapshot: `fund_id`, `fund_name`; tenant contact details are loaded from current tenant/contact records by n8n only when needed, not duplicated in job history.
 - type/trigger: `job_type`, `trigger_type`, `schedule_id`, `scheduled_for`
 - idempotency and lifecycle: `idempotency_key`, `status`, `n8n_execution_id`, `attempts`, `claimed_until`
 - progress: `recipient_count`, `processed_count`, `success_count`, `failed_count`, `skipped_count`, `progress_message`, `error_summary`, `result_summary`, `output_url`
