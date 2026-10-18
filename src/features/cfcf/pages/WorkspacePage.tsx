@@ -301,7 +301,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     if (!isArchiveRequested || !isFullFundReportOpen || isLoadingFullFundReport || isDownloadingFullFundPdf || isArchivingFund) return;
     setIsArchiveRequested(false);
     void archiveSelectedFund();
-  }, [isArchiveRequested, isFullFundReportOpen, isLoadingFullFundReport, isDownloadingFullFundPdf, isArchivingFund, selectedFund?.fund_id]);
+  }, [isArchiveRequested, isFullFundReportOpen, isLoadingFullFundReport, isDownloadingFullFundPdf, isArchivingFund, selectedFundId]);
 
   async function requestArchiveSelectedFund() {
     if (!selectedFund || isLoadingFullFundReport || isArchivingFund || isDownloadingFullFundPdf) return;
