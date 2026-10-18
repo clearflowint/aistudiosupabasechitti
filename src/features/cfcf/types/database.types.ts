@@ -59,6 +59,7 @@ export interface CfcfFundRow {
   number_of_shares: number | null;
   current_cycle: number;
   fund_net_balance: number;
+  fund_net_payment_received: number;
   fund_total_billed_amount: number;
   fund_total_pending_amount: number;
   fund_total_advance: number;
