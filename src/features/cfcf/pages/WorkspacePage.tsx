@@ -110,7 +110,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [isArchiveConfirmOpen, setIsArchiveConfirmOpen] = useState(false);
   const [isArchiveRequested, setIsArchiveRequested] = useState(false);
   const [archiveReportHtml, setArchiveReportHtml] = useState<string | null>(null);
-  const [isDownloadingFullFundReport, setIsDownloadingFullFundPdf] = useState(false);
+  const [isDownloadingFullFundReport, setIsDownloadingFullFundReport] = useState(false);
   const [archivingError, setArchivingError] = useState<string | null>(null);
   const [deletingArchivedId, setDeletingArchivedId] = useState<string | null>(null);
   const [archivedDeleteTarget, setArchivedDeleteTarget] = useState<CfcfArchivedFundRow | null>(null);
