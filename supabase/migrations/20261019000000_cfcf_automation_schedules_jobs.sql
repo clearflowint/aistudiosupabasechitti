@@ -153,7 +153,7 @@ returns setof public.cfcf_automation_jobs
 language sql
 security definer
 set search_path = public, pg_temp
-as $
+as $$
   with exhausted as (
     select job_id
     from public.cfcf_automation_jobs
@@ -175,7 +175,7 @@ as $
   from exhausted
   where j.job_id = exhausted.job_id
   returning j.*;
-$;
+$$;
 
 revoke all on function public.cfcf_fail_exhausted_automation_jobs(integer) from public, anon, authenticated;
 grant execute on function public.cfcf_fail_exhausted_automation_jobs(integer) to service_role;
