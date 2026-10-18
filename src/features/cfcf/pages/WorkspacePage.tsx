@@ -2416,12 +2416,12 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       <Modal isOpen={isFundReportOpen} title="Fund Summary" description="Two-page summary of stored Fund and Share values. Other Adjustments are separate and excluded from Fund financials." size="full" onClose={() => setIsFundReportOpen(false)}>
         {selectedFund && <div className="space-y-4">
           <div data-cfcf-fund-report className="space-y-4 text-slate-900">
-            <header className="border-b-2 border-slate-900 pb-3 text-center">
-              <p className="text-base font-extrabold tracking-wide">Powered by ClearFlow Automations</p>
-              <h3 className="mt-2 text-lg font-bold">Fund Summary</h3>
-              <p className="mt-1 text-xs text-slate-600">Summary generated · {fundSummaryGeneratedAt || "Not generated"}</p>
-            </header>
             <section hidden={fundSummaryPage !== 1} className="summary-page space-y-4">
+              <header className="border-b-2 border-slate-900 pb-3 text-center">
+                <p className="text-base font-extrabold tracking-wide">Powered by ClearFlow Automations</p>
+                <h3 className="mt-2 text-lg font-bold">Fund Summary</h3>
+                <p className="mt-1 text-xs text-slate-600">Summary generated · {fundSummaryGeneratedAt || "Not generated"}</p>
+              </header>
               <h3 className="text-base font-bold">Page 1 of 2 · Fund Financial Summary</h3>
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
                 <p className="font-bold">{selectedFund.fund_name}</p>
@@ -2447,6 +2447,11 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               <p className="text-xs text-slate-500">Other Adjustments are excluded from Fund financials and remain available in the separate Adjustments ledger.</p>
             </section>
             <section hidden={fundSummaryPage !== 2} className="summary-page space-y-3">
+              <header className="border-b-2 border-slate-900 pb-3 text-center">
+                <p className="text-base font-extrabold tracking-wide">Powered by ClearFlow Automations</p>
+                <h3 className="mt-2 text-lg font-bold">Fund Summary</h3>
+                <p className="mt-1 text-xs text-slate-600">Summary generated · {fundSummaryGeneratedAt || "Not generated"}</p>
+              </header>
               <h3 className="text-base font-bold">Page 2 of 2 · Share-wise Summary</h3>
               {shares.length ? <div className="overflow-hidden rounded-lg border border-slate-200">
                 <table className="summary-table w-full table-fixed border-collapse text-xs">
