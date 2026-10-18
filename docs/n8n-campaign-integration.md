@@ -28,7 +28,7 @@ The Edge Function resolves all selected groups and unique Contacts before callin
 - `event`, `schema_version`, `campaign_id`, `idempotency_key`, `created_at`
 - `workspace`: product, tenant, tenant/business details, authorized manager details
 - `campaign`: selected group IDs and group records, channels, message, unique recipient count and missing-email count
-- `recipients[]`: full selected Contact records, including `contact_id`, `name`, `phone`, `email`, `remarks`, tenant/product IDs and timestamps
+- `recipients[]`: minimum fields needed for delivery: `contact_id`, `name`, `phone`, and `email`. Private Contact remarks and internal tenant/product metadata are not sent to n8n
 - `callback`: callback URL, method, header name and the status callback body shape
 
 Treat the full recipient payload as private customer data. Do not write it to ordinary execution logs unnecessarily.
@@ -66,7 +66,7 @@ After channel-specific loops/queues finish, make an HTTP POST to the `callback.u
 }
 ```
 
-Allowed terminal statuses are `sent`, `partial`, and `failed`. Use `partial` when at least one recipient succeeded and at least one failed/skipped; use `failed` when the campaign could not be delivered; use `sent` only when the workflow considers all required sends successful. For a failed campaign, include an `error` string.
+Allowed terminal statuses are `sent`, `partial`, and `failed`. Use `partial` when at least one recipient was accepted by the provider and at least one failed/skipped; use `failed` when the campaign could not be sent; use `sent` only when all required sends were accepted by the provider. **`sent` does not mean delivered or read.** For a failed campaign, include an `error` string.
 
 The callback is idempotent: repeating a terminal callback will not replace a previously recorded terminal status. Notifications are stored in `cfcf_product_data.notifications`; the UI refreshes while the Notifications panel is open.
 
