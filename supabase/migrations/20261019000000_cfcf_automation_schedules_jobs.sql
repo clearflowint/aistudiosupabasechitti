@@ -181,7 +181,7 @@ begin
      or p_slot_number is null
      or (p_job_type = 'pending_due_reminder' and p_slot_number not between 1 and 3)
      or (p_job_type = 'report' and p_slot_number not between 1 and 2)
-     or p_day_of_month not between 1 and 31
+     or p_day_of_month is null or p_day_of_month not between 1 and 31
      or p_time_of_day is null
      or nullif(btrim(p_timezone), '') is null then
     raise exception 'Schedule settings are invalid' using errcode = '22023';
@@ -326,13 +326,13 @@ begin
   insert into public.cfcf_automation_jobs (
     product_id, tenant_id, tenant_name, tenant_email, tenant_phone,
     fund_id, fund_name, job_type, trigger_type, idempotency_key,
-    status, accepted_at
+    status
   )
   values (
     'CFCF', p_tenant_id, coalesce(v_tenant.business_name, v_tenant.name, ''),
     coalesce(v_tenant.email, ''), coalesce(v_tenant.phone, ''),
     v_fund.fund_id, coalesce(v_fund.fund_name, ''), p_job_type, 'manual',
-    v_idempotency_key, 'queued', now()
+    v_idempotency_key, 'queued'
   )
   returning * into v_job;
 
