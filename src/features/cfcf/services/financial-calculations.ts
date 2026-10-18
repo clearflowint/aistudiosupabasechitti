@@ -181,7 +181,9 @@ export function calculateCfcfFundFinancialSummary(
     "Fund other amount",
   );
 
-  const netBalance = billed - withdrawn - pending - commissions;
+  // Net Balance is the Fund's cash position: net payments received less payouts and commissions.
+  // Billing and pending describe member obligations, not money currently held by the Fund.
+  const netBalance = fundNetPaymentReceived - withdrawn - commissions;
   if (!Number.isSafeInteger(netBalance)) throw new Error("Fund net balance exceeds JavaScript's safe integer range.");
 
   return {
