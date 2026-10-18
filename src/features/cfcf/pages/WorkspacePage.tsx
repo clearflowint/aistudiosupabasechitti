@@ -1530,8 +1530,11 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                 </div>
                 <div className="mt-2 rounded-xl border border-slate-200 p-3">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-medium text-slate-500">Net Balance</p>
-                    <p className={["text-base font-bold tabular-nums", (selectedFund.fund_net_balance ?? 0) < 0 ? "text-rose-600" : (selectedFund.fund_net_balance ?? 0) > 0 ? "text-emerald-700" : "text-slate-900"].join(" ")}>{(selectedFund.fund_net_balance ?? 0) > 0 ? "+" : (selectedFund.fund_net_balance ?? 0) < 0 ? "−" : ""}{formatINR(Math.abs(selectedFund.fund_net_balance ?? 0))}</p>
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-slate-500">Net Balance</p>
+                      <p className="mt-1 text-[10px] leading-4 text-slate-500">Net payments received − Total withdrawn − Total commission</p>
+                    </div>
+                    <p className={["shrink-0 text-base font-bold tabular-nums", (selectedFund.fund_net_balance ?? 0) < 0 ? "text-rose-600" : (selectedFund.fund_net_balance ?? 0) > 0 ? "text-emerald-700" : "text-slate-900"].join(" ")}>{(selectedFund.fund_net_balance ?? 0) > 0 ? "+" : (selectedFund.fund_net_balance ?? 0) < 0 ? "−" : ""}{formatINR(Math.abs(selectedFund.fund_net_balance ?? 0))}</p>
                   </div>
                   <div className="mt-2 flex items-center justify-between gap-2 border-t border-slate-100 pt-2">
                     <p className="text-xs text-slate-500">Total Commission</p>
