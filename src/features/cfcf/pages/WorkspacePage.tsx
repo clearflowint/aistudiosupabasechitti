@@ -354,58 +354,28 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   }
 
   async function downloadArchivedFundReport(archive: CfcfArchivedFundRow, reportResult = true): Promise<void> {
-    let reportRoot: HTMLDivElement | null = null;
     try {
-      // Static bundle avoids iOS lazy-chunk requests receiving the SPA HTML fallback.
-      const parsed = new DOMParser().parseFromString(archive.report_html, "text/html");
-      reportRoot = document.createElement("div");
-      reportRoot.id = "clearflow-archived-pdf-root";
-      reportRoot.style.cssText = "position:fixed;left:0;top:0;z-index:99;pointer-events:none;width:794px;min-height:100px;background:#ffffff;color:#0f172a;font-family:Arial,sans-serif;font-size:12px;line-height:1.45;padding:28px;box-sizing:border-box;overflow-wrap:anywhere";
-      // html2canvas can fail while parsing Tailwind v4 OKLCH colors from either the archived
-      // markup or the live app stylesheet. Build a plain, PDF-safe copy without utility classes.
-      const contentRoot = document.createElement("div");
-      contentRoot.innerHTML = parsed.body.innerHTML;
-      contentRoot.querySelectorAll<HTMLElement>("*").forEach((element) => {
-        element.removeAttribute("class");
-        element.removeAttribute("style");
-        element.style.color = "#0f172a";
-        element.style.backgroundColor = "#ffffff";
-        element.style.borderColor = "#cbd5e1";
-        element.style.fontFamily = "Arial, sans-serif";
-        element.style.overflowWrap = "anywhere";
-      });
-      reportRoot.appendChild(contentRoot);
-      document.body.appendChild(reportRoot);
-      const html2pdf = (await import("html2pdf.js")).default;
-      await html2pdf().set({
-        margin: [8, 8, 10, 8],
-        filename: "ClearFlow-Archived-Fund-" + archive.fund_id + ".pdf",
-        image: { type: "jpeg", quality: 0.98 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          logging: false,
-          backgroundColor: "#ffffff",
-          windowWidth: 794,
-          onclone: (clonedDocument: Document) => {
-            // The cloned PDF document does not need the app's Tailwind stylesheet.
-            clonedDocument.querySelectorAll('style, link[rel="stylesheet"]').forEach((node) => node.remove());
-            const clonedRoot = clonedDocument.getElementById("clearflow-archived-pdf-root");
-            if (clonedRoot instanceof HTMLElement) {
-              clonedRoot.style.color = "#0f172a";
-              clonedRoot.style.backgroundColor = "#ffffff";
-            }
-          },
-        },
-        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-        pagebreak: { mode: ["css", "legacy"] },
-      }).from(reportRoot).save();
-      if (reportResult) showDatabaseResult("Downloaded the archived Full Fund PDF report.");
+      // Archived reports are immutable snapshots. Download the stored HTML directly rather
+      // than converting it to PDF, which has been unreliable on iOS Safari.
+      const html = archive.report_html;
+      if (!html || !html.trim()) {
+        throw new Error("The archived report HTML is empty.");
+      }
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const safeFundId = archive.fund_id.replace(/[^a-zA-Z0-9_-]/g, "-");
+      link.href = url;
+      link.download = "ClearFlow-Archived-Fund-" + safeFundId + ".html";
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      if (reportResult) showDatabaseResult("Downloaded the archived Full Fund HTML report.");
     } catch (error) {
       if (!reportResult) throw error;
-      showDatabaseResult(error instanceof Error ? "Archived PDF download failed: " + error.message : "Archived PDF download failed.", "error");
-    } finally {
-      reportRoot?.remove();
+      showDatabaseResult(error instanceof Error ? "Archived HTML download failed: " + error.message : "Archived HTML download failed.", "error");
     }
   }
 
@@ -2306,7 +2276,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       {isArchivesView && <section aria-label="Archived Funds" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex items-start justify-between gap-3"><div><h2 className="text-base font-bold text-slate-950">Archived Funds</h2><p className="mt-1 text-xs leading-5 text-slate-500">Archived Fund IDs remain for status/reference only. Shares, bills, Cycles, payments, adjustments, and related operational records are deleted during archiving. Reports expire after six months; deleting a report does not remove the retained Fund ID.</p></div><button type="button" onClick={() => void refreshArchivedFunds()} disabled={isLoadingArchivedFunds} className="min-h-9 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 disabled:opacity-50"><RefreshCw size={13} className={isLoadingArchivedFunds ? "mr-1 inline animate-spin" : "mr-1 inline"}/>Refresh</button></div>
         {archivingError && <p role="alert" className="mt-3 rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{archivingError}</p>}
-        {isLoadingArchivedFunds ? <p className="mt-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Loading Archived Funds…</p> : archivedFunds.length === 0 ? <p className="mt-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No archived Funds yet.</p> : <div className="mt-3 space-y-2">{archivedFunds.map((archive) => <article key={archive.archive_id} className="rounded-xl border border-slate-200 p-3"><div className="min-w-0"><h3 className="break-words text-sm font-bold text-slate-900">{archive.fund_name}</h3><p className="mt-1 break-all text-xs text-slate-500">Fund ID · {archive.fund_id}</p><p className="mt-1 text-xs text-slate-500">Archived · {new Date(archive.archived_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })} · Expires · {new Date(archive.expires_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</p></div><div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={() => downloadArchivedFundReport(archive)} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg bg-violet-700 px-2 text-xs font-semibold text-white"><Download size={14}/> Download Full PDF Report</button><button type="button" onClick={() => void handleDeleteArchivedFund(archive)} disabled={deletingArchivedId === archive.archive_id} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2 text-xs font-semibold text-rose-800 disabled:opacity-50"><Trash2 size={14}/>{deletingArchivedId === archive.archive_id ? "Deleting…" : "Delete Archived Fund"}</button></div></article>)}</div>}
+        {isLoadingArchivedFunds ? <p className="mt-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Loading Archived Funds…</p> : archivedFunds.length === 0 ? <p className="mt-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No archived Funds yet.</p> : <div className="mt-3 space-y-2">{archivedFunds.map((archive) => <article key={archive.archive_id} className="rounded-xl border border-slate-200 p-3"><div className="min-w-0"><h3 className="break-words text-sm font-bold text-slate-900">{archive.fund_name}</h3><p className="mt-1 break-all text-xs text-slate-500">Fund ID · {archive.fund_id}</p><p className="mt-1 text-xs text-slate-500">Archived · {new Date(archive.archived_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })} · Expires · {new Date(archive.expires_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</p></div><div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={() => downloadArchivedFundReport(archive)} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg bg-violet-700 px-2 text-xs font-semibold text-white"><Download size={14}/> Download Full HTML Report</button><button type="button" onClick={() => void handleDeleteArchivedFund(archive)} disabled={deletingArchivedId === archive.archive_id} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2 text-xs font-semibold text-rose-800 disabled:opacity-50"><Trash2 size={14}/>{deletingArchivedId === archive.archive_id ? "Deleting…" : "Delete Archived Fund"}</button></div></article>)}</div>}
       </section>}
 
       <Modal isOpen={isFullFundReportOpen} title="Full Fund Report" description="Database-backed Full Fund Report. Download the complete HTML report to open offline or share through WhatsApp." size="large" onClose={() => setIsFullFundReportOpen(false)}>
