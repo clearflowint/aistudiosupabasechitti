@@ -276,67 +276,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     void refreshArchivedFunds();
   }, [workspace.tenantId]);
 
-  async function downloadPreArchiveFundPdf(): Promise<void> {
-    if (!archiveReportHtml || isPreparingArchivePdf || archivePdfReady) return;
-    let reportRoot: HTMLDivElement | null = null;
-    setIsPreparingArchivePdf(true);
-    setArchivingError(null);
-    try {
-      // Generate the required PDF from the same database-backed Full Fund Report snapshot
-      // that will be retained with the archive. Never open/download an HTML file here.
-      const parsed = new DOMParser().parseFromString(archiveReportHtml, "text/html");
-      reportRoot = document.createElement("div");
-      reportRoot.id = "clearflow-prearchive-pdf-root";
-      reportRoot.style.cssText = "position:fixed;left:0;top:0;z-index:99;pointer-events:none;width:794px;min-height:100px;background:#ffffff;color:#0f172a;font-family:Arial,sans-serif;font-size:12px;line-height:1.45;padding:28px;box-sizing:border-box;overflow-wrap:anywhere";
-      const contentRoot = document.createElement("div");
-      contentRoot.innerHTML = parsed.body.innerHTML;
-      contentRoot.querySelectorAll<HTMLElement>("*").forEach((element) => {
-        element.removeAttribute("class");
-        element.removeAttribute("style");
-        element.style.color = "#0f172a";
-        element.style.backgroundColor = "#ffffff";
-        element.style.borderColor = "#cbd5e1";
-        element.style.fontFamily = "Arial, sans-serif";
-        element.style.overflowWrap = "anywhere";
-      });
-      reportRoot.appendChild(contentRoot);
-      document.body.appendChild(reportRoot);
-      const html2pdf = (await import("html2pdf.js")).default;
-      const safeFileName = (selectedFund?.fund_name ?? "Fund").replace(/[^a-z0-9-_]+/gi, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "Fund";
-      await html2pdf().set({
-        margin: [8, 8, 10, 8],
-        filename: "ClearFlow-" + safeFileName + "-Pre-Archive-Full-Fund-Report.pdf",
-        image: { type: "jpeg", quality: 0.98 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          logging: false,
-          backgroundColor: "#ffffff",
-          windowWidth: 794,
-          onclone: (clonedDocument: Document) => {
-            clonedDocument.querySelectorAll('style, link[rel="stylesheet"]').forEach((node) => node.remove());
-            const clonedRoot = clonedDocument.getElementById("clearflow-prearchive-pdf-root");
-            if (clonedRoot instanceof HTMLElement) {
-              clonedRoot.style.color = "#0f172a";
-              clonedRoot.style.backgroundColor = "#ffffff";
-            }
-          },
-        },
-        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-        pagebreak: { mode: ["css", "legacy"] },
-      }).from(reportRoot).save();
-      setArchivePdfReady(true);
-      showDatabaseResult("Pre-archive Full Fund PDF generated. You can continue with the archive confirmation.");
-    } catch (error) {
-      const message = error instanceof Error ? "Pre-archive PDF generation failed: " + error.message + ". The Fund has not been archived." : "Pre-archive PDF generation failed. The Fund has not been archived.";
-      setArchivingError(message);
-      showDatabaseResult(message, "error");
-    } finally {
-      reportRoot?.remove();
-      setIsPreparingArchivePdf(false);
-    }
-  }
-
   async function archiveSelectedFund() {
     if (!selectedFund || isArchivingFund || isDownloadingFullFundReport) return;
     const source = document.querySelector("[data-cfcf-full-fund-report]");
@@ -356,7 +295,11 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     setArchiveTypedId("");
     setArchivingError(null);
     setFullFundReportError(null);
-    setArchivePdfReady(false);
+    // Download the required self-contained HTML backup, then leave the user in the
+    // archive confirmation flow. Downloading the report never archives the Fund.
+    const reportReady = await downloadFullFundReport(true);
+    if (!reportReady) return;
+    setArchivePdfReady(true);
     setIsFullFundReportOpen(false);
     setIsArchiveConfirmOpen(true);
   }
@@ -378,7 +321,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     const typedId = archiveTypedId.trim();
     if (typedId.toLowerCase() !== workspace.email.trim().toLowerCase()) return;
     if (!archiveReportHtml || !archivePdfReady) {
-      setArchivingError("Download the pre-archive Full Fund PDF successfully before archiving. No Fund records have been changed.");
+      setArchivingError("Generate the Full Fund HTML backup successfully before archiving. No Fund records have been changed.");
       return;
     }
     if (!beginAction("archive-fund")) return;
@@ -2429,7 +2372,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           </div>
           {archiveStep === 1 && <div className="space-y-3">
             <p className="text-sm leading-5 text-slate-700">Review the Fund identity and the permanent consequences before continuing.</p>
-            <button type="button" onClick={() => void downloadPreArchiveFundPdf()} disabled={isPreparingArchivePdf || archivePdfReady || !archiveReportHtml} className="min-h-11 w-full rounded-xl bg-violet-700 px-4 text-sm font-semibold text-white disabled:opacity-40">{isPreparingArchivePdf ? "Generating Full Fund PDF…" : archivePdfReady ? "Full Fund PDF generated successfully" : "Download Full Fund PDF"}</button>
+            <button type="button" onClick={() => void downloadPreArchiveFundPdf()} disabled={isPreparingArchivePdf || archivePdfReady || !archiveReportHtml} className="min-h-11 w-full rounded-xl bg-violet-700 px-4 text-sm font-semibold text-white disabled:opacity-40">{isPreparingArchivePdf ? "Preparing Full Fund HTML…" : archivePdfReady ? "Full Fund HTML backup generated successfully" : "Download Full Fund HTML backup"}</button>
             <button type="button" onClick={() => setArchiveStep(2)} disabled={!archivePdfReady || isPreparingArchivePdf} className="min-h-11 w-full rounded-xl bg-amber-700 px-4 text-sm font-semibold text-white disabled:opacity-40">Continue to archive review</button>
           </div>}
           {archiveStep === 2 && <div className="space-y-3">
