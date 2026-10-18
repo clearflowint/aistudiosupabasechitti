@@ -219,6 +219,8 @@ BEGIN
       number_of_cycles=NULL,
       number_of_shares=NULL,
       current_cycle=0,
+      cycle_payout_amounts='[]'::jsonb,
+      cycle_commissions='[]'::jsonb,
       fund_net_balance=0,
       fund_net_payment_received=0,
       fund_total_billed_amount=0,
