@@ -6,6 +6,15 @@ Status: design-only. No table, RPC, workflow node, or live provider action is cr
 
 Prevent ordinary retries from sending the same reminder/report twice, while acknowledging that an external messaging provider may accept a request even when n8n times out before seeing the response. Without provider-supported idempotency or reliable reconciliation, exactly-once delivery cannot be guaranteed.
 
+## WAHA documentation review
+
+The current public WAHA documentation describes text delivery as `POST /api/sendText` with `session`, `chatId`, and `text`; API key authentication is normally supplied in the `X-Api-Key` header. The documentation also describes message events and message-ack events. See:
+- Send messages: https://waha.devlike.pro/docs/how-to/send-messages/
+- Events and message acknowledgements: https://waha.devlike.pro/docs/how-to/events/
+- API key security: https://waha.devlike.pro/docs/how-to/security/
+
+The reviewed public `sendText` example does not document a client idempotency-key field. This does not prove the user's installed WAHA build lacks an extension or alternate capability. Before relying on provider deduplication, inspect the actual deployed version's Swagger/OpenAPI and test its exact response and event behavior. Do not assume a generic HTTP retry is safe.
+
 ## Delivery identity
 
 For a reminder job, the logical delivery key should be unique per:
@@ -33,11 +42,11 @@ Add composite foreign keys so tenant/product/fund/job/recipient relationships mu
 1. Resolve eligible contacts only from the claimed job's validated tenant + Fund scope. Aggregate all eligible positive-pending Shares by contact using the saved `total_pending`; do not recalculate financial values.
 2. Atomically reserve each logical delivery key. A uniqueness conflict means that delivery already exists and must not be treated as a new send.
 3. Before calling WAHA, transition the reserved record to `sending` under a short lease. Do not log recipient PII or message content in normal execution data.
-4. Call the actual configured provider endpoint with a stable provider idempotency key if the deployed WAHA version supports it. Confirm this from the instance's actual API/version rather than assuming generic documentation support.
+4. Call the actual configured provider endpoint. Only use a stable provider idempotency key if the deployed version's API explicitly supports it and a test confirms its behavior.
 5. Persist the provider's message ID and sanitized response state. Mark `accepted` when the provider accepted the request; use `delivered` only if the provider supplies a trustworthy delivery receipt.
 6. If a definite pre-send validation error occurs, mark skipped or terminal failure as appropriate. If the provider definitively rejects a request for a transient reason, retry under bounded policy.
 7. If the request times out or the workflow crashes after it may have reached WAHA, mark `uncertain`. Do not automatically resend an uncertain delivery unless provider idempotency or a reconciliation query proves it safe.
-8. Reconcile uncertain attempts using provider message IDs/status or a documented operator review. If WAHA cannot query by stable client key, the workflow must prefer avoiding duplicate messages over automatic resend.
+8. Reconcile uncertain attempts using provider message IDs/status or a documented operator review. WAHA message-ack events may help reconcile when the event contains a correlatable provider message ID; validate the event payload and persistence behavior on the actual deployment. If there is no reliable correlation, prefer avoiding duplicate messages over automatic resend.
 
 ## Job finalization interaction
 
@@ -59,8 +68,9 @@ The worker must not mark a job `completed` while any delivery remains `reserved`
 - expired delivery lease cannot be overwritten by a stale worker;
 - cross-tenant, cross-Fund, and cross-job recipient records are rejected;
 - provider IDs and errors are sanitized; phone numbers and message bodies never appear in job summaries or ordinary logs;
-- job completion is blocked while any delivery is unresolved.
+- job completion is blocked while any delivery is unresolved;
+- inspect the installed WAHA Swagger/OpenAPI and verify exact send response, message ID, and message-ack event correlation before enabling any live send.
 
 ## Decision required before implementation
 
-Confirm the actual WAHA deployment/version, send endpoint, response shape, delivery-status support, and whether a stable idempotency key is accepted. If provider-side idempotency is unavailable, retain the `uncertain` state and manual reconciliation path rather than claiming exactly-once delivery.
+The actual WAHA base URL, version, session, and API credential are not available in this repository review, and must not be guessed. Confirm them inside the user's deployment / n8n credential store without pasting secrets into chat. If provider-side idempotency or reliable status reconciliation is unavailable, retain the `uncertain` state and manual reconciliation path rather than claiming exactly-once delivery.
