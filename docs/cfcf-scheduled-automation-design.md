@@ -44,7 +44,7 @@ The row is the single source of truth for Manager Home and Workspace job history
 - `cfcf_claim_due_automation_schedules(p_limit)` claims due schedules for five minutes using `FOR UPDATE SKIP LOCKED`.
 - `cfcf_claim_automation_jobs(p_limit)` claims queued/delayed jobs for five minutes and increments the attempt count.
 - `cfcf_fail_exhausted_automation_jobs(p_limit)` marks jobs failed after eight attempts once any active claim has expired; the worker should call this before claiming work.
-- `cfcf_initialize_automation_schedule(schedule_id, next_run_at)` initializes only a still-claimed, enabled schedule whose `next_run_at` is null; it atomically releases the claim and prevents a stale evaluator overwriting a Manager edit.
+- `cfcf_initialize_automation_schedule(schedule_id, next_run_at, claimed_until)` initializes only a an enabled schedule whose `next_run_at` is null and whose current claim lease exactly matches the lease returned to that evaluator; it atomically releases the claim and prevents a stale evaluator from using a newer execution's lease.
 - `cfcf_release_automation_schedule_claim(schedule_id, error)` is the n8n Error Workflow recovery hook. It records a bounded error and releases only an unexpired claim, so stale handlers cannot clear a newer lease.
 - `cfcf_enqueue_scheduled_automation_job(schedule_id, scheduled_for, next_run_at)` creates the scheduled job and advances the recurrence in one transaction. Its idempotency key returns the existing job after an n8n timeout/retry.
 - Both claim functions are executable only by `service_role`. n8n must use credentials stored in n8n, never browser variables. Manager RPCs are executable by `authenticated` but verify `auth.uid()` and `is_active_tenant_owner('CFCF', tenant_id)` on every call.
@@ -105,7 +105,7 @@ The inactive workflow export is at `n8n/cfcf-monthly-schedule-evaluator.workflow
 4. Leave the workflow inactive until the job-worker workflow is configured and tested. This evaluator only initializes schedules and queues due jobs; it does not send messages or process reports.
 5. Test with one non-production schedule and confirm that `next_run_at` advances and only one queued job is created for an occurrence.
 
-The workflow is deliberately inactive and contains no credentials or real Supabase project URL. Initialization now calls the atomic `cfcf_initialize_automation_schedule` RPC rather than directly PATCHing a schedule row. The failure-release RPC is available for an n8n Error Workflow; until that handler is configured, failed executions recover by lease expiry. I could not authenticate to the n8n UI from this environment, so import and credential assignment still need to be performed in the instance.
+The workflow is deliberately inactive and contains no credentials or real Supabase project URL. Initialization calls the atomic `cfcf_initialize_automation_schedule` RPC and passes back the claimed lease timestamp, rather than directly PATCHing a schedule row. The failure-release RPC is available for an n8n Error Workflow; until that handler is configured, failed executions recover by lease expiry. I could not authenticate to the n8n UI from this environment, so import and credential assignment still need to be performed in the instance.
 
 ## n8n processing contract
 
