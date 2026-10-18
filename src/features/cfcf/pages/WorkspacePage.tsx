@@ -58,7 +58,6 @@ import {
   type CfcfFundOtherAdjustmentSummary,
 } from "../services/workspace.service";
 import type { CfcfBillRow, CfcfContactRow, CfcfFundRow, CfcfShareRow } from "../types/database.types";
-import { jsPDF } from "jspdf";
 
 type WorkspaceTab = "shares" | "ledger";
 type WorkspaceSectionTab = "fund-summary" | "shares";
@@ -746,10 +745,8 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         setFullFundReportError("Full Fund report content is not ready. Please close and reopen the report, then try again.");
         return false;
       }
-
-      // Render the actual styled HTML report, rather than rebuilding it as plain text.
-      // Inline computed styles into a detached copy so the PDF retains the modal's layout
-      // without loading Tailwind's unsupported OKLCH stylesheet into html2canvas.
+      // Export the actual styled HTML report instead of reconstructing it as plain text.
+      // Inline computed styles in a detached copy so html2canvas avoids the app's OKLCH stylesheet.
       reportRoot = document.createElement("div");
       reportRoot.id = "clearflow-full-fund-pdf-root";
       reportRoot.style.cssText = "position:fixed;left:0;top:0;z-index:99;pointer-events:none;width:794px;background:#ffffff;color:#0f172a;font-family:Arial,sans-serif;box-sizing:border-box;overflow-wrap:anywhere";
@@ -758,7 +755,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       reportCopy.style.maxWidth = "none";
       reportCopy.style.backgroundColor = "#ffffff";
       reportCopy.style.color = "#0f172a";
-
       const sourceNodes = [source, ...Array.from(source.querySelectorAll<HTMLElement>("*"))];
       const copyNodes = [reportCopy, ...Array.from(reportCopy.querySelectorAll<HTMLElement>("*"))];
       const styleProperties = [
@@ -783,18 +779,20 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         copy.removeAttribute("class");
         copy.removeAttribute("data-cfcf-full-fund-report");
       });
-
-      // Keep the report title and branding in the PDF document itself.
       const header = document.createElement("div");
       header.textContent = "ClearFlow Automations";
       header.style.cssText = "font:700 13px Arial,sans-serif;color:#234569;padding:0 0 8px;border-bottom:1px solid #cbd5e1;margin-bottom:14px";
+      const footer = document.createElement("div");
+      footer.textContent = "ClearFlow Automations · Full Fund Report";
+      footer.style.cssText = "font:10px Arial,sans-serif;color:#64748b;text-align:center;border-top:1px solid #cbd5e1;padding-top:8px;margin-top:16px";
       reportRoot.appendChild(header);
       reportRoot.appendChild(reportCopy);
+      reportRoot.appendChild(footer);
       document.body.appendChild(reportRoot);
 
       const html2pdf = (await import("html2pdf.js")).default;
       const worker = html2pdf().set({
-        margin: [13, 8, 15, 8],
+        margin: [8, 8, 8, 8],
         filename: "ClearFlow-Full-Fund-Report.pdf",
         image: { type: "jpeg", quality: 0.98 },
         html2canvas: {
@@ -814,22 +812,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         },
         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
         pagebreak: { mode: ["css", "legacy"], avoid: [".report-section", "article"] },
-      }).from(reportRoot).toPdf();
-
-      const pdf = await worker.get("pdf");
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const pageCount = pdf.getNumberOfPages();
-      for (let page = 1; page <= pageCount; page += 1) {
-        pdf.setPage(page);
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(8);
-        pdf.setTextColor(90, 100, 112);
-        pdf.setDrawColor(205, 214, 224);
-        pdf.line(8, pageHeight - 11, pageWidth - 8, pageHeight - 11);
-        pdf.text("ClearFlow Automations · Full Fund Report", 8, pageHeight - 6);
-        pdf.text("Page " + page + " of " + pageCount, pageWidth - 8, pageHeight - 6, { align: "right" });
-      }
+      }).from(reportRoot);
       const blob = await worker.outputPdf("blob");
       const filename = "ClearFlow-Full-Fund-Report.pdf";
       const file = new File([blob], filename, { type: "application/pdf" });
@@ -862,15 +845,56 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       }
       return true;
     } catch (error) {
-      const message = error instanceof Error ? "PDF download failed: " + error.message : "PDF download failed.";
+      const message = error instanceof Error ? "PDF download failed: " + error.message + ". Your Fund data is unchanged. Please retry." : "PDF download failed. Your Fund data is unchanged. Please retry.";
       setFullFundReportError(message);
-      if (!requiredBeforeArchive) showDatabaseResult(message, "error");
       return false;
     } finally {
       reportRoot?.remove();
       setIsDownloadingFullFundPdf(false);
     }
   }
+  function printFundReport() {
+    const content = document.querySelector("[data-cfcf-fund-report]")?.innerHTML;
+    if (!content) { showDatabaseResult("Fund report content is not ready to print."); return; }
+    const printWindow = window.open("", "_blank", "width=900,height=700");
+    if (!printWindow) { showDatabaseResult("Allow pop-ups to print or save the Fund report."); return; }
+    printWindow.document.write("<!doctype html><html><head><title>ClearFlow Fund Summary</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><style>body{font-family:Arial,sans-serif;color:#0f172a;padding:24px;max-width:900px;margin:auto}button{display:none!important}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}section,article{break-inside:avoid}p,h3,h4{margin-top:8px;margin-bottom:8px}.border{border:1px solid #cbd5e1}.rounded-xl{border-radius:12px}.p-3,.p-4{padding:12px}.bg-slate-50{background:#f8fafc}.text-xs{font-size:12px}.text-sm{font-size:14px}.font-bold,.font-semibold{font-weight:700}</style></head><body>" + content + "</body></html>");
+    printWindow.document.close(); printWindow.focus(); printWindow.print();
+  }
+
+  function billedCycleNumbers(fundShares: CfcfShareRow[] = shares): number[] {
+    const ids = new Set(fundShares.map((share) => share.share_id));
+    const cycleById = new Map(cycleRows.map((cycle) => [cycle.cycle_id, cycle.cycle_number]));
+    return [...new Set(bills.filter((bill) => ids.has(bill.share_id))
+      .map((bill) => cycleById.get(bill.cycle_id))
+      .filter((number): number is number => number !== undefined))]
+      .sort((x, y) => x - y);
+  }
+
+  function savedCycleNumbers(): number[] {
+    return cycleRows.map((cycle) => cycle.cycle_number).sort((a, b) => a - b);
+  }
+
+  function billForShareCycle(shareId: string, cycleNumber: number): CfcfBillRow | undefined {
+    const cycle = cycleRows.find((row) => row.cycle_number === cycleNumber);
+    return cycle ? bills.find((bill) => bill.share_id === shareId && bill.cycle_id === cycle.cycle_id) : undefined;
+  }
+
+  function highestCycleNumber(_fund: CfcfFundRow | null, _fundShares: CfcfShareRow[] = shares): number {
+    return savedCycleNumbers().at(-1) ?? 0;
+  }
+
+  function openPayoutModal(share: CfcfShareRow) {
+    // Require an explicit Cycle choice every time the payout form opens.
+    // Existing payout details remain visible in the Share card, but are not silently preselected.
+    setPayoutShare(share);
+    setPayoutCycleNumber("");
+    setWithdrawnAmount(share.payout_status === "drawn" ? String(share.withdrawn_amount) : "");
+    setPayoutError(null);
+    setPayoutReview(false);
+    setUndrawnReview(false);
+  }
+
   async function handleSavePayout(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!payoutShare || !selectedFund || isSavingPayout) return;
