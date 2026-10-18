@@ -14,7 +14,7 @@ const fund: CfcfFundRow = {
   fund_id: "fund-1", product_id: "CFCF", tenant_id: "tenant-1", person_id: "owner-1",
   fund_name: "Test Fund", start_date: null, number_of_cycles: 10, number_of_shares: 999,
   current_cycle: 2,
-  fund_net_balance: 0, fund_total_billed_amount: 0, fund_total_pending_amount: 0,
+  fund_net_balance: 0, fund_net_payment_received: 0, fund_total_billed_amount: 0, fund_total_pending_amount: 0,
   fund_total_advance: 0, fund_total_withdrawn: 0, fund_total_commissions: 0,
   other_amount: 0, status: "active", created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z",
 };
@@ -76,6 +76,7 @@ test("derives pending from all Cycle bills less independent net shareholder paym
   assert.equal(result.shares[0].shareNetPaymentReceived, 700);
   assert.equal(result.shares[0].totalPending, 800);
   assert.equal(result.shares[0].totalAdvance, 0);
+  assert.equal(result.fundNetPaymentReceived, 700);
   assert.equal(result.fundTotalBilledAmount, 1500);
   assert.equal(result.fundTotalPendingAmount, 800);
   assert.equal(result.numberOfShares, 1);
@@ -98,6 +99,7 @@ test("debit corrections reduce net shareholder payments independently of Cycle r
     payment({ payment_id: "payment-2", entry_type: "debit", amount: 300 }),
   ]);
   assert.equal(result.shares[0].shareNetPaymentReceived, 400);
+  assert.equal(result.fundNetPaymentReceived, 400);
   assert.equal(result.shares[0].totalPending, 100);
   assert.equal(result.shares[0].totalAdvance, 0);
 });
@@ -176,6 +178,7 @@ test("ignores Share, Bill, Payment, Cycle and adjustment rows outside selected t
   assert.equal(result.numberOfShares, 1);
   assert.equal(result.fundTotalBilledAmount, 500);
   assert.equal(result.shares[0].shareNetPaymentReceived, 200);
+  assert.equal(result.fundNetPaymentReceived, 200);
   assert.equal(result.shares[0].totalPending, 300);
   assert.equal(result.otherAmount, 100);
 });
