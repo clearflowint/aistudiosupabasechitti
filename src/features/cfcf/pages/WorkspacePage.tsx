@@ -752,13 +752,6 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         image: { type: "jpeg", quality: 0.98 },
         html2canvas: {
           scale: 2, useCORS: true, logging: false, backgroundColor: "#ffffff", windowWidth: 794,
-          onclone: (clonedDocument: Document) => {
-            clonedDocument.querySelectorAll("style, link[rel='stylesheet']").forEach((node) => node.remove());
-            if (clonedDocument.body) {
-              clonedDocument.body.style.color = "#0f172a";
-              clonedDocument.body.style.backgroundColor = "#ffffff";
-            }
-          },
         },
         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
         pagebreak: { mode: ["css", "legacy"], avoid: [".record", ".metric", "h2"] },
