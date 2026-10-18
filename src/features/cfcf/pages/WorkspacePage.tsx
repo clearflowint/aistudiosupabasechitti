@@ -334,10 +334,21 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       const parsed = new DOMParser().parseFromString(archive.report_html, "text/html");
       reportRoot = document.createElement("div");
       reportRoot.style.cssText = "position:fixed;left:-10000px;top:0;width:794px;background:#fff;color:#0f172a;font-family:Arial,sans-serif;font-size:12px;line-height:1.45;padding:28px;box-sizing:border-box;overflow-wrap:anywhere";
-      const storedStyle = parsed.querySelector("style");
-      if (storedStyle) reportRoot.appendChild(storedStyle.cloneNode(true));
+      // Archived reports may contain Tailwind v4 OKLCH colors unsupported by html2canvas.
+      // Remove stored styles and normalize modern color functions to safe RGB before rendering PDF.
       const contentRoot = document.createElement("div");
       contentRoot.innerHTML = parsed.body.innerHTML;
+      // Do not copy archived <style> blocks: html2canvas cannot parse oklch()/oklab()/color().
+      // Inline report content gets a conservative, PDF-safe palette instead.
+      contentRoot.querySelectorAll<HTMLElement>("*").forEach((element) => {
+        const style = element.getAttribute("style");
+        if (style && /oklch\\(|oklab\\(|color\\(/i.test(style)) {
+          element.removeAttribute("style");
+        }
+        element.style.color = "#0f172a";
+        element.style.backgroundColor = "#ffffff";
+        element.style.borderColor = "#cbd5e1";
+      });
       reportRoot.appendChild(contentRoot);
       document.body.appendChild(reportRoot);
       await pdfModule.default().set({
