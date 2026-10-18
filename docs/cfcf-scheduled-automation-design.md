@@ -45,7 +45,7 @@ The row is the single source of truth for Manager Home and Workspace job history
 - `cfcf_claim_automation_jobs(p_limit)` claims queued/delayed jobs for five minutes and increments the attempt count.
 - Both functions are executable only by `service_role`. n8n must use credentials stored in n8n, never browser variables.
 
-The n8n workflow must clear `claimed_until` on successful processing, calculate and store the next monthly run, and record an error/release claim when an execution fails. Claims expire so crashed executions can be recovered.
+The n8n workflow must initialize `next_run_at` for newly enabled schedules without immediately executing them, clear `claimed_until` on successful processing, calculate and store the next monthly run, and record an error/release claim when an execution fails. Claims expire so crashed executions can be recovered. Expired `processing` jobs can be reclaimed; after eight attempts, n8n must surface a final failure rather than loop indefinitely.
 
 ## n8n Code node — monthly recurrence
 
@@ -88,7 +88,7 @@ return items.map(item => ({
 ## n8n processing contract
 
 1. Schedule Trigger runs every minute.
-2. Call `POST /rest/v1/rpc/cfcf_claim_due_automation_schedules` and `POST /rest/v1/rpc/cfcf_claim_automation_jobs` using stored n8n credentials.
+2. Call `POST /rest/v1/rpc/cfcf_claim_due_automation_schedules` and `POST /rest/v1/rpc/cfcf_claim_automation_jobs` using stored n8n credentials. Newly created schedules may have `next_run_at = null`; initialize their next future monthly occurrence and release the claim without running a job immediately.
 3. For a claimed schedule, resolve the tenant/fund from current saved data, create a job with an idempotency key such as `schedule:<schedule_id>:<scheduled-for-UTC>`, and advance `next_run_at`. Use an upsert/unique key so overlapping executions cannot create duplicates.
 4. For each claimed job, validate the job type and ownership, then load only the required fund, share, bill and contact data.
 5. Pending reminders use saved pending/billing values; they must not invent dues or recalculate CFCF financial ledgers. Reports read saved records and render an HTML/CSV artifact. No PDF generation.
