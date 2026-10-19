@@ -71,8 +71,9 @@ test("authenticated campaign registration proves group ownership server-side", (
   assert.match(lifecycle, /Every campaign Contact Group must belong to the authorized CFCF tenant owner/);
 });
 
-test("CFCF recipient Contact scope is enforced by the delivery trigger", () => {
+test("CFCF recipient Contact scope is enforced on inserts and recipient edits", () => {
   assert.match(schema, /if new\.product_id = 'CFCF'[\s\S]*?new\.recipient_contact_id is null[\s\S]*?from public\.contacts c[\s\S]*?c\.product_id = new\.product_id[\s\S]*?c\.tenant_id = new\.tenant_id[\s\S]*?c\.contact_id = new\.recipient_contact_id[\s\S]*?c\.phone[\s\S]*?Every CFCF delivery must match a saved Contact and phone in the same tenant\/product/);
+  assert.match(schema, /before insert or update of n8n_whatsapp_communication_id, tenant_id, product_id, recipient_person_id, recipient_contact_id, recipient_phone\s+on public\.n8n_whatsapp_deliveries/i);
 });
 
 test("registration validates recipients before writes and creates the registry atomically", () => {
