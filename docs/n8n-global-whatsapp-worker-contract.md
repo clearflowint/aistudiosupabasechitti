@@ -245,3 +245,10 @@ The registration RPC now rejects mismatched CFCF job and communication types at 
 
 A repository contract test asserts the mapping guard. This remains static/source-level validation; no SQL was deployed or executed against PostgreSQL. PWA notification objects, the worker activation state, UI gates, and the no-retry/no-requeue policy remain unchanged.
 
+## Batch 28 — Registration idempotency and recipient identity audit
+
+- Added regression assertions for the transaction-scoped idempotency lock, source/scope binding, communication-detail binding, and exact recipient-set binding.
+- Added checks that a single phone cannot map to conflicting person/contact identities within one request and that the schema has a unique per-communication phone index. Duplicate same-identity phone entries remain deduplicated by the registration loop and unique index; this is duplicate suppression, not a retry/send policy.
+- Re-fetched the current migration and test source and exercised seven targeted static assertions; all seven passed. This is not execution of the Node test suite or SQL against PostgreSQL.
+- No schema or runtime behavior was changed in this batch. Registry migrations remain undeployed, no billable branch was created, PWA notification objects are untouched, and all worker/UI gates remain disabled. No retries, automatic requeue, blind resend, or WhatsApp sends were introduced.
+
