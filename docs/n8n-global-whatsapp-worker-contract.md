@@ -377,3 +377,13 @@ A repository contract test asserts the mapping guard. This remains static/source
 - Each delivery must have a valid sequential integer delivery ID, unique within the job, and matching `product_id`/`tenant_id` scope. Unknown statuses and any remaining `queued` delivery stop finalization.
 - This is a preparation guard only. The upstream complete/paginated delivery-read and aggregation handoff still needs to be connected and tested before runtime use; the result/finalization HTTP nodes remain disconnected, use placeholder URLs, and perform no writes.
 - Added repository contract assertions for the completeness and scope requirements. No automatic retries, requeue, blind resend, live WAHA call, registry write, production migration, billable branch, UI gate change, or PWA notification-object change occurred. Workflow remains inactive.
+
+
+## Batch 44 — Runtime readiness review
+
+- Confirmed repository validation run #678 passed all four CI stages: TypeScript validation, CFCF financial calculation tests, n8n registry contract tests, and production build.
+- Inspected the current n8n draft: it remains inactive with no active version or trigger count. The global-worker path is not connected to the Manual Start path; this is intentional and prevents a manual test from accidentally entering the worker.
+- The current scoped delivery HTTP read has no explicit pagination/count verification. The finalization guard now requires `expectedDeliveryCount`, but the workflow does not yet establish that count from a complete read. A synthetic end-to-end worker run would therefore not prove the delivery/finalization path safe.
+- The result and finalization HTTP nodes still use placeholder Supabase URLs and are disconnected. The registry migrations have not been deployed to a disposable test database, and no live provider request has been made.
+- **Readiness decision:** repository checks pass, but the worker is not yet ready for end-to-end runtime testing. Next work must make delivery reads demonstrably complete (including pagination/count), then validate result/finalization payloads with synthetic fixtures while keeping external HTTP calls pinned or disconnected. After that, test registry RPCs against a non-billable disposable Supabase environment. Production migration, workflow activation, sender enablement, and UI gates remain out of scope until explicitly reviewed.
+- No automatic retries, requeue, blind resend, production migration, billable branch, PWA notification-object change, or UI-gate change was made in this batch.
