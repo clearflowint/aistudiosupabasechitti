@@ -408,3 +408,12 @@ A repository contract test asserts the mapping guard. This remains static/source
 - The current registry history does not yet persist a reliable manual-vs-scheduled trigger-source field, and the schedule-to-job handoff remains inactive. The UI therefore does not guess an origin badge; scheduled/manual origin can be shown once that source is represented by saved registry data.
 - Added a repository contract test for tenant-scoped job loading, lifecycle labels and acceptance-vs-delivery wording. This remains source/CI validation, not a live Supabase or mobile-browser test.
 - The global worker remains inactive, sender/result/finalization writes remain blocked, migrations are not deployed, and the PWA push-notification tables/functions/triggers/cron/data remain untouched.
+
+
+## Batch 47 — Synthetic worker contract fixtures
+
+- Added synthetic tests for paginated delivery aggregation, Pending message composition, provider-outcome classification, and finalization guards.
+- Pagination fixtures prove that an empty terminal page is required, full intermediate pages are required, and duplicate delivery IDs are rejected. Finalization fixtures reject count mismatches, queued outcomes, duplicate IDs and tenant/product scope mismatches.
+- Message fixtures verify saved Contact name, Fund, cycle progress, Share ID, stored pending/advance amounts and sender signature. Provider timeout maps to `uncertain`; no retry status is accepted.
+- These tests use in-memory fixtures only. They do not execute the actual n8n workflow, make HTTP calls, contact WAHA, execute SQL, or validate PostgreSQL runtime behavior. The actual n8n pagination response shape still needs synthetic execution in the disconnected draft before lifecycle nodes are connected.
+- No production migration, billable branch, workflow activation, sender enablement, PWA notification-object change, or UI gate change occurred.
