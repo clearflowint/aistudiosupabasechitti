@@ -356,7 +356,7 @@ begin
       completed_at = now(),
       updated_at = now()
   where status = 'picked_up'
-    and picked_up_at < now() - interval '90 minutes';
+    and coalesce(picked_up_at, updated_at, created_at) < now() - interval '90 minutes';
 
   return query
   with picked as (
