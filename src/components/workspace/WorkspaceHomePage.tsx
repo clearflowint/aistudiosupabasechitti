@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { ArrowRight, CheckCircle2, History, RefreshCw, ShieldCheck, WalletCards, CreditCard } from "lucide-react";
 import { Modal } from "../ui/Modal";
 import { listCfcfContacts } from "../../features/cfcf/services/contacts.service";
+import { listCfcfGlobalWhatsAppJobs, type CfcfGlobalWhatsAppJob } from "../../features/cfcf/services/notifications.service";
 import { listCfcfFunds, listCfcfShares, recordCfcfSharePayment } from "../../features/cfcf/services/workspace.service";
 import type { CfcfContactRow, CfcfFundRow, CfcfShareRow } from "../../features/cfcf/types/database.types";
 import { ContactsPage } from "../../features/cfcf/pages/ContactsPage";
@@ -20,6 +21,9 @@ interface WorkspaceHomePageProps {
 export function WorkspaceHomePage({ product, workspace, onNavigate }: WorkspaceHomePageProps) {
   const workspacePage = product.navigation.find(({ id }) => id === "workspace");
   const [quickPaymentOpen, setQuickPaymentOpen] = useState(false);
+  const [automationJobs, setAutomationJobs] = useState<CfcfGlobalWhatsAppJob[]>([]);
+  const [automationJobsLoading, setAutomationJobsLoading] = useState(true);
+  const [automationJobsError, setAutomationJobsError] = useState<string | null>(null);
   const [quickFunds, setQuickFunds] = useState<CfcfFundRow[]>([]);
   const [quickContacts, setQuickContacts] = useState<CfcfContactRow[]>([]);
   const [quickShares, setQuickShares] = useState<CfcfShareRow[]>([]);
@@ -49,6 +53,25 @@ export function WorkspaceHomePage({ product, workspace, onNavigate }: WorkspaceH
   const selectedShare = contactShares.find((share) => share.share_id === quickShareId && share.fund_id === quickFundId) ?? null;
   const selectedContact = quickContacts.find((contact) => contact.contact_id === quickContactId) ?? null;
   const validAmount = quickAmount.trim() !== "" && Number.isSafeInteger(Number(quickAmount)) && Number(quickAmount) > 0 && Number(quickAmount) <= 2147483647;
+
+  const loadAutomationJobs = async () => {
+    setAutomationJobsLoading(true);
+    setAutomationJobsError(null);
+    try {
+      const jobs = await listCfcfGlobalWhatsAppJobs(workspace.tenantId);
+      setAutomationJobs(jobs);
+    } catch (error) {
+      setAutomationJobsError(error instanceof Error ? error.message : "Unable to load automation job history.");
+    } finally {
+      setAutomationJobsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadAutomationJobs();
+    // Job history is loaded on entry; refresh is explicit to avoid background polling.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspace.tenantId]);
 
   useEffect(() => {
     if (!quickPaymentOpen) return;
