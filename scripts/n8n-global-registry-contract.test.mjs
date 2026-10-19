@@ -99,3 +99,17 @@ test("worker contract requires randomized waits and sequential queue processing"
   assert.match(contract, /A timeout or ambiguous provider result is recorded as `uncertain`/);
   assert.match(contract, /A non-queued delivery is skipped before the wait\/send path/);
 });
+
+test("global queue claim is bounded, serialized, and never reclaims picked-up jobs", () => {
+  assert.match(lifecycle, /create or replace function public\\.n8n_claim_global_jobs\\(p_limit integer default 25\\)/);
+  assert.match(lifecycle, /p_limit < 1 or p_limit > 100/);
+  assert.match(lifecycle, /where j\\.status = 'registered'[\\s\\S]*?for update skip locked[\\s\\S]*?limit p_limit/);
+  assert.match(lifecycle, /where status = 'picked_up'[\\s\\S]*?picked_up_at < now\\(\\) - interval '90 minutes'/);
+  assert.doesNotMatch(lifecycle, /set status = 'registered'[\\s\\S]{0,500}where status = 'timed_out'/);
+});
+
+test("terminal delivery states cannot return to queued", () => {
+  assert.match(lifecycle, /v_current_status <> 'queued'[\\s\\S]*?not \\(v_current_status = 'uncertain' and p_status = 'sent_to_server'\\)/);
+  assert.match(lifecycle, /p_status not in \\('sent_to_server', 'failed', 'uncertain', 'skipped'\\)/);
+  assert.match(lifecycle, /Cannot complete a global job while recipient deliveries remain queued/);
+});
