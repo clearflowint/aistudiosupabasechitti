@@ -253,7 +253,7 @@ test("preflight rejection is a draft-only skipped outcome, while valid payload s
 
 test("job finalization requires a complete, unique, tenant-matched delivery set", () => {
   assert.match(contract, /expectedDeliveryCount/);
-  assert.match(contract, /delivery IDs must be unique/);
-  assert.match(contract, /tenant\/product scope must match the claimed job/);
-  assert.match(contract, /finalization remains blocked until every delivery is terminal/);
+  assert.match(contract, /unique within the job/);
+  assert.match(contract, /matching `product_id`\/`tenant_id` scope/);
+  assert.match(contract, /any remaining `queued` delivery stop finalization/);
 });
