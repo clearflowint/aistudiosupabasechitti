@@ -25,9 +25,63 @@ declare
   v_communication_id integer;
   v_existing public.n8n_global_jobs%rowtype;
   v_recipient jsonb;
+  v_user_email text;
+  v_is_service_role boolean := coalesce(auth.role(), '') = 'service_role';
 begin
-  if coalesce(auth.role(), '') <> 'service_role' then
-    raise exception 'Service role required' using errcode = '42501';
+  -- n8n uses service_role. Authenticated CFCF owners may also register a
+  -- scoped job directly from the app; the browser never receives service_role.
+  if not v_is_service_role then
+    v_user_email := lower(btrim(coalesce(auth.jwt() ->> 'email', '')));
+    if coalesce(auth.role(), '') <> 'authenticated'
+       or auth.uid() is null
+       or v_user_email = ''
+       or p_product_id <> 'CFCF'
+       or p_person_id is null
+       or not exists (
+         select 1
+         from public.global_access_list a
+         join public.tenants t
+           on t.tenant_id = a.tenant_id
+          and t.product_id = a.product_id
+         where a.product_id = p_product_id
+           and a.tenant_id = p_tenant_id
+           and a.person_id = p_person_id
+           and a.access_type = 'tenantowner'
+           and a.status = 'active'
+           and lower(a.email) = v_user_email
+           and t.status = 'active'
+       ) then
+      raise exception 'Active CFCF tenant-owner access required to register a job'
+        using errcode = '42501';
+    end if;
+
+    if p_job_type not in ('manual_campaign', 'pending_reminder', 'report') then
+      raise exception 'Authenticated users may only register supported manual WhatsApp jobs'
+        using errcode = '42501';
+    end if;
+
+    if p_source_table not in ('contactgroups', 'cfcf_funds', 'cfcf_shares', 'manual') then
+      raise exception 'Unsupported source table for direct CFCF registration'
+        using errcode = '22023';
+    end if;
+
+    -- Authenticated app callers cannot use this RPC to send to arbitrary
+    -- phone numbers. Each phone must match a Contact in this same tenant.
+    if exists (
+      select 1
+      from jsonb_array_elements(p_recipients) r
+      where nullif(r->>'recipient_contact_id', '') is null
+         or not exists (
+           select 1 from public.contacts c
+           where c.product_id = p_product_id
+             and c.tenant_id = p_tenant_id
+             and c.contact_id = r->>'recipient_contact_id'
+             and nullif(btrim(c.phone), '') = btrim(r->>'recipient_phone')
+         )
+    ) then
+      raise exception 'Every direct CFCF recipient must match a saved Contact phone in the authorized tenant'
+        using errcode = '42501';
+    end if;
   end if;
 
   if p_product_id is null or length(btrim(p_product_id)) = 0
@@ -389,6 +443,7 @@ revoke all on function public.n8n_record_whatsapp_delivery_result(integer,text,t
 grant execute on function public.n8n_record_whatsapp_delivery_result(integer,text,text,text,text,text) to service_role;
 revoke all on function public.n8n_finish_global_job(integer,text,text) from public, anon, authenticated;
 grant execute on function public.n8n_register_whatsapp_job(text,text,text,text,text,text,text,text,text,jsonb,jsonb,timestamptz) to service_role;
+grant execute on function public.n8n_register_whatsapp_job(text,text,text,text,text,text,text,text,text,jsonb,jsonb,timestamptz) to authenticated;
 grant execute on function public.n8n_claim_global_jobs(integer) to service_role;
 grant execute on function public.n8n_finish_global_job(integer,text,text) to service_role;
 
