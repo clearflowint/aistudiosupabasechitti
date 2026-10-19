@@ -96,3 +96,38 @@ Repository-level checks can verify workflow structure, integer ID usage, scope p
 7. Do not introduce automatic retries, automatic requeue, or blind resend for uncertain sends. Keep the current no-retry policy for the global worker.
 
 The direct registration code paths now exist for Launch Campaign and bulk Pending/Reports, and Notifications includes a registry-backed job history view. Both UI gates remain disabled. The active production sending route is **not cut over** until the worker, runtime tests and controlled delivery pass.
+
+## Batch 15 — Queue discipline and randomized pacing
+
+### Queue ownership and concurrency
+
+- Supabase registry rows are the durable queue; n8n execution history is not the source of truth for queued work.
+- The worker must claim a small bounded batch through `n8n_claim_global_jobs(p_limit)`. Never fetch unclaimed jobs and then send them directly.
+- Process claimed jobs and their queued deliveries sequentially, one provider send at a time. Do not use Split In Batches or loop settings that allow concurrent sends for the same queue.
+- Do not start a second sender execution while one sender execution is processing the queue unless a later database-level concurrency review explicitly proves that claims and per-delivery transitions prevent overlapping sends. For the initial implementation, one sender execution at a time.
+- A Wait node is a pacing control, not a queue, lock, acknowledgement, retry, or delivery guarantee. The registry remains authoritative if an n8n execution stops during a wait.
+- Keep claim size conservative and bounded. Finish/record each job's delivery outcomes before moving on to the next claimed job; never mark a job completed while any delivery is still queued.
+
+### Random wait node before each new send
+
+- Add a native n8n **Wait** node on the queued-delivery path immediately before the WAHA send node.
+- For each delivery that is still `queued`, randomly select exactly one delay from this allowlist: **15 seconds, 30 seconds, or 60 seconds (1 minute)**. Use a uniform choice unless a later measured operational requirement justifies another distribution.
+- Apply the wait once per newly attempted delivery, after validating the queued state and payload and before making the provider request. Do not wait between a provider result and its database result-recording RPC.
+- Never use the wait node to repeat the send node. Disable automatic node retries; do not connect an error branch back to the sender. A timeout or ambiguous provider result is recorded as `uncertain` and ends that delivery's attempt.
+- If the workflow resumes after an interruption, re-read the durable delivery status before any provider call. If the status is not `queued`, do not send. If the outcome of a prior provider request is uncertain, do not infer that it is safe to resend.
+- The random delay is pacing, not a promise of a particular messages-per-minute rate. Keep the existing per-Fund hourly registration guard for Pending/Report and apply any provider-specific rate limits only after verifying the actual WAHA deployment's documented limits.
+- Do not use a fixed global wait after the entire batch as a substitute for the per-delivery randomized Wait node.
+
+### Queue and pacing acceptance checks
+
+Before any controlled live test, verify with synthetic data that:
+1. The claim limit is bounded and only claimed jobs enter the send path.
+2. Only one delivery is in the provider-send path at a time.
+3. Each newly attempted queued delivery gets exactly one allowlisted randomized wait (15, 30, or 60 seconds) before the provider call.
+4. The Wait node cannot loop back to resend and no send node has automatic retries enabled.
+5. A non-queued delivery is skipped before the wait/send path.
+6. A timeout after the provider request becomes `uncertain`; it does not requeue or resend.
+7. The worker remains inactive, UI gates remain disabled, and no live messages are sent before WAHA setup and database runtime validation.
+
+These requirements are part of the worker contract. They do not mean the Wait node or live sender has already been connected or executed in n8n; that remains a separate draft-only implementation step.
+
