@@ -256,6 +256,18 @@ begin
       using errcode = '22023';
   end if;
 
+  if p_status = 'completed' and exists (
+    select 1
+    from public.n8n_whatsapp_communications c
+    join public.n8n_whatsapp_deliveries d
+      on d.n8n_whatsapp_communication_id = c.n8n_whatsapp_communication_id
+    where c.n8n_global_job_id = p_n8n_global_job_id
+      and d.status = 'queued'
+  ) then
+    raise exception 'Cannot complete a global job while recipient deliveries remain queued'
+      using errcode = '23514';
+  end if;
+
   update public.n8n_global_jobs
   set status = p_status,
       last_error = case when p_status = 'completed' then null else left(p_error, 2000) end,
