@@ -163,6 +163,20 @@ test("Launch Campaign and bulk actions register through the global RPC", () => {
   assert.doesNotMatch(campaign, /functions\.invoke\(["']campaign-dispatch/);
 });
 
+test("campaign registration paginates Contact Group memberships before recipient registration", () => {
+  const dispatch = campaign.slice(
+    campaign.indexOf("export async function dispatchCfcfCampaign"),
+  );
+  const membershipHelper = campaign.slice(
+    campaign.indexOf("export async function listCfcfGroupMembers"),
+    campaign.indexOf("export async function createCfcfContactGroup"),
+  );
+  assert.match(dispatch, /listCfcfGroupMembers\(tenantId, selectedGroupIds\)/);
+  assert.doesNotMatch(dispatch, /from\("contact_group_members"\)/);
+  assert.match(membershipHelper, /for \(let offset = 0; ; offset \+= pageSize\)/);
+  assert.match(membershipHelper, /\.range\(offset, offset \+ pageSize - 1\)/);
+});
+
 test("send UI gates remain disabled", () => {
   assert.match(campaignUi, /CAMPAIGN_AUTOMATION_ENABLED\s*=\s*false/);
   assert.match(workspaceUi, /CFCF_GLOBAL_WHATSAPP_REGISTRATION_ENABLED\s*=\s*false/);
