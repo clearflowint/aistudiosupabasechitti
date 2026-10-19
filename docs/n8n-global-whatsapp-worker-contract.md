@@ -238,3 +238,10 @@ These requirements are part of the worker contract. The n8n draft now contains a
 - Pinned synthetic preflight test passed for `+919876543210` → `919876543210@c.us`; a local-only `9876543210` phone was blocked without country-code inference. No WAHA request was made.
 - The temporary Manual Start connection used for this test was removed. The sequential pacing/preflight loop remains disconnected from all triggers and has no sender node after it.
 - No live WhatsApp messages or database writes have occurred. The workflow is still inactive with all live gates false; result/finalization payload guards remain disconnected from triggers and their HTTP nodes use placeholder URLs with no credentials.
+
+## Batch 27 — CFCF job/communication mapping guard
+
+The registration RPC now rejects mismatched CFCF job and communication types at the database boundary: `manual_campaign → campaign`, `pending_reminder → pending_reminder`, and `report → report`. It also explicitly rejects a null communication type before attempting inserts. This is a consistency guard, not a worker activation or sending change.
+
+A repository contract test asserts the mapping guard. This remains static/source-level validation; no SQL was deployed or executed against PostgreSQL. PWA notification objects, the worker activation state, UI gates, and the no-retry/no-requeue policy remain unchanged.
+
