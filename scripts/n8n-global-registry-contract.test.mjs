@@ -81,11 +81,13 @@ test("registration validates recipients before writes and creates the registry a
     lifecycle.indexOf("create or replace function public.n8n_claim_global_jobs")
   );
   const recipientShapeCheck = registration.indexOf("if p_recipients is null or jsonb_typeof(p_recipients) <> 'array' then");
+  const firstRecipientIteration = registration.indexOf("jsonb_array_elements(p_recipients)");
   const emptyRecipientCheck = registration.indexOf("if jsonb_array_length(p_recipients) = 0 then");
   const jobInsert = registration.indexOf("insert into public.n8n_global_jobs");
   const communicationInsert = registration.indexOf("insert into public.n8n_whatsapp_communications");
   const deliveryInsert = registration.indexOf("insert into public.n8n_whatsapp_deliveries");
-  assert.ok(recipientShapeCheck >= 0 && emptyRecipientCheck > recipientShapeCheck);
+  assert.ok(recipientShapeCheck >= 0 && firstRecipientIteration > recipientShapeCheck, "recipient array shape must be validated before any jsonb_array_elements call");
+  assert.ok(emptyRecipientCheck > recipientShapeCheck);
   assert.ok(jobInsert > emptyRecipientCheck && communicationInsert > jobInsert && deliveryInsert > communicationInsert);
   assert.ok(registration.indexOf("pg_advisory_xact_lock(hashtextextended(p_idempotency_key, 0))") < registration.indexOf("select * into v_existing"));
   assert.doesNotMatch(registration, /exception when others/i, "registration must not swallow an error after partial writes");
