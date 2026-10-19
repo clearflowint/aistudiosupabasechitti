@@ -39,6 +39,29 @@ test("registry tables are not directly granted to browser roles", () => {
   assert.match(lifecycle, /grant execute on function public\.n8n_finish_global_job\(integer,text,text\) to service_role/i);
 });
 
+test("worker RPCs enforce service-role access and consistent job-first locking", () => {
+  const claim = lifecycle.slice(
+    lifecycle.indexOf("create or replace function public.n8n_claim_global_jobs"),
+    lifecycle.indexOf("create or replace function public.n8n_record_whatsapp_delivery_result")
+  );
+  const result = lifecycle.slice(
+    lifecycle.indexOf("create or replace function public.n8n_record_whatsapp_delivery_result"),
+    lifecycle.indexOf("create or replace function public.n8n_finish_global_job")
+  );
+  const finish = lifecycle.slice(
+    lifecycle.indexOf("create or replace function public.n8n_finish_global_job"),
+    lifecycle.indexOf("revoke all on function public.n8n_register_whatsapp_job")
+  );
+  assert.match(claim, /coalesce\(auth\.role\(\), ''\) <> 'service_role'/);
+  assert.match(result, /coalesce\(auth\.role\(\), ''\) <> 'service_role'/);
+  assert.match(finish, /coalesce\(auth\.role\(\), ''\) <> 'service_role'/);
+  assert.ok(result.indexOf("for update of j") < result.indexOf("for update;"), "result RPC must lock job before delivery");
+  assert.ok(finish.indexOf("for update;") < finish.indexOf("if exists ("), "finalization must lock job before checking queued deliveries");
+  assert.match(lifecycle, /revoke all on function public\.n8n_claim_global_jobs\(integer\) from public, anon, authenticated/i);
+  assert.match(lifecycle, /revoke all on function public\.n8n_record_whatsapp_delivery_result\(integer,text,text,text,text,text\) from public, anon, authenticated/i);
+  assert.match(lifecycle, /revoke all on function public\.n8n_finish_global_job\(integer,text,text\) from public, anon, authenticated/i);
+});
+
 test("authenticated campaign registration proves group ownership server-side", () => {
   assert.match(lifecycle, /elsif p_job_type = 'manual_campaign' then/);
   assert.match(lifecycle, /count\(distinct btrim\(requested\.group_id\)\)/);
