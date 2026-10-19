@@ -62,6 +62,11 @@ begin
       using errcode = '22023';
   end if;
 
+  -- Serialize registrations sharing the same idempotency key. Without this
+  -- transaction-scoped lock, two simultaneous first attempts could race at the
+  -- unique constraint and one caller would receive an avoidable conflict.
+  perform pg_advisory_xact_lock(hashtextextended(p_idempotency_key, 0));
+
   -- Idempotent browser/webhook retries return the original job only when the
   -- same idempotency key is reused for the exact same logical source/scope.
   select * into v_existing
