@@ -39,17 +39,12 @@ export interface CfcfGlobalWhatsAppJob {
   n8n_global_job_id: number;
   product_id: string;
   tenant_id: string;
-  person_id: string | null;
   job_type: string;
-  source_table: string;
-  source_record_id: string;
   job_status: string;
   communication_type: string | null;
-  message_text: string | null;
   created_at: string;
   updated_at: string;
   completed_at: string | null;
-  last_error: string | null;
   recipient_count: number;
   queued_count: number;
   sent_to_server_count: number;
