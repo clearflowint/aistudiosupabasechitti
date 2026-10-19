@@ -137,3 +137,12 @@ These requirements are part of the worker contract. The n8n draft now contains a
 - The added SQL-pattern checks were independently exercised against the current migration text: **8/8 checks passed**. This is static validation only; it does not execute PostgreSQL or prove runtime locking/transaction behavior.
 - GitHub Actions passed all four stages on the earlier test-fix commit `bf4140d01879a60fb52eeea39df60460a2de8fe0`. The subsequent Batch 16 test additions and regex correction are newer commits; their GitHub Actions result is not yet confirmed. Do not report the latest head as CI-green until a run on that head passes.
 - n8n remains inactive with zero triggers. The randomized selector and native Wait node remain a disconnected draft chain. The actual global claim/read/delivery-result/finalization chain is not connected or executed.
+## Batch 17 — Disconnected n8n queue skeleton
+
+- Added a disconnected draft chain for global registry claim (limit 5), claimed-job validation, scoped communication read, scoped delivery read, and queued-delivery validation.
+- Added separate disconnected placeholder RPC nodes for recording a delivery result and finalizing a global job. They use a conspicuous placeholder Supabase URL and illustrative ID 100; no credentials are attached and they must not be executed.
+- The claim/read/validation chain is not connected to the Manual Start trigger or safety gate. It ends at a blocking validation node; there is no WAHA send node and no connection to the random Wait chain yet.
+- The two read nodes use `tenant_id` and `product_id` filters; the communication lookup also filters by `n8n_global_job_id`, and delivery lookup filters by `n8n_whatsapp_communication_id`. The HTTP response shape and field retention are still unverified and must be tested with synthetic data before connecting lifecycle nodes.
+- The worker remains inactive with no active version and zero triggers. Existing legacy nodes remain disconnected from the safety gate. No queue claim, registry read/write, or WhatsApp send was executed.
+- GitHub Actions passed on commit `1d40bab40b479192cd45ec548a256249ff382b81`: TypeScript validation, CFCF financial tests, registry contract tests and production build. This does not validate the live n8n draft or execute PostgreSQL.
+- This is a draft structure, not an executable worker. Do not connect the placeholder result/finalization nodes or enable gates until registry migrations are runtime-tested and WAHA configuration is verified.
