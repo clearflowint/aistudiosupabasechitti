@@ -405,8 +405,6 @@ export function NotificationsPanel({ workspace, onNavigate, onCountChange }: Not
             <div className="flex items-start justify-between gap-2"><p className="text-sm font-semibold text-slate-900">Global Job #{job.n8n_global_job_id}</p><span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-700">{String(job.job_status).replace(/_/g, " ")}</span></div>
             <p className="mt-1 text-xs text-slate-600">{job.communication_type ?? job.job_type} · {job.recipient_count} recipient(s)</p>
             <p className="mt-1 text-xs text-slate-600">Accepted: {job.sent_to_server_count} · Queued: {job.queued_count} · Failed: {job.failed_count} · Uncertain: {job.uncertain_count} · Skipped: {job.skipped_count}</p>
-            {job.message_text && <p className="mt-1 break-words text-xs text-slate-700">{job.message_text}</p>}
-            {job.last_error && <p className="mt-1 break-words text-xs text-rose-700">{job.last_error}</p>}
             <p className="mt-1 text-[11px] text-slate-500">Created {new Date(job.created_at).toLocaleString("en-IN")}{job.completed_at ? " · Finished " + new Date(job.completed_at).toLocaleString("en-IN") : ""}</p>
           </article>)}
         </div>}
