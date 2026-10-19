@@ -322,3 +322,11 @@ A repository contract test asserts the mapping guard. This remains static/source
 - Rechecked delivery-result transitions and job finalization. The existing behavior remains coherent: a delivery can move from `queued` to an explicit terminal outcome, and only a positive later acknowledgement can move `uncertain` to `sent_to_server`; finalization refuses to finish any picked-up job while a delivery is still queued.
 - Found one stale repository-test assertion that still expected the older `picked_up_at`-only timeout predicate after Batch 31 introduced the timestamp fallback. Updated the assertion to match `coalesce(picked_up_at, updated_at, created_at)` so it tests the current intended timeout behavior.
 - No SQL lifecycle changes were needed. No new status rules, retries, requeue, or blind resend were added. This remains source-level validation; no PostgreSQL execution, migration deployment, n8n activation, registry write, or WhatsApp send occurred. PWA notification objects remain untouched and the UI gates remain disabled.
+
+
+## Batch 39 — Campaign audience pagination and message handoff
+
+- Fixed a concrete registration handoff issue: campaign dispatch previously read Contact Group memberships in one Supabase REST query, which could silently omit members when the audience exceeded the response limit. It now reuses `listCfcfGroupMembers`, which reads the selected groups in ordered pages of 1,000 before resolving saved Contact phones and registering the job.
+- Added a regression test that campaign dispatch uses the paginated helper and that the helper applies range-based paging. This is a source-level contract check; the full Node test suite and browser flow have not yet been run here.
+- Identified a separate remaining handoff blocker: bulk Pending/Report registration stores `message_text = null`, while the draft WAHA preflight requires nonblank text and explicitly does not compose messages. Those jobs must remain blocked until the intended per-recipient message/report content is defined and built from the registered payload. No report text was invented in this batch.
+- No SQL changes, migration deployment, n8n activation, sender configuration, registry writes, or WhatsApp sends. No retries/requeue/blind resend were added; PWA notification objects and UI gates remain untouched.
