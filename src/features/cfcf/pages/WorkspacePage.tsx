@@ -70,6 +70,8 @@ interface WorkspacePageProps {
 }
 
 const MAX_CFCF_CYCLES = 100;
+// Keep manual job creation gated until the inactive n8n worker and WAHA session are validated.
+const CFCF_GLOBAL_WHATSAPP_REGISTRATION_ENABLED = false;
 const emptyFundForm = { fundName: "", startDate: "", numberOfCycles: "" };
 
 function localDateInputValue(): string {
@@ -219,6 +221,10 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   }
 
   async function handleBulkWhatsAppRegistration(automation: CfcfWorkspaceAutomation): Promise<void> {
+    if (!CFCF_GLOBAL_WHATSAPP_REGISTRATION_ENABLED) {
+      showDatabaseResult("Bulk WhatsApp job registration is not enabled until the n8n worker and WAHA session are validated.", "error");
+      return;
+    }
     if (!selectedFund || isRegisteringBulkWhatsApp) return;
     setIsRegisteringBulkWhatsApp(true);
     try {
@@ -1645,10 +1651,10 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => void handleBulkWhatsAppRegistration("pending-reminder-all")} disabled={!selectedFund || isRegisteringBulkWhatsApp} title="Register a tenant-scoped WhatsApp job in Supabase; the n8n worker must be configured before sending." aria-label="Register pending reminder job for all shares" className="inline-flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-2 py-2 text-center text-xs font-bold leading-4 text-amber-900 disabled:opacity-50"><MessageCircle size={16} className="shrink-0" /><span>{isRegisteringBulkWhatsApp ? "Registering…" : "Send Pending Reminder to All"}</span></button>
-              <button type="button" onClick={() => void handleBulkWhatsAppRegistration("report-all")} disabled={!selectedFund || isRegisteringBulkWhatsApp} title="Register a tenant-scoped WhatsApp job in Supabase; the n8n worker must be configured before sending." aria-label="Register report job for all shares" className="inline-flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-sky-300 bg-sky-50 px-2 py-2 text-center text-xs font-bold leading-4 text-sky-900 disabled:opacity-50"><FileText size={16} className="shrink-0" /><span>{isRegisteringBulkWhatsApp ? "Registering…" : "Send Report to All"}</span></button>
+              <button type="button" onClick={() => void handleBulkWhatsAppRegistration("pending-reminder-all")} disabled={!CFCF_GLOBAL_WHATSAPP_REGISTRATION_ENABLED || !selectedFund || isRegisteringBulkWhatsApp} title="Direct Supabase job registration is prepared but remains gated until the n8n worker and WAHA session are validated." aria-label="Register pending reminder job for all shares" className="inline-flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-2 py-2 text-center text-xs font-bold leading-4 text-amber-900 disabled:opacity-50"><MessageCircle size={16} className="shrink-0" /><span>{isRegisteringBulkWhatsApp ? "Registering…" : "Send Pending Reminder to All"}</span></button>
+              <button type="button" onClick={() => void handleBulkWhatsAppRegistration("report-all")} disabled={!CFCF_GLOBAL_WHATSAPP_REGISTRATION_ENABLED || !selectedFund || isRegisteringBulkWhatsApp} title="Direct Supabase job registration is prepared but remains gated until the n8n worker and WAHA session are validated." aria-label="Register report job for all shares" className="inline-flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-sky-300 bg-sky-50 px-2 py-2 text-center text-xs font-bold leading-4 text-sky-900 disabled:opacity-50"><FileText size={16} className="shrink-0" /><span>{isRegisteringBulkWhatsApp ? "Registering…" : "Send Report to All"}</span></button>
             </div>
-            <p className="text-center text-xs text-slate-500">These actions register integer job IDs directly through Supabase. Actual sending remains gated until the n8n worker and WAHA session are validated.</p>
+            <p className="text-center text-xs text-slate-500">The direct Supabase job-ID route is prepared. Registration and sending remain disabled until the n8n worker and WAHA session are validated.</p>
 
             <section className="space-y-3">
               <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
