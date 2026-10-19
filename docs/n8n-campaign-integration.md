@@ -1,7 +1,15 @@
 # ClearFlow n8n Campaign Contract
 
+> Current implementation note (Batch 9): the browser launch service is being moved to the authenticated `n8n_register_whatsapp_job` Supabase RPC. It will create an integer `n8n_global_job_id` directly without calling an Edge Function or public n8n webhook. The UI gate remains disabled until the global worker and WAHA session are validated. The `campaign-dispatch` Edge Function below is retained as a legacy implementation reference; it is not the new direct job-registration route.
+
 // CFCF PRODUCT: Payload contract for the CFCF Campaign dispatch Edge Function.
 // MIX: n8n is responsible for channel-specific delivery and reporting; the browser never receives webhook secrets.
+
+## Direct job-ID route (current target)
+
+The browser calls the authenticated Supabase RPC with the selected Contact Group IDs and message. Supabase verifies the active CFCF tenant-owner identity, validates the supplied recipient phones against saved Contacts in the same tenant, and returns `n8n_global_job_id` plus `n8n_whatsapp_communication_id`. The browser does not call n8n directly and never receives service-role credentials. The n8n worker claims the registered job later. This registry currently supports WhatsApp only; SMS and email must not be sent through it.
+
+## Legacy Edge Function reference (not the new launch path)
 
 ## Configure server-side secrets
 
@@ -15,9 +23,9 @@ Do not put the webhook URL or callback secret in Vite variables, GitHub source, 
 
 ## ClearFlow UI launch gate (disabled by default)
 
-In `src/features/cfcf/pages/ContactGroupsPanel.tsx`, `CAMPAIGN_AUTOMATION_ENABLED` is intentionally set to `false`. While false, the Launch campaign button and the modal submit action are disabled, and the UI explicitly states that no messages will be sent. The dispatch handler also checks this flag before calling the Edge Function.
+In `src/features/cfcf/pages/ContactGroupsPanel.tsx`, `CAMPAIGN_AUTOMATION_ENABLED` remains `false` until the worker is validated. The direct registration service calls `n8n_register_whatsapp_job` through Supabase, not the Edge Function. While the flag is false, Launch campaign and submit remain disabled; no jobs are registered and no messages are sent.
 
-Keep the flag false while configuring n8n. Enable it only after the production webhook URL and callback secret are saved as Supabase Edge Function secrets and a test campaign has verified both the immediate acceptance receipt and the final delivery callback. Do not enable the flag merely because the Edge Function is deployed.
+Keep the flag false until the authenticated registration RPC and worker have passed the PostgreSQL runtime tests, the actual WAHA endpoint/session are confirmed, and a controlled delivery is explicitly authorized. Do not enable it merely because the registry migrations or n8n workflow exist.
 
 The deployed `campaign-dispatch` function has gateway JWT verification disabled so n8n can use the callback-secret route. The dispatch route validates the Supabase access token itself; the callback route requires the configured `x-cfcf-callback-secret` header.
 
