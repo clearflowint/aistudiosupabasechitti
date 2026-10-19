@@ -80,9 +80,36 @@ begin
         raise exception 'Pending and Report jobs must reference a Fund in the authorized workspace'
           using errcode = '42501';
       end if;
-    elsif p_job_type = 'manual_campaign' and p_source_table <> 'contactgroups' then
-      raise exception 'Campaign jobs must reference a contact group'
-        using errcode = '22023';
+    elsif p_job_type = 'manual_campaign' then
+      if p_source_table <> 'contactgroups' then
+        raise exception 'Campaign jobs must reference a contact group'
+          using errcode = '22023';
+      end if;
+
+      -- Do not trust the browser's preflight group lookup. The registration
+      -- RPC independently proves every submitted group belongs to this active
+      -- CFCF tenant and the authenticated owner/person before accepting it.
+      if cardinality(string_to_array(p_source_record_id, ',')) = 0
+         or exists (
+           select 1
+           from unnest(string_to_array(p_source_record_id, ',')) as requested(group_id)
+           where length(btrim(requested.group_id)) = 0
+         )
+         or (
+           select count(distinct btrim(requested.group_id))
+           from unnest(string_to_array(p_source_record_id, ',')) as requested(group_id)
+         ) <> cardinality(string_to_array(p_source_record_id, ','))
+         or (
+           select count(*)
+           from public.contactgroups g
+           where g.product_id = 'CFCF'
+             and g.tenant_id = p_tenant_id
+             and g.person_id = p_person_id
+             and g.group_id = any(string_to_array(p_source_record_id, ','))
+         ) <> cardinality(string_to_array(p_source_record_id, ',')) then
+        raise exception 'Every campaign Contact Group must belong to the authorized CFCF tenant owner'
+          using errcode = '42501';
+      end if;
     end if;
 
     -- Authenticated app callers cannot use this RPC to send to arbitrary
