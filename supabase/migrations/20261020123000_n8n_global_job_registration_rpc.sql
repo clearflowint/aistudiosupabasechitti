@@ -65,6 +65,26 @@ begin
         using errcode = '22023';
     end if;
 
+    -- Preserve the existing once-per-hour, per-Fund/per-action limit for
+    -- authenticated Pending and Report actions. These job types must identify
+    -- a real Fund in the caller's own tenant; do not allow source-table changes
+    -- to bypass the rate limit.
+    if p_job_type in ('pending_reminder', 'report') then
+      if p_source_table <> 'cfcf_funds' or not exists (
+        select 1
+        from public.cfcf_funds f
+        where f.product_id = 'CFCF'
+          and f.tenant_id = p_tenant_id
+          and f.fund_id = p_source_record_id
+      ) then
+        raise exception 'Pending and Report jobs must reference a Fund in the authorized workspace'
+          using errcode = '42501';
+      end if;
+    elsif p_job_type = 'manual_campaign' and p_source_table <> 'contactgroups' then
+      raise exception 'Campaign jobs must reference a contact group'
+        using errcode = '22023';
+    end if;
+
     -- Authenticated app callers cannot use this RPC to send to arbitrary
     -- phone numbers. Each phone must match a Contact in this same tenant.
     if exists (
@@ -207,6 +227,32 @@ begin
 
     return query select v_existing.n8n_global_job_id, v_communication_id, true;
     return;
+  end if;
+
+  if not v_is_service_role and p_job_type in ('pending_reminder', 'report') then
+    -- Match the established CFCF rule: one manual action per hour for each
+    -- tenant/Fund/job type. The transaction advisory lock prevents concurrent
+    -- requests from both passing the check. Existing idempotent requests above
+    -- return their original job without consuming a second slot.
+    perform pg_advisory_xact_lock(
+      hashtext(p_tenant_id),
+      hashtext(p_source_record_id || ':' || p_job_type)
+    );
+
+    if exists (
+      select 1
+      from public.n8n_global_jobs j
+      where j.product_id = 'CFCF'
+        and j.tenant_id = p_tenant_id
+        and j.source_table = 'cfcf_funds'
+        and j.source_record_id = p_source_record_id
+        and j.job_type = p_job_type
+        and j.person_id is not null
+        and j.created_at > now() - interval '1 hour'
+    ) then
+      raise exception 'This manual action is limited to once per hour for this Fund'
+        using errcode = 'P0001';
+    end if;
   end if;
 
   insert into public.n8n_global_jobs (
