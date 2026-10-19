@@ -142,8 +142,20 @@ begin
       using errcode = '22023';
   end if;
 
-  if p_communication_type not in ('pending_reminder', 'report', 'campaign', 'custom') then
+  if p_communication_type is null
+     or p_communication_type not in ('pending_reminder', 'report', 'campaign', 'custom') then
     raise exception 'Unsupported WhatsApp communication type' using errcode = '22023';
+  end if;
+
+  -- Keep CFCF job intent and communication semantics aligned at the database
+  -- boundary; do not rely only on the browser or n8n workflow to map them.
+  if p_product_id = 'CFCF' and (
+    (p_job_type = 'manual_campaign' and p_communication_type <> 'campaign')
+    or (p_job_type = 'pending_reminder' and p_communication_type <> 'pending_reminder')
+    or (p_job_type = 'report' and p_communication_type <> 'report')
+  ) then
+    raise exception 'CFCF job type does not match WhatsApp communication type'
+      using errcode = '22023';
   end if;
 
   if p_message_payload is null or jsonb_typeof(p_message_payload) <> 'object' then
