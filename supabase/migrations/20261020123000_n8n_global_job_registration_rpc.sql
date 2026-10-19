@@ -62,6 +62,19 @@ begin
       using errcode = '22023';
   end if;
 
+  if exists (
+    select 1
+    from jsonb_array_elements(p_recipients) r
+    group by btrim(r->>'recipient_phone')
+    having count(distinct jsonb_build_array(
+      nullif(r->>'recipient_person_id', ''),
+      nullif(r->>'recipient_contact_id', '')
+    )) > 1
+  ) then
+    raise exception 'A recipient phone cannot map to conflicting person/contact identities in one request'
+      using errcode = '22023';
+  end if;
+
   -- Serialize registrations sharing the same idempotency key. Without this
   -- transaction-scoped lock, two simultaneous first attempts could race at the
   -- unique constraint and one caller would receive an avoidable conflict.
@@ -112,6 +125,13 @@ begin
         from public.n8n_whatsapp_deliveries d
         where d.n8n_whatsapp_communication_id = v_communication_id
           and d.recipient_phone = incoming.phone
+          and exists (
+            select 1
+            from jsonb_array_elements(p_recipients) r
+            where btrim(r->>'recipient_phone') = incoming.phone
+              and d.recipient_person_id is not distinct from nullif(r->>'recipient_person_id', '')
+              and d.recipient_contact_id is not distinct from nullif(r->>'recipient_contact_id', '')
+          )
       )
     ) or exists (
       select 1
