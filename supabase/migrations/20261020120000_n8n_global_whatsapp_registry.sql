@@ -225,6 +225,23 @@ begin
       using errcode = '23503';
   end if;
 
+  -- Apply saved-Contact scope validation at the database boundary too, including
+  -- trusted service-role registrations. Authenticated RPC checks alone are not
+  -- sufficient to protect rows created by any other trusted caller.
+  if new.product_id = 'CFCF'
+     and new.recipient_contact_id is not null
+     and not exists (
+       select 1
+       from public.contacts c
+       where c.product_id = new.product_id
+         and c.tenant_id = new.tenant_id
+         and c.contact_id = new.recipient_contact_id
+         and nullif(btrim(c.phone), '') = btrim(new.recipient_phone)
+     ) then
+    raise exception 'CFCF recipient Contact and phone must match the same tenant/product'
+      using errcode = '23503';
+  end if;
+
   new.updated_at := now();
   return new;
 end;
