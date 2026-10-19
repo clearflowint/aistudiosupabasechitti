@@ -55,6 +55,18 @@ The authenticated `n8n_register_whatsapp_job` RPC now independently validates ca
 
 This is a repository migration edit only. It has not been applied to Supabase and has not been runtime-tested against PostgreSQL. Do not enable the UI gate until the migration is reviewed and tested in an approved disposable database.
 
+## Batch 13 — Automated registry contract checks
+
+Added `scripts/n8n-global-registry-contract.test.mjs` and wired `npm run test:n8n-registry` into `.github/workflows/validate.yml`. The GitHub Actions run for commit `46d256d4d6e1ab5827b73048216cd8b7f3250234` passed all stages: TypeScript validation, CFCF financial calculation tests, global registry contract tests, and production build.
+
+These are repository/static regression checks. They do not execute SQL against PostgreSQL, contact WAHA, or prove real message delivery.
+
+## Batch 14 — Worker setup inventory
+
+The connected n8n instance currently has a Supabase credential and the existing `CFCF Automation Worker — Draft`, but the credential inventory returned no WAHA credential and the workflow search returned no separate WAHA workflow. The worker remains inactive, has no active version, and has zero triggers. Its live-call branch remains blocked; the dry-run branch is separate. The legacy RPC nodes are disconnected and must not be reconnected.
+
+Do not guess the WAHA base URL, session name, endpoint, or payload shape. Before the worker can be made executable, the deployment's actual WAHA endpoint/session must be verified and the required credential configured in n8n. Until then, do not add a live sender connection, run a claim against the un-deployed registry, activate the workflow, or enable the UI gates.
+
 ## Current n8n draft safety state — Batch 10
 
 The connected `CFCF Automation Worker — Draft` remains inactive with no published/active version. Its safety-gate true branch now goes directly to the explicit blocked-stop node; it no longer reaches the legacy exhausted-job or claim RPC nodes. The false branch remains the dry-run path. Legacy HTTP nodes remain in the draft for reference but are disconnected from the trigger path, and their automatic retry settings are disabled. This is a containment change only: the global registry claim, delivery-result recording, and job finalization sequence is still not implemented in n8n. Do not activate or enable UI gates.
