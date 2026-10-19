@@ -193,20 +193,25 @@ export function NotificationsPanel({ workspace, onNavigate, onCountChange }: Not
 
   const refresh = useCallback(async () => {
     setError(null);
-    try {
-      const rows = await listCfcfNotifications(workspace.tenantId);
-      setItems(rows);
-      try {
-        setGlobalWhatsAppJobs(await listCfcfGlobalWhatsAppJobs(workspace.tenantId));
-        setGlobalWhatsAppJobsError(null);
-      } catch (jobError) {
-        setGlobalWhatsAppJobsError(jobError instanceof Error ? jobError.message : "Unable to load WhatsApp job history.");
-      }
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Unable to load Notifications.");
-    } finally {
-      setIsLoading(false);
+    const results = await Promise.allSettled([
+      listCfcfNotifications(workspace.tenantId),
+      listCfcfGlobalWhatsAppJobs(workspace.tenantId),
+    ]);
+    const notificationResult = results[0];
+    if (notificationResult.status === "fulfilled") {
+      setItems(notificationResult.value);
+      setError(null);
+    } else {
+      setError(notificationResult.reason instanceof Error ? notificationResult.reason.message : "Unable to load Notifications.");
     }
+    const jobResult = results[1];
+    if (jobResult.status === "fulfilled") {
+      setGlobalWhatsAppJobs(jobResult.value);
+      setGlobalWhatsAppJobsError(null);
+    } else {
+      setGlobalWhatsAppJobsError(jobResult.reason instanceof Error ? jobResult.reason.message : "Unable to load WhatsApp job history.");
+    }
+    setIsLoading(false);
   }, [workspace.tenantId]);
 
   useEffect(() => {
