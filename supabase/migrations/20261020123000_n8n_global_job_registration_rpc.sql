@@ -87,11 +87,44 @@ begin
 
     select c.n8n_whatsapp_communication_id into v_communication_id
     from public.n8n_whatsapp_communications c
-    where c.n8n_global_job_id = v_existing.n8n_global_job_id;
+    where c.n8n_global_job_id = v_existing.n8n_global_job_id
+      and c.communication_type = p_communication_type
+      and c.message_text is not distinct from p_message_text
+      and c.message_payload = p_message_payload
+      and c.scheduled_at is not distinct from p_scheduled_at;
 
     if v_communication_id is null then
-      raise exception 'Existing global job is missing its communication record'
-        using errcode = '23514';
+      raise exception 'Idempotency key was reused with different communication details or the communication record is missing'
+        using errcode = '23505';
+    end if;
+
+    -- A duplicate request must describe the same recipient set. Compare distinct
+    -- phones because the table intentionally permits only one delivery per phone
+    -- in a communication, even if the input accidentally repeats a phone.
+    if exists (
+      select 1
+      from (
+        select distinct btrim(r->>'recipient_phone') as phone
+        from jsonb_array_elements(p_recipients) r
+      ) incoming
+      where not exists (
+        select 1
+        from public.n8n_whatsapp_deliveries d
+        where d.n8n_whatsapp_communication_id = v_communication_id
+          and d.recipient_phone = incoming.phone
+      )
+    ) or exists (
+      select 1
+      from public.n8n_whatsapp_deliveries d
+      where d.n8n_whatsapp_communication_id = v_communication_id
+        and not exists (
+          select 1
+          from jsonb_array_elements(p_recipients) r
+          where btrim(r->>'recipient_phone') = d.recipient_phone
+        )
+    ) then
+      raise exception 'Idempotency key was reused with a different recipient set'
+        using errcode = '23505';
     end if;
 
     return query select v_existing.n8n_global_job_id, v_communication_id, true;
