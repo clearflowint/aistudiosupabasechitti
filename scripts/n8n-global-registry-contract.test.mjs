@@ -289,3 +289,111 @@ test("manager home shows registry-backed job progress without claiming recipient
   assert.match(managerHome, /Skipped/);
   assert.doesNotMatch(managerHome, /progress percentage|\b\d+% complete/);
 });
+
+
+// Synthetic worker-contract helpers. These operate on fixtures only: no HTTP, WAHA, or DB access.
+function aggregateSyntheticDeliveryPages(pages, { pageSize = 1000, maxRequests = 100 } = {}) {
+  if (!Array.isArray(pages) || pages.length === 0 || pages.length > maxRequests) throw new Error("Delivery pagination did not prove completion within the request bound.");
+  if (pages[pages.length - 1].length !== 0) throw new Error("Delivery pagination must terminate with an empty page.");
+  if (pages.slice(0, -1).some((page) => page.length !== pageSize)) throw new Error("A non-final delivery page was short; completeness is unproven.");
+  const rows = pages.slice(0, -1).flat();
+  const ids = new Set();
+  for (const row of rows) {
+    if (!Number.isInteger(row.n8n_whatsapp_delivery_id) || ids.has(row.n8n_whatsapp_delivery_id)) throw new Error("Delivery page set contains an invalid or duplicate ID.");
+    ids.add(row.n8n_whatsapp_delivery_id);
+  }
+  return { rows, expectedDeliveryCount: rows.length };
+}
+
+function composeSyntheticPendingMessage(payload, contactId) {
+  const contactName = String(payload.contact_names_by_id?.[contactId] ?? "").trim();
+  const shares = payload.shares_by_contact?.[contactId];
+  if (!contactName || !String(payload.fund_name ?? "").trim() || !Array.isArray(shares) || shares.length === 0) {
+    throw new Error("Pending message requires the saved Contact and Fund/share details.");
+  }
+  const amount = (value) => "₹" + new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(Number(value));
+  const cycles = Number(payload.number_of_cycles);
+  const cycleText = Number.isFinite(cycles) && cycles > 0
+    ? "Cycle " + payload.current_cycle + " of " + cycles
+    : "Cycle " + payload.current_cycle;
+  const lines = shares.map((share) => {
+    if (!String(share.share_id ?? "").trim() || !Number.isFinite(Number(share.pending_amount)) || !Number.isFinite(Number(share.advance_amount))) {
+      throw new Error("Pending message has invalid Share balance data.");
+    }
+    return "Share ID: " + share.share_id + "\nPending amount: " + amount(share.pending_amount) + "\nAdvance amount: " + amount(share.advance_amount);
+  }).join("\n\n");
+  return "Hello " + contactName + ",\n\nFund: " + payload.fund_name + "\nCycle progress: " + cycleText + "\n\nPending reminder\n" + lines + "\n\nThank you,\n" + (payload.sender_name || "Fund Manager");
+}
+
+function classifySyntheticProviderOutcome(outcome) {
+  const statuses = { accepted: "sent_to_server", rejected: "failed", uncertain: "uncertain", skipped: "skipped", timeout: "uncertain" };
+  if (!statuses[outcome]) throw new Error("Unknown provider outcome.");
+  return statuses[outcome];
+}
+
+function validateSyntheticFinalization({ product_id, tenant_id, deliveries, expectedDeliveryCount }) {
+  if (!Array.isArray(deliveries) || deliveries.length === 0 || deliveries.length !== expectedDeliveryCount) throw new Error("Complete delivery count required.");
+  const seen = new Set();
+  for (const delivery of deliveries) {
+    if (!Number.isInteger(delivery.n8n_whatsapp_delivery_id) || seen.has(delivery.n8n_whatsapp_delivery_id)) throw new Error("Delivery IDs must be valid and unique.");
+    seen.add(delivery.n8n_whatsapp_delivery_id);
+    if (delivery.product_id !== product_id || String(delivery.tenant_id) !== String(tenant_id)) throw new Error("Delivery scope mismatch.");
+    if (!["sent_to_server", "failed", "uncertain", "skipped"].includes(delivery.status)) throw new Error("Delivery is not terminal.");
+  }
+  return true;
+}
+
+test("synthetic delivery pagination proves completion only with an empty terminal page", () => {
+  const first = Array.from({ length: 1000 }, (_, i) => ({ n8n_whatsapp_delivery_id: i + 100 }));
+  const result = aggregateSyntheticDeliveryPages([first, []]);
+  assert.equal(result.rows.length, 1000);
+  assert.equal(result.expectedDeliveryCount, 1000);
+  assert.throws(() => aggregateSyntheticDeliveryPages([first]), /empty page/);
+  assert.throws(() => aggregateSyntheticDeliveryPages([first, first, []]), /duplicate ID/);
+  assert.throws(() => aggregateSyntheticDeliveryPages([first.slice(0, 999), []]), /short/);
+});
+
+test("synthetic Pending message composition uses saved Contact, Fund, cycle and stored balances", () => {
+  const message = composeSyntheticPendingMessage({
+    fund_name: "Fund Alpha",
+    current_cycle: 3,
+    number_of_cycles: 10,
+    sender_name: "Manager One",
+    contact_names_by_id: { "contact-1": "Asha" },
+    shares_by_contact: { "contact-1": [{ share_id: "S-17", pending_amount: 1200, advance_amount: 250 }] },
+  }, "contact-1");
+  assert.match(message, /Hello Asha/);
+  assert.match(message, /Fund: Fund Alpha/);
+  assert.match(message, /Cycle progress: Cycle 3 of 10/);
+  assert.match(message, /Share ID: S-17/);
+  assert.match(message, /Pending amount: ₹1,200/);
+  assert.match(message, /Advance amount: ₹250/);
+  assert.match(message, /Thank you,\nManager One/);
+  assert.throws(() => composeSyntheticPendingMessage({ fund_name: "Fund Alpha", shares_by_contact: {} }, "missing"), /saved Contact/);
+});
+
+test("synthetic provider outcomes preserve uncertainty and never invent a retry", () => {
+  assert.equal(classifySyntheticProviderOutcome("accepted"), "sent_to_server");
+  assert.equal(classifySyntheticProviderOutcome("rejected"), "failed");
+  assert.equal(classifySyntheticProviderOutcome("timeout"), "uncertain");
+  assert.equal(classifySyntheticProviderOutcome("uncertain"), "uncertain");
+  assert.equal(classifySyntheticProviderOutcome("skipped"), "skipped");
+  assert.throws(() => classifySyntheticProviderOutcome("retry"), /Unknown provider outcome/);
+});
+
+test("synthetic finalization rejects incomplete, queued, duplicate, or cross-tenant delivery sets", () => {
+  const base = {
+    product_id: "CFCF",
+    tenant_id: "tenant-a",
+    expectedDeliveryCount: 2,
+    deliveries: [
+      { n8n_whatsapp_delivery_id: 100, product_id: "CFCF", tenant_id: "tenant-a", status: "sent_to_server" },
+      { n8n_whatsapp_delivery_id: 101, product_id: "CFCF", tenant_id: "tenant-a", status: "uncertain" },
+    ],
+  };
+  assert.equal(validateSyntheticFinalization(base), true);
+  assert.throws(() => validateSyntheticFinalization({ ...base, expectedDeliveryCount: 3 }), /Complete delivery count/);
+  assert.throws(() => validateSyntheticFinalization({ ...base, deliveries: [...base.deliveries, { n8n_whatsapp_delivery_id: 102, product_id: "CFCF", tenant_id: "tenant-a", status: "queued" }], expectedDeliveryCount: 3 }), /not terminal/);
+  assert.throws(() => validateSyntheticFinalization({ ...base, deliveries: [base.deliveries[0], { ...base.deliveries[1], n8n_whatsapp_delivery_id: 100 }] }), /unique/);
+  assert.throws(() => validateSyntheticFinalization({ ...base, deliveries: [base.deliveries[0], { ...base.deliveries[1], tenant_id: "tenant-b" }] }), /scope mismatch/);
+});
