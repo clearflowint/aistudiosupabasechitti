@@ -369,3 +369,11 @@ A repository contract test asserts the mapping guard. This remains static/source
 - The classification is diagnostic metadata only. `senderBlocked`, `providerCallAllowed = false`, and `resultWriteBlocked = true` remain in force. No provider call, RPC, database write, retry, requeue, or resend was added.
 - Repository contract tests now assert these distinctions. This does not yet close the lifecycle handoff: Batch 43 must define and validate complete per-job delivery-result aggregation before finalization, while keeping the result/finalization HTTP nodes disconnected and placeholder-only until an approved runtime test environment exists.
 - The workflow remains inactive, has no active version, and no message was sent. No production migration, billable branch, UI gate change, or PWA notification-object change occurred.
+
+
+## Batch 43 — Complete delivery aggregation guard
+
+- Strengthened the disconnected `Prepare Job Finalization Payload — Draft` node. It now requires a non-empty delivery array and an explicit `expectedDeliveryCount` supplied from the complete tenant-scoped delivery read; it refuses to prepare finalization if the counts differ.
+- Each delivery must have a valid sequential integer delivery ID, unique within the job, and matching `product_id`/`tenant_id` scope. Unknown statuses and any remaining `queued` delivery stop finalization.
+- This is a preparation guard only. The upstream complete/paginated delivery-read and aggregation handoff still needs to be connected and tested before runtime use; the result/finalization HTTP nodes remain disconnected, use placeholder URLs, and perform no writes.
+- Added repository contract assertions for the completeness and scope requirements. No automatic retries, requeue, blind resend, live WAHA call, registry write, production migration, billable branch, UI gate change, or PWA notification-object change occurred. Workflow remains inactive.
