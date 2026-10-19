@@ -11,7 +11,7 @@ It intentionally does **not** alter `clearflow_push_subscriptions`, `clearflow_p
 
 ## Identity and isolation
 
-Every global job requires `product_id`, `tenant_id`, and `person_id`. For manual work, use the authenticated initiating person; for scheduled work, use the trusted person responsible for the schedule; for a campaign launch, use the authorized initiator. The person must be active and belong to the same product and tenant. Communication and delivery records repeat product/tenant scope so composite foreign keys and triggers reject cross-scope writes.
+Every global job requires `product_id` and `tenant_id`. `person_id` is nullable because scheduled or fund-level jobs may have no initiating person. When supplied, the person must be active and belong to the same product and tenant. Manual work and campaign launches should record the authenticated/authorized initiator when available. Communication and delivery records repeat product/tenant scope so composite foreign keys and triggers reject cross-scope writes.
 
 CFCF callers must set `product_id = 'CFCF'`. CFCF jobs remain fund-scoped through their source record; do not add `person_id` to `cfcf_automation_jobs`.
 
@@ -41,7 +41,7 @@ Each batch has one global job and one communication row; every recipient has one
 
 ## Registration and lifecycle RPCs
 
-- `n8n_register_whatsapp_job(...)` atomically creates the global job, one communication record and the recipient delivery rows. It requires product, tenant, person, source identity and idempotency key. Reusing the same key for the same logical source returns the original IDs; reusing it for a different scope/source fails. Registrations with the same key are serialized with a transaction-scoped advisory lock so simultaneous duplicate submissions resolve idempotently.
+- `n8n_register_whatsapp_job(...)` atomically creates the global job, one communication record and the recipient delivery rows. It requires product, tenant, source identity and idempotency key; the initiating person is optional. Reusing the same key for the same logical source returns the original IDs; reusing it for a different scope/source fails. Registrations with the same key are serialized with a transaction-scoped advisory lock so simultaneous duplicate submissions resolve idempotently.
 - `n8n_claim_global_jobs(p_limit)` atomically claims registered jobs with `FOR UPDATE SKIP LOCKED`. Stale picked-up jobs older than 15 minutes become `timed_out`; they are not automatically requeued or resent. The 15-minute threshold is provisional and must be checked against expected worker runtime before activation.
 - `n8n_finish_global_job(job_id, status, error)` finalizes a picked-up job as `completed`, `failed` or `timed_out`.
 - These RPCs are service-role-only. They are not yet connected to any active n8n workflow.
@@ -62,7 +62,7 @@ Run these against an isolated test database before production deployment; reposi
 1. Apply both migrations in order and verify all three tables, indexes, triggers and RPC signatures.
 2. Register a valid job with two distinct recipient phones; expect one job, one communication and two delivery rows.
 3. Repeat the same registration with the same idempotency key and source identity; expect the same IDs and no additional rows.
-4. Reuse that key with a different tenant, product, person or source; expect an error and no additional rows.
+4. Reuse that key with a different tenant, product, person (including null/non-null mismatch) or source; expect an error and no additional rows.
 5. Attempt an inactive or cross-tenant/product person; expect rejection.
 6. Submit duplicate phone numbers in one recipient array; expect one delivery per phone.
 7. Submit malformed recipient JSON or a blank phone; expect rejection of the entire transaction.
