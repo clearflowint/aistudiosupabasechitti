@@ -1,8 +1,8 @@
 // CFCF PRODUCT: Contact Group management and bulk campaign composer.
-// MIX: Receives authorized workspace identity and existing Contacts; campaign dispatch goes through the authenticated Edge Function.
+// MIX: Receives authorized workspace identity; WhatsApp campaign submission registers a scoped job through Supabase RPC.
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { FolderPlus, Pencil, Trash2, UsersRound, Megaphone, MessageCircle, Mail, Smartphone, RefreshCw, CheckCircle2 } from "lucide-react";
+import { FolderPlus, Pencil, Trash2, UsersRound, Megaphone, MessageCircle, RefreshCw, CheckCircle2 } from "lucide-react";
 import { Modal } from "../../../components/ui/Modal";
 import type { AuthorizedWorkspace } from "../../../core/workspace/workspace.types";
 import type { CfcfContactGroupMemberRow, CfcfContactGroupRow, CfcfContactRow } from "../types/database.types";
@@ -409,11 +409,9 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
           {!CAMPAIGN_AUTOMATION_ENABLED && <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-5 text-amber-900"><strong>Automation not enabled — no jobs or messages will be created.</strong> Validate the direct Supabase job registration RPC and n8n worker/WAHA session, then enable the campaign feature flag in a reviewed change.</div>}
           <fieldset>
             <legend className="mb-2 text-sm font-semibold text-slate-800">Delivery channels</legend>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-2">
               {([
                 { value: "whatsapp" as const, label: "WhatsApp", icon: MessageCircle, color: "emerald" },
-                { value: "sms" as const, label: "SMS", icon: Smartphone, color: "blue" },
-                { value: "email" as const, label: "Email", icon: Mail, color: "violet" },
               ]).map((channel) => {
                 const checked = channels.includes(channel.value);
                 const Icon = channel.icon;
