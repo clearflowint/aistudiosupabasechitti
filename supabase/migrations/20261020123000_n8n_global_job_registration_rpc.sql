@@ -253,6 +253,7 @@ set search_path = public, pg_temp
 as $$
 declare
   v_current_status text;
+  v_global_job_id uuid;
   v_updated integer;
 begin
   if coalesce(auth.role(), '') <> 'service_role' then
@@ -268,14 +269,25 @@ begin
       using errcode = '22023';
   end if;
 
-  select d.status into v_current_status
-  from public.n8n_whatsapp_deliveries d
+  -- Serialize delivery outcomes with job completion so a concurrent callback
+  -- cannot leave a queued delivery behind after the job is marked completed.
+  select j.n8n_global_job_id into v_global_job_id
+  from public.n8n_global_jobs j
+  join public.n8n_whatsapp_communications c
+    on c.n8n_global_job_id = j.n8n_global_job_id
+  join public.n8n_whatsapp_deliveries d
+    on d.n8n_whatsapp_communication_id = c.n8n_whatsapp_communication_id
   where d.n8n_whatsapp_delivery_id = p_n8n_whatsapp_delivery_id
-  for update;
+  for update of j;
 
   if not found then
     return false;
   end if;
+
+  select d.status into v_current_status
+  from public.n8n_whatsapp_deliveries d
+  where d.n8n_whatsapp_delivery_id = p_n8n_whatsapp_delivery_id
+  for update;
 
   -- Repeated identical callbacks are harmless. A later positive server
   -- acknowledgement may resolve an uncertain result, but never triggers resend.
@@ -324,6 +336,7 @@ security definer
 set search_path = public, pg_temp
 as $$
 declare
+  v_current_job_status text;
   v_updated integer;
 begin
   if coalesce(auth.role(), '') <> 'service_role' then
@@ -333,6 +346,16 @@ begin
   if p_status not in ('completed', 'failed', 'timed_out') then
     raise exception 'Final status must be completed, failed or timed_out'
       using errcode = '22023';
+  end if;
+
+  -- Lock the job first, matching the delivery RPC's lock order.
+  select j.status into v_current_job_status
+  from public.n8n_global_jobs j
+  where j.n8n_global_job_id = p_n8n_global_job_id
+  for update;
+
+  if not found or v_current_job_status <> 'picked_up' then
+    return false;
   end if;
 
   if p_status = 'completed' and exists (
