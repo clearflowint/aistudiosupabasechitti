@@ -142,9 +142,15 @@ test("uncertain delivery is not automatically resent", () => {
   assert.match(contract, /No automatic send retries, no automatic requeue, and no blind resend/);
 });
 
-test("history RPC is authenticated and bounded", () => {
+test("history RPC is authenticated, bounded, tenant-scoped, and minimizes sensitive fields", () => {
   assert.match(history, /p_limit < 1 or p_limit > 100/);
   assert.match(history, /a\.access_type = 'tenantowner'/);
+  assert.match(history, /a\.tenant_id = p_tenant_id/);
+  assert.match(history, /a\.product_id = 'CFCF'/);
+  assert.match(history, /a\.status = 'active'/);
+  assert.match(history, /t\.status = 'active'/);
+  assert.match(history, /where j\.product_id = 'CFCF'[\s\S]*?and j\.tenant_id = p_tenant_id/);
+  assert.doesNotMatch(history, /message_text|last_error|source_record_id|person_id text/i, "history should not expose message bodies, raw errors, source IDs, or person IDs");
   assert.match(history, /grant execute on function public\.n8n_list_cfcf_whatsapp_jobs\(text, integer\) to authenticated/i);
 });
 
