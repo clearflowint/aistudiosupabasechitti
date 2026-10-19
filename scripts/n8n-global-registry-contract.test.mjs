@@ -72,7 +72,7 @@ test("authenticated campaign registration proves group ownership server-side", (
 });
 
 test("CFCF recipient Contact scope is enforced by the delivery trigger", () => {
-  assert.match(schema, /if new\.product_id = 'CFCF'[\s\S]*?new\.recipient_contact_id is not null[\s\S]*?from public\.contacts c[\s\S]*?c\.product_id = new\.product_id[\s\S]*?c\.tenant_id = new\.tenant_id[\s\S]*?c\.contact_id = new\.recipient_contact_id[\s\S]*?c\.phone[\s\S]*?CFCF recipient Contact and phone must match the same tenant\/product/);
+  assert.match(schema, /if new\.product_id = 'CFCF'[\s\S]*?new\.recipient_contact_id is null[\s\S]*?from public\.contacts c[\s\S]*?c\.product_id = new\.product_id[\s\S]*?c\.tenant_id = new\.tenant_id[\s\S]*?c\.contact_id = new\.recipient_contact_id[\s\S]*?c\.phone[\s\S]*?Every CFCF delivery must match a saved Contact and phone in the same tenant\/product/);
 });
 
 test("registration validates recipients before writes and creates the registry atomically", () => {
