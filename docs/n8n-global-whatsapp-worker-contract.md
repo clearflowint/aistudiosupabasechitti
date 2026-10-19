@@ -52,3 +52,25 @@ This is the repository-side implementation contract for the future worker. It is
 ## Validation evidence
 
 Repository-level checks can verify workflow structure, integer ID usage, scope propagation and inactive status. They cannot prove PostgreSQL runtime behavior, WAHA connectivity, session validity, or real delivery. These remain unverified until the gated tests above are authorized and performed.
+
+## Existing send-flow migration status
+
+**Neither existing send entry point has been switched to the global job-ID route in this PR.** This distinction is intentional: the registry migrations are not deployed, and the worker is not yet executable or active.
+
+| Existing entry point | Current route | Required target |
+|---|---|---|
+| Contact Groups → Launch Campaign | `ContactGroupsPanel.tsx` → authenticated `campaign-dispatch` Edge Function → `N8N_CAMPAIGN_WEBHOOK_URL` → existing n8n campaign flow/callback | For WhatsApp recipients, register an idempotent global job and recipient delivery rows, then let the global worker send. Preserve the existing campaign notification and acceptance/final-callback contract. Keep SMS/email behavior separate until the registry explicitly supports those channels; never send the same WhatsApp recipient through both paths. |
+| Workspace bulk Pending / Reports WhatsApp actions | `workspace-automation.service.ts` currently has a placeholder URL and `CFCF_WORKSPACE_AUTOMATIONS_ENABLED = false`; no production route is connected | Replace the placeholder with an authenticated server-side handoff that registers a global job scoped to `product_id = 'CFCF'` and the authorized `tenant_id`, then return an immediate acceptance receipt. The worker uses the integer `n8n_global_job_id` and per-recipient delivery IDs. Preserve the existing per-tenant hourly limits and source-record/idempotency protections. |
+| Monthly scheduled evaluator | Existing workflow JSON uses placeholder Supabase URLs and is inactive; it does not call the global registry | Keep inactive until the schedule-to-job handoff is explicitly wired and tested. Do not treat the evaluator as the sender. |
+
+### Safe cutover order
+
+1. Keep both UI gates disabled and the existing campaign route unchanged while the registry is only in a draft PR.
+2. Finish and validate the worker with synthetic data, including integer IDs, scoped lookups, duplicate-registration behavior, and terminal delivery states.
+3. Confirm the actual WAHA endpoint and session name; configure credentials in n8n, not in source files.
+4. Add the server-side registration handoff for workspace Pending/Reports and the WhatsApp portion of Launch Campaign. Use a stable source-based idempotency key. Do not put service-role credentials or registry writes in browser code.
+5. Ensure each WhatsApp send has exactly one path: either the legacy campaign workflow or the global worker, never both. Keep the existing campaign callback/notification aggregation for campaign status; the registry is the per-recipient WhatsApp delivery ledger, not a replacement for the product notification history.
+6. Only after SQL runtime tests and a user-authorized controlled test pass, enable the relevant gates in a separate, reviewed change. Do not enable SMS/email through the WhatsApp-only registry.
+7. Do not introduce automatic retries, automatic requeue, or blind resend for uncertain sends. Keep the current no-retry policy for the global worker.
+
+Until these steps are complete, report the old flows as **not migrated** rather than implying that adding the registry tables automatically reroutes them.
