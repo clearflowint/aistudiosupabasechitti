@@ -205,7 +205,7 @@ begin
     raise exception 'p_limit must be between 1 and 100' using errcode = '22023';
   end if;
 
-  -- A prior pickup that exceeded 15 minutes is marked timed_out, never silently
+  -- A prior pickup that exceeded 90 minutes is marked timed_out, never silently
   -- resent. A human/operator can inspect and explicitly re-register if needed.
   update public.n8n_global_jobs
   set status = 'timed_out',
