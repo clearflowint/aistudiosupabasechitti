@@ -49,6 +49,10 @@ This is the repository-side implementation contract for the future worker. It is
 5. Validate tenant/product-scoped lookups, integer registry IDs, and each delivery outcome using a disposable PostgreSQL test database. No billable Supabase branch is assumed or created.
 6. Run controlled end-to-end delivery tests only after the database runtime checks pass and the user explicitly authorizes the controlled send. Until then, keep the worker and monthly evaluator inactive.
 
+## Current n8n draft safety state — Batch 10
+
+The connected `CFCF Automation Worker — Draft` remains inactive with no published/active version. Its safety-gate true branch now goes directly to the explicit blocked-stop node; it no longer reaches the legacy exhausted-job or claim RPC nodes. The false branch remains the dry-run path. Legacy HTTP nodes remain in the draft for reference but are disconnected from the trigger path, and their automatic retry settings are disabled. This is a containment change only: the global registry claim, delivery-result recording, and job finalization sequence is still not implemented in n8n. Do not activate or enable UI gates.
+
 ## Validation evidence
 
 Repository-level checks can verify workflow structure, integer ID usage, scope propagation and inactive status. They cannot prove PostgreSQL runtime behavior, WAHA connectivity, session validity, or real delivery. These remain unverified until the gated tests above are authorized and performed.
