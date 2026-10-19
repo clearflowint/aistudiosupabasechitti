@@ -34,6 +34,7 @@ This is the repository-side implementation contract for the future worker. It is
 ## Failure and idempotency rules
 
 - No automatic send retries, no automatic requeue, and no blind resend after uncertain results.
+- Stale picked-up jobs are marked `timed_out` after 90 minutes. The timeout query uses `picked_up_at`, falling back to `updated_at` and `created_at` only if the pickup timestamp is missing. It does not requeue the job. A timed-out job can still have `queued` deliveries; because the worker cannot safely infer whether an in-flight provider request was attempted, those rows require manual reconciliation. The RPC finalization guard applies to calls through `n8n_finish_global_job`; the stale-timeout update in the claim RPC is a separate guarded lifecycle path.
 - Registration idempotency prevents duplicate logical jobs; it is not permission to repeat a WAHA send.
 - Repeated identical result callbacks are idempotent. An `uncertain` delivery may transition to `sent_to_server` only when positive provider acknowledgement is obtained; that transition must not trigger a send.
 - Keep provider message IDs, actual session names, and error details on the delivery record. Do not log secrets or full credentials.
