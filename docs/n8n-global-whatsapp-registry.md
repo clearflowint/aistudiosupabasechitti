@@ -41,7 +41,7 @@ Each batch has one global job and one communication row; every recipient has one
 
 ## Registration and lifecycle RPCs
 
-- `n8n_register_whatsapp_job(...)` atomically creates the global job, one communication record and the recipient delivery rows. It requires product, tenant, person, source identity and idempotency key. Reusing the same key for the same logical source returns the original IDs; reusing it for a different scope/source fails.
+- `n8n_register_whatsapp_job(...)` atomically creates the global job, one communication record and the recipient delivery rows. It requires product, tenant, person, source identity and idempotency key. Reusing the same key for the same logical source returns the original IDs; reusing it for a different scope/source fails. Registrations with the same key are serialized with a transaction-scoped advisory lock so simultaneous retries resolve idempotently.
 - `n8n_claim_global_jobs(p_limit)` atomically claims registered jobs with `FOR UPDATE SKIP LOCKED`. Stale picked-up jobs older than 15 minutes become `timed_out` and are not automatically resent.
 - `n8n_finish_global_job(job_id, status, error)` finalizes a picked-up job as `completed`, `failed` or `timed_out`.
 - These RPCs are service-role-only. They are not yet connected to any active n8n workflow.
