@@ -97,6 +97,27 @@ create index if not exists n8n_whatsapp_deliveries_tenant_recent_idx
   on public.n8n_whatsapp_deliveries (product_id, tenant_id, created_at desc);
 
 -- Keep tenant/product/person relationships valid for any product using the global registry.
+create or replace function public.n8n_set_updated_at()
+returns trigger
+language plpgsql
+set search_path = public, pg_temp
+as $
+begin
+  new.updated_at := now();
+  return new;
+end;
+$;
+
+drop trigger if exists n8n_global_jobs_updated_at_trg on public.n8n_global_jobs;
+create trigger n8n_global_jobs_updated_at_trg
+before update on public.n8n_global_jobs
+for each row execute function public.n8n_set_updated_at();
+
+drop trigger if exists n8n_whatsapp_deliveries_updated_at_trg on public.n8n_whatsapp_deliveries;
+create trigger n8n_whatsapp_deliveries_updated_at_trg
+before update on public.n8n_whatsapp_deliveries
+for each row execute function public.n8n_set_updated_at();
+
 create or replace function public.n8n_validate_global_job_scope()
 returns trigger
 language plpgsql
@@ -132,7 +153,7 @@ $$;
 
 drop trigger if exists n8n_validate_global_job_scope_trg on public.n8n_global_jobs;
 create trigger n8n_validate_global_job_scope_trg
-before insert or update
+before insert or update of tenant_id, product_id, person_id
 on public.n8n_global_jobs
 for each row execute function public.n8n_validate_global_job_scope();
 
@@ -171,7 +192,7 @@ $$;
 
 drop trigger if exists n8n_validate_whatsapp_communication_scope_trg on public.n8n_whatsapp_communications;
 create trigger n8n_validate_whatsapp_communication_scope_trg
-before insert or update
+before insert or update of n8n_global_job_id, tenant_id, product_id, requested_by_person_id
 on public.n8n_whatsapp_communications
 for each row execute function public.n8n_validate_whatsapp_communication_scope();
 
@@ -211,7 +232,7 @@ $$;
 
 drop trigger if exists n8n_validate_whatsapp_delivery_scope_trg on public.n8n_whatsapp_deliveries;
 create trigger n8n_validate_whatsapp_delivery_scope_trg
-before insert or update
+before insert or update of n8n_whatsapp_communication_id, tenant_id, product_id, recipient_person_id
 on public.n8n_whatsapp_deliveries
 for each row execute function public.n8n_validate_whatsapp_delivery_scope();
 
