@@ -274,3 +274,11 @@ A repository contract test asserts the mapping guard. This remains static/source
 - Added a regression assertion for the fallback and no-requeue behavior. Updated both registry and worker documentation to clarify that a timed-out job can retain queued deliveries for manual reconciliation; the claim-timeout update is a separate lifecycle path from the finalization RPC guard. No automatic status rewrite of delivery rows was added because the worker cannot prove whether an in-flight provider request was attempted.
 - Static source assertions only; no PostgreSQL execution or migration deployment. n8n remains inactive, UI gates remain disabled, no WAHA sends or registry writes occurred, PWA notification objects remain untouched, and no retries/requeue/blind resend were introduced.
 
+## Batch 32 — Authorization and lock-order audit
+
+- Rechecked the queue claim, delivery-result and finalization RPC boundaries. Each worker RPC checks the JWT role for `service_role`; migration grants revoke execution from `public`, `anon` and `authenticated` before granting worker RPCs to `service_role`.
+- Confirmed the delivery-result RPC locks the parent job before locking the delivery row, and finalization locks the job before checking queued deliveries. This consistent job-first order serializes a result callback against finalization and prevents a queued delivery from being missed by a concurrent completion.
+- Confirmed all three registry tables have RLS enabled and direct table grants revoked from browser roles. The CFCF history RPC is separately authenticated, requires `auth.uid()`, and validates active tenant-owner scope; it does not expose direct registry-table access.
+- Added repository regression assertions for worker RPC role checks, grants and lock order. Targeted static review passed 9 of 10 initial checks; the remaining check was a temporary verification-script string-match issue, not a source failure. A corrected review confirmed the updated stale-timeout assertion is present. This is not execution of the Node test suite or PostgreSQL.
+- No runtime/deployment changes. Worker inactive, UI gates disabled, no billable branch, no live sends, no retries/requeue, and PWA notification objects untouched.
+
