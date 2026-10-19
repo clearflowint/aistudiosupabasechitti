@@ -228,3 +228,13 @@ These requirements are part of the worker contract. The n8n draft now contains a
 - Synthetic tests passed for accepted provider outcome → `sent_to_server` payload and terminal delivery set → `completed` payload. A synthetic finalization test containing a queued delivery failed closed as expected. Downstream HTTP nodes were pinned during tests, so no external request or database write occurred.
 - Temporary test connections from Manual Start were removed after each test. Both preparation/RPC branches remain disconnected from all triggers. No WAHA sender exists; no message was sent and no registry RPC was called.
 - Remaining before any executable lifecycle: validate actual RPC behavior against the approved non-billable runtime (not available yet), design the provider adapter from WAHA's actual response shape, ensure each result RPC is only called after provider outcome is known, and aggregate complete delivery statuses per job before finalization. Keep worker inactive and all gates false.
+
+
+## Batch 26 — WAHA text payload preflight
+
+- Added `Prepare WAHA Text Payload — Draft Only` after the randomized pacing marker in the sequential one-item loop. It never calls WAHA and always emits `providerCallAllowed = false` and `senderBlocked = true`.
+- The node requires a CFCF tenant-scoped integer delivery ID, the configured session name `Lakki`, a nonblank `message_text`, and a saved phone in explicit international `+countrycode` format. It does not guess a country code. For a valid phone it prepares `{ session: 'Lakki', chatId: '<digits>@c.us', text: '<message>' }`; invalid phone/text remains blocked with a reason and no send payload.
+- This matches WAHA's official Send Text docs: `POST /api/sendText`, body fields `session`, `chatId`, and `text`; individual phone chat IDs use the international number without `+` followed by `@c.us`. Source: https://waha.devlike.pro/docs/how-to/send-messages/ (Send Text and Fields sections).
+- Pinned synthetic preflight test passed for `+919876543210` → `919876543210@c.us`; a local-only `9876543210` phone was blocked without country-code inference. No WAHA request was made.
+- The temporary Manual Start connection used for this test was removed. The sequential pacing/preflight loop remains disconnected from all triggers and has no sender node after it.
+- No live WhatsApp messages or database writes have occurred. The workflow is still inactive with all live gates false; result/finalization payload guards remain disconnected from triggers and their HTTP nodes use placeholder URLs with no credentials.
