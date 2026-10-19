@@ -265,3 +265,12 @@ test("runtime readiness remains blocked until delivery reads are complete and te
   assert.match(contract, /non-billable disposable Supabase environment/);
   assert.match(contract, /result and finalization HTTP nodes still use placeholder Supabase URLs and are disconnected/);
 });
+
+
+test("delivery read is tenant-scoped, paginated, bounded, and must stop on an empty page", () => {
+  assert.match(contract, /request at most 1,000 rows per page/);
+  assert.match(contract, /pagination ends only after an empty response page/);
+  assert.match(contract, /100-request ceiling bounds the read/);
+  assert.match(contract, /Do not set the expected count from a potentially truncated single page/);
+  assert.match(contract, /exact n8n pagination output shape and empty-page behavior remain unverified by execution/);
+});
