@@ -146,3 +146,11 @@ These requirements are part of the worker contract. The n8n draft now contains a
 - The worker remains inactive with no active version and zero triggers. Existing legacy nodes remain disconnected from the safety gate. No queue claim, registry read/write, or WhatsApp send was executed.
 - GitHub Actions passed on commit `1d40bab40b479192cd45ec548a256249ff382b81`: TypeScript validation, CFCF financial tests, registry contract tests and production build. This does not validate the live n8n draft or execute PostgreSQL.
 - This is a draft structure, not an executable worker. Do not connect the placeholder result/finalization nodes or enable gates until registry migrations are runtime-tested and WAHA configuration is verified.
+## Batch 18 — WAHA credential readiness
+
+- User reports the WAHA API key is ready. Do not request or accept the secret in chat, GitHub, source files, workflow parameters, or screenshots.
+- n8n credential inventory currently contains only `Supabase account` (`supabaseApi`) and `Custom Auth account` (`httpCustomAuth`); no WAHA credential is present.
+- Existing conversation context identifies WAHA session `default` as WORKING/CONNECTED. Still need the exact WAHA API base URL (scheme + host + optional port/base path) from the user; do not infer it from the dashboard hostname or deployment setup.
+- After the user confirms the base URL, create a dedicated HTTP Header Auth credential in the n8n UI using header `X-Api-Key` only if that matches the deployed WAHA version/configuration; otherwise follow the API-key header documented by that deployment. Enter the key directly into n8n's credential form, never into chat.
+- No credential creation action is available through the current automation connector. User must add the secret in the n8n UI, then confirm the credential name (not its secret) so it can be attached to the future WAHA HTTP Request node.
+- No live WAHA test, queue claim, registry call, workflow activation, or message send has been performed. Worker remains inactive and the new queue nodes remain disconnected.
