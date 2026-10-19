@@ -244,8 +244,8 @@ test("terminal delivery states cannot return to queued", () => {
 
 
 test("preflight rejection is a draft-only skipped outcome, while valid payload stays not attempted", () => {
-  assert.match(contract, /preflight rejection is classified as draft-only `skipped`/i);
+  assert.match(contract, /draftSuggestedResultStatus = skipped/);
   assert.match(contract, /valid preflight remains `not_attempted_sender_blocked`/);
-  assert.match(contract, /result writes remain blocked/);
+  assert.match(contract, /resultWriteBlocked = true/);
   assert.match(contract, /No provider result may be inferred from preflight success alone/);
 });
