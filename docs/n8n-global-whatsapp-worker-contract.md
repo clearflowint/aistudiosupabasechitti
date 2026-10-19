@@ -361,3 +361,11 @@ A repository contract test asserts the mapping guard. This remains static/source
   [Tenant or manager name]
   ```
 - This is message composition/preflight only. The sender remains blocked, the workflow remains inactive, and no WhatsApp message, registry write, production migration, UI-gate change or PWA notification change was performed.
+
+## Batch 42 — Preflight-to-result classification audit
+
+- Audited the disconnected delivery-result and job-finalization preparation branches against the preflight node. The result-preparation branch requires an explicit provider outcome; the job-finalization branch requires a complete delivery-status array. Neither branch is connected to the draft processing loop, and no registry result write or finalization is performed.
+- Corrected one narrow handoff ambiguity in `Prepare WAHA Text Payload — Draft Only`: an invalid preflight now exposes `draftSuggestedResultStatus = skipped` and `draftResultClassification = skipped_preflight`, because no provider call was attempted. A valid preflight is explicitly classified as `not_attempted_sender_blocked`; it is **not** marked accepted, failed, or delivered merely because the text is valid.
+- The classification is diagnostic metadata only. `senderBlocked`, `providerCallAllowed = false`, and `resultWriteBlocked = true` remain in force. No provider call, RPC, database write, retry, requeue, or resend was added.
+- Repository contract tests now assert these distinctions. This does not yet close the lifecycle handoff: Batch 43 must define and validate complete per-job delivery-result aggregation before finalization, while keeping the result/finalization HTTP nodes disconnected and placeholder-only until an approved runtime test environment exists.
+- The workflow remains inactive, has no active version, and no message was sent. No production migration, billable branch, UI gate change, or PWA notification-object change occurred.
