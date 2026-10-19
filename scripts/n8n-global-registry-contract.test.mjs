@@ -193,7 +193,7 @@ test("global queue claim is bounded, serialized, and never reclaims picked-up jo
   assert.match(lifecycle, /create or replace function public\.n8n_claim_global_jobs\(p_limit integer default 25\)/);
   assert.match(lifecycle, /p_limit < 1 or p_limit > 100/);
   assert.match(lifecycle, /where j\.status = 'registered'[\s\S]*?for update skip locked[\s\S]*?limit p_limit/);
-  assert.match(lifecycle, /where status = 'picked_up'[\s\S]*?picked_up_at < now\(\) - interval '90 minutes'/);
+  assert.match(lifecycle, /where status = 'picked_up'[\s\S]*?coalesce\(picked_up_at, updated_at, created_at\) < now\(\) - interval '90 minutes'/);
   assert.doesNotMatch(lifecycle, /set status = 'registered'[\s\S]{0,500}where status = 'timed_out'/);
 });
 
