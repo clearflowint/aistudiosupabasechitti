@@ -80,7 +80,7 @@ test("Pending and Report retain the per-Fund hourly guard", () => {
 });
 
 test("stale claims time out without requeue", () => {
-  assert.match(lifecycle, /set status = 'timed_out'[\s\S]*?where status = 'picked_up'[\s\S]*?picked_up_at < now\(\) - interval '90 minutes'/);
+  assert.match(lifecycle, /set status = 'timed_out'[\s\S]*?where status = 'picked_up'[\s\S]*?coalesce\(picked_up_at, updated_at, created_at\) < now\(\) - interval '90 minutes'/);
   assert.match(contract, /no automatic requeue/i);
 });
 
