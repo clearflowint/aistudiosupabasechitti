@@ -63,7 +63,7 @@ test("registration rejects conflicting identities for one phone and deduplicates
   assert.match(lifecycle, /A recipient phone cannot map to conflicting person\/contact identities in one request/);
   assert.match(lifecycle, /select distinct btrim\(r->>'recipient_phone'\) as phone/);
   assert.match(lifecycle, /on conflict do nothing/);
-  assert.match(schema, /unique \(n8n_whatsapp_communication_id, recipient_phone\)/);
+  assert.match(schema, /create unique index if not exists n8n_whatsapp_deliveries_phone_unique[\s\S]*?on public\.n8n_whatsapp_deliveries \(n8n_whatsapp_communication_id, recipient_phone\)/i);
 });
 
 test("CFCF job types must match their communication types at the RPC boundary", () => {
