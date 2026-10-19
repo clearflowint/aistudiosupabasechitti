@@ -397,3 +397,14 @@ A repository contract test asserts the mapping guard. This remains static/source
 - This is a workflow-draft configuration change only. The URL remains a placeholder, the node is disconnected from any trigger, and no HTTP request was executed. The exact n8n pagination output shape and empty-page behavior remain unverified by execution; validate those with synthetic data before connecting aggregation/finalization.
 - The workflow remains inactive with no active version or triggers. Result/finalization writes and WAHA sending remain blocked. No automatic retries, requeue, blind resend, production migration, billable branch, UI gate change, or PWA notification-object change occurred.
 - **Manager Home Automation Centre design requirement:** show tenant-scoped manual and scheduled jobs, job lifecycle status, fund/action/source, timestamps, and real per-delivery counts. Distinguish WAHA server acceptance from recipient delivery/read. Display failed/uncertain/skipped counts and unresolved timed-out jobs for review; do not invent progress percentages. Workspace remains the manual job launch point, while Manager Home monitors all jobs. Preserve exactly two job-level pushes: n8n acceptance and terminal result with success/failed counts.
+
+
+## Batch 46 — Manager Home Automation Centre
+
+- Added a mobile-first Automation Centre section to the CFCF manager Home page, using the existing tenant-scoped `n8n_list_cfcf_whatsapp_jobs` history RPC through `listCfcfGlobalWhatsAppJobs`.
+- The section displays real saved counts for in-progress and completed jobs, accepted-by-WAHA deliveries, and jobs needing review. Each of the five newest jobs shows lifecycle status, job type, creation time, recipient/queued counts, accepted, failed, uncertain and skipped counts, with a manual-review warning for uncertain/timed-out outcomes.
+- Added an explicit refresh action and separate loading/error/empty states. No polling or invented progress percentage is used.
+- The UI explicitly says WAHA server acceptance is not recipient delivery/read. It does not expose message text, recipient phone numbers, or raw provider errors.
+- The current registry history does not yet persist a reliable manual-vs-scheduled trigger-source field, and the schedule-to-job handoff remains inactive. The UI therefore does not guess an origin badge; scheduled/manual origin can be shown once that source is represented by saved registry data.
+- Added a repository contract test for tenant-scoped job loading, lifecycle labels and acceptance-vs-delivery wording. This remains source/CI validation, not a live Supabase or mobile-browser test.
+- The global worker remains inactive, sender/result/finalization writes remain blocked, migrations are not deployed, and the PWA push-notification tables/functions/triggers/cron/data remain untouched.
