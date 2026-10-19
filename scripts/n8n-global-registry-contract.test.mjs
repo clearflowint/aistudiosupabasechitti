@@ -139,6 +139,15 @@ test("global queue claim is bounded, serialized, and never reclaims picked-up jo
   assert.doesNotMatch(lifecycle, /set status = 'registered'[\s\S]{0,500}where status = 'timed_out'/);
 });
 
+test("repeated accepted callbacks cannot reintroduce error metadata", () => {
+  const sameStatusBranch = lifecycle.slice(
+    lifecycle.indexOf("if v_current_status = p_status then"),
+    lifecycle.indexOf("if v_current_status <> 'queued'")
+  );
+  assert.match(sameStatusBranch, /error_code = case when p_status = 'sent_to_server' then null else coalesce\(error_code, left\(p_error_code, 200\)\) end/);
+  assert.match(sameStatusBranch, /error_message = case when p_status = 'sent_to_server' then null else coalesce\(error_message, left\(p_error_message, 2000\)\) end/);
+});
+
 test("terminal delivery states cannot return to queued", () => {
   assert.match(lifecycle, /v_current_status <> 'queued'[\s\S]*?not \(v_current_status = 'uncertain' and p_status = 'sent_to_server'\)/);
   assert.match(lifecycle, /p_status not in \('sent_to_server', 'failed', 'uncertain', 'skipped'\)/);
