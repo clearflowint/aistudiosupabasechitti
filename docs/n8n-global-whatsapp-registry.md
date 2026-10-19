@@ -11,7 +11,7 @@ It intentionally does **not** alter `clearflow_push_subscriptions`, `clearflow_p
 
 ## Identity and isolation
 
-Every global job requires `product_id` and `tenant_id`. `person_id` is nullable because scheduled and fund-wide jobs may not have one initiator at creation time. If supplied, the person must be active and belong to the same product and tenant. Communication and delivery records repeat product/tenant scope so composite foreign keys and triggers reject cross-scope writes.
+Every global job requires `product_id`, `tenant_id`, and `person_id`. For manual work, use the authenticated initiating person; for scheduled work, use the trusted person responsible for the schedule; for a campaign launch, use the authorized initiator. The person must be active and belong to the same product and tenant. Communication and delivery records repeat product/tenant scope so composite foreign keys and triggers reject cross-scope writes.
 
 CFCF callers must set `product_id = 'CFCF'`. CFCF jobs remain fund-scoped through their source record; do not add `person_id` to `cfcf_automation_jobs`.
 
@@ -38,6 +38,13 @@ Do not use `delivered` or `read`: those device-level states are out of scope.
 `n8n_global_jobs.idempotency_key` is unique. Registration code must derive a stable key from the source action/request so browser retries cannot create duplicate jobs. Do not add a second hourly limiter: the existing one-Pending and one-Report bulk send per tenant per hour remains authoritative. Preserve its existing duplicate-request protection.
 
 Each batch has one global job and one communication row; every recipient has one delivery row. Campaign launch integration must reuse the existing campaign ID/acceptance lifecycle rather than create a second campaign or send twice.
+
+## Registration and lifecycle RPCs
+
+- `n8n_register_whatsapp_job(...)` atomically creates the global job, one communication record and the recipient delivery rows. It requires product, tenant, person, source identity and idempotency key. Reusing the same key for the same logical source returns the original IDs; reusing it for a different scope/source fails.
+- `n8n_claim_global_jobs(p_limit)` atomically claims registered jobs with `FOR UPDATE SKIP LOCKED`. Stale picked-up jobs older than 15 minutes become `timed_out` and are not automatically resent.
+- `n8n_finish_global_job(job_id, status, error)` finalizes a picked-up job as `completed`, `failed` or `timed_out`.
+- These RPCs are service-role-only. They are not yet connected to any active n8n workflow.
 
 ## Credentials and activation
 
