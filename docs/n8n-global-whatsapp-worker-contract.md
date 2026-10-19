@@ -252,3 +252,10 @@ A repository contract test asserts the mapping guard. This remains static/source
 - Re-fetched the current migration and test source and exercised seven targeted static assertions; all seven passed. This is not execution of the Node test suite or SQL against PostgreSQL.
 - No schema or runtime behavior was changed in this batch. Registry migrations remain undeployed, no billable branch was created, PWA notification objects are untouched, and all worker/UI gates remain disabled. No retries, automatic requeue, blind resend, or WhatsApp sends were introduced.
 
+## Batch 29 — Finalization guard across every terminal status
+
+- Static audit found the SQL finalization RPC only rejected queued deliveries when the requested job status was `completed`. A caller could mark a job `failed` or `timed_out` while deliveries remained `queued`, stranding those recipients outside the claim path.
+- Updated the RPC to reject finalization for **any** final status while any delivery remains queued. Remaining deliveries must first receive explicit terminal outcomes such as `failed`, `uncertain`, or `skipped`; nothing is automatically resent or requeued.
+- Updated the repository contract tests to assert the all-status guard and the new error text. Seven targeted static assertions against the fetched SQL/test sources passed, including the finalization guard, uncertain-to-`sent_to_server` positive-acknowledgement-only transition, and service-role-only result RPC grant.
+- This is source-level validation only. No PostgreSQL execution, migration deployment, n8n activation, registry write, or WhatsApp send occurred. PWA notification objects and UI gates remain unchanged; no retry/requeue behavior was added.
+
