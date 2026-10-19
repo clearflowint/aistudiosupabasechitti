@@ -177,14 +177,20 @@ test("campaign registration paginates Contact Group memberships before recipient
   assert.match(membershipHelper, /\.range\(offset, offset \+ pageSize - 1\)/);
 });
 
-test("Pending/Report payload maps use the same saved Contact IDs as recipient identities", () => {
+test("Pending/Report payload carries recipient-specific share, pending, advance, cycle and sender details", () => {
   assert.match(workspace, /recipient_contact_id:\s*contact\.contact_id/);
-  assert.match(workspace, /shareIdsByContact\[share\.contact_id\]/);
-  assert.match(workspace, /pendingByContact\[share\.contact_id\]/);
-  assert.match(workspace, /share_ids_by_contact:\s*shareIdsByContact/);
-  assert.match(workspace, /pending_by_contact:\s*pendingByContact/);
+  assert.match(workspace, /contact_id, name, phone/);
+  assert.match(workspace, /share_id, contact_id, total_pending, total_advance/);
+  assert.match(workspace, /sharesByContact\[share\.contact_id\]/);
+  assert.match(workspace, /pending_amount:\s*Number\(share\.total_pending/);
+  assert.match(workspace, /advance_amount:\s*Number\(share\.total_advance/);
+  assert.match(workspace, /current_cycle:\s*Number\(fund\.current_cycle/);
+  assert.match(workspace, /number_of_cycles:\s*fund\.number_of_cycles/);
+  assert.match(workspace, /contact_names_by_id:\s*contactNamesById/);
+  assert.match(workspace, /shares_by_contact:\s*sharesByContact/);
+  assert.match(workspace, /sender_name:\s*senderName/);
   assert.match(workspace, /p_message_text:\s*null/);
-  assert.match(contract, /Pending\/Report still register with `message_text = null`/);
+  assert.match(contract, /Pending\/Report messages are composed per saved Contact/);
 });
 
 test("send UI gates remain disabled", () => {
