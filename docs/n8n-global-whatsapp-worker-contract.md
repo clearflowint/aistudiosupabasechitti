@@ -259,3 +259,10 @@ A repository contract test asserts the mapping guard. This remains static/source
 - Updated the repository contract tests to assert the all-status guard and the new error text. Seven targeted static assertions against the fetched SQL/test sources passed, including the finalization guard, uncertain-to-`sent_to_server` positive-acknowledgement-only transition, and service-role-only result RPC grant.
 - This is source-level validation only. No PostgreSQL execution, migration deployment, n8n activation, registry write, or WhatsApp send occurred. PWA notification objects and UI gates remain unchanged; no retry/requeue behavior was added.
 
+## Batch 30 — Idempotent accepted-result consistency
+
+- Audited the repeated-callback path in `n8n_record_whatsapp_delivery_result`. A repeated `sent_to_server` callback previously used `coalesce` for error metadata, which could reintroduce an error code/message onto an already accepted delivery.
+- Updated the same-status branch to keep `error_code` and `error_message` null for `sent_to_server`, while preserving first-known provider message ID and session metadata. Non-accepted repeated outcomes retain the first available error details.
+- Added a regression assertion for both fields. Seven targeted static checks passed against the fetched migration and test source, covering this fix, all-status finalization guard, uncertain-to-accepted transition, no timeout requeue, and service-role-only access.
+- Source-level only: no PostgreSQL execution, deployment, n8n activation, database write, or WhatsApp send. PWA notification objects and UI gates remain untouched; no retries or automatic requeue were added.
+
