@@ -448,7 +448,7 @@ grant execute on function public.n8n_claim_global_jobs(integer) to service_role;
 grant execute on function public.n8n_finish_global_job(integer,text,text) to service_role;
 
 comment on function public.n8n_register_whatsapp_job(text,text,text,text,text,text,text,text,text,jsonb,jsonb,timestamptz) is
-  'Atomically registers one global n8n job, one WhatsApp communication and recipient delivery rows; service-role only.';
+  'Atomically registers a global WhatsApp job. Service role may register trusted backend jobs; authenticated CFCF tenant owners may register only scoped CFCF manual jobs with saved Contact phone numbers.';
 comment on function public.n8n_claim_global_jobs(integer) is
   'Atomically claims registered global n8n jobs; stale picked-up jobs time out instead of being blindly resent.';
 comment on function public.n8n_record_whatsapp_delivery_result(integer,text,text,text,text,text) is
