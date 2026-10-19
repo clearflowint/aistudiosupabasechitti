@@ -66,7 +66,7 @@ Run these against an isolated test database before production deployment; reposi
 4. Reuse that key with a different tenant, product, person (including null/non-null mismatch) or source; expect an error and no additional rows.
 5. Attempt an inactive or cross-tenant/product person; expect rejection.
 6. Submit duplicate phone numbers in one recipient array; expect one delivery per phone.
-7. Submit malformed recipient JSON or a blank phone; expect rejection of the entire transaction.
+7. Submit an empty recipient array, malformed recipient JSON or a blank phone; expect rejection of the entire transaction.
 8. Run two concurrent claims; expect a job to be returned to at most one claimant.
 9. Finalize a picked-up job; verify a second finalization returns false.
 10. Age a picked-up job past the timeout threshold in a disposable test database; verify it becomes `timed_out` and is not requeued automatically.
