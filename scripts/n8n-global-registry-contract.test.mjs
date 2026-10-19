@@ -48,6 +48,24 @@ test("authenticated campaign registration proves group ownership server-side", (
   assert.match(lifecycle, /Every campaign Contact Group must belong to the authorized CFCF tenant owner/);
 });
 
+test("registration idempotency binds the key to the exact source and scope", () => {
+  assert.match(lifecycle, /pg_advisory_xact_lock\(hashtextextended\(p_idempotency_key, 0\)\)/);
+  assert.match(lifecycle, /v_existing\.product_id <> p_product_id/);
+  assert.match(lifecycle, /v_existing\.tenant_id <> p_tenant_id/);
+  assert.match(lifecycle, /v_existing\.person_id is distinct from p_person_id/);
+  assert.match(lifecycle, /v_existing\.source_record_id <> p_source_record_id/);
+  assert.match(lifecycle, /Idempotency key is already bound to a different job/);
+  assert.match(lifecycle, /Idempotency key was reused with different communication details/);
+  assert.match(lifecycle, /Idempotency key was reused with a different recipient set/);
+});
+
+test("registration rejects conflicting identities for one phone and deduplicates same-identity phones", () => {
+  assert.match(lifecycle, /A recipient phone cannot map to conflicting person\/contact identities in one request/);
+  assert.match(lifecycle, /select distinct btrim\(r->>'recipient_phone'\) as phone/);
+  assert.match(lifecycle, /on conflict do nothing/);
+  assert.match(schema, /unique \(n8n_whatsapp_communication_id, recipient_phone\)/);
+});
+
 test("CFCF job types must match their communication types at the RPC boundary", () => {
   assert.match(lifecycle, /p_communication_type is null[\s\S]*?Unsupported WhatsApp communication type/);
   assert.match(lifecycle, /p_job_type = 'manual_campaign' and p_communication_type <> 'campaign'/);
