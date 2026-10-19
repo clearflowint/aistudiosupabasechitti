@@ -454,8 +454,8 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
           {preparedCampaign && (
             <div role="status" className="space-y-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
               <div className="flex items-center gap-2 font-semibold"><CheckCircle2 size={17} /> n8n acknowledged receipt</div>
-              <p>{preparedCampaign.recipient_count} unique recipients queued across {preparedCampaign.channels.join(", ")}. This is an acceptance receipt, not a delivery confirmation.</p>
-              <p className="break-all text-xs text-emerald-800">Campaign ID: {preparedCampaign.campaign_id}</p>
+              <p>{preparedCampaign.recipient_count} unique recipients registered for WhatsApp. This confirms job registration only, not that n8n has sent any message.</p>
+              <p className="break-all text-xs text-emerald-800">Global Job ID: {preparedCampaign.n8n_global_job_id} · Communication ID: {preparedCampaign.n8n_whatsapp_communication_id}</p>
               <p className="text-xs text-emerald-800">Final delivery status will be recorded in Notifications when n8n calls the delivery callback.</p>
             </div>
           )}
