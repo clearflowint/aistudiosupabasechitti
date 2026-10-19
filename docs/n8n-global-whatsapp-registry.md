@@ -29,7 +29,7 @@ Recipient delivery:
 - `sent_to_server`: WAHA/WhatsApp server acceptance was confirmed.
 - `failed`: provider rejection or confirmed recipient failure.
 - `uncertain`: the request may have been accepted but the outcome is unknown; do not blindly resend.
-- `skipped`: recipient intentionally excluded (for example, missing/invalid address).
+- `skipped`: a registered recipient with a usable stored phone was intentionally excluded from sending. Contacts with a missing or invalid phone should be filtered before registration; the registration RPC requires a nonblank `recipient_phone`, so those contacts do not receive delivery rows.
 
 Do not use `delivered` or `read`: those device-level states are out of scope.
 
@@ -43,7 +43,7 @@ Each batch has one global job and one communication row; every recipient has one
 
 - `n8n_register_whatsapp_job(...)` atomically creates the global job, one communication record and the recipient delivery rows. It requires product, tenant, source identity and idempotency key; the initiating person is optional. Reusing the same key for the same logical source and identical communication details/recipient set returns the original IDs; reusing it for a different scope/source, changed message/payload/schedule, or changed recipient set fails. A phone cannot map to conflicting person/contact identities within one request. Registrations with the same key are serialized with a transaction-scoped advisory lock so simultaneous duplicate submissions resolve idempotently.
 - `n8n_claim_global_jobs(p_limit)` atomically claims registered jobs with `FOR UPDATE SKIP LOCKED`. Stale picked-up jobs older than 90 minutes become `timed_out`; they are not automatically requeued or resent. The 90-minute threshold is provisional and must be checked against expected worker runtime before activation.
-- `n8n_record_whatsapp_delivery_result(delivery_id, status, provider_message_id, error_code, error_message, session_name)` records a recipient result. Allowed first outcomes are `sent_to_server`, `failed`, `uncertain` or `skipped`; `sent_to_server` requires the actual WAHA session name. A later positive provider acknowledgement may change `uncertain` to `sent_to_server`, but never initiates a resend. Other conflicting terminal transitions are rejected. Repeated same-status callbacks are idempotent.
+- `n8n_record_whatsapp_delivery_result(delivery_id, status, provider_message_id, error_code, error_message, session_name)` records a recipient result. Allowed first outcomes are `sent_to_server`, `failed`, `uncertain` or `skipped`; `sent_to_server` requires the actual WAHA session name. Use `skipped` only for an intentionally excluded recipient already registered with a usable phone. Contacts without a usable phone must be filtered before registration. A later positive provider acknowledgement may change `uncertain` to `sent_to_server`, but never initiates a resend. Other conflicting terminal transitions are rejected. Repeated same-status callbacks are idempotent.
 - `n8n_finish_global_job(job_id, status, error)` finalizes a picked-up job as `completed`, `failed` or `timed_out`. It rejects `completed` while any recipient delivery remains `queued`; failed and uncertain recipient outcomes can still be recorded without claiming device delivery.
 - These RPCs are service-role-only. They are not yet connected to any active n8n workflow.
 
