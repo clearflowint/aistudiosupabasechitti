@@ -48,6 +48,14 @@ test("authenticated campaign registration proves group ownership server-side", (
   assert.match(lifecycle, /Every campaign Contact Group must belong to the authorized CFCF tenant owner/);
 });
 
+test("CFCF job types must match their communication types at the RPC boundary", () => {
+  assert.match(lifecycle, /p_communication_type is null[\\s\\S]*?Unsupported WhatsApp communication type/);
+  assert.match(lifecycle, /p_job_type = 'manual_campaign' and p_communication_type <> 'campaign'/);
+  assert.match(lifecycle, /p_job_type = 'pending_reminder' and p_communication_type <> 'pending_reminder'/);
+  assert.match(lifecycle, /p_job_type = 'report' and p_communication_type <> 'report'/);
+  assert.match(lifecycle, /CFCF job type does not match WhatsApp communication type/);
+});
+
 test("Pending and Report retain the per-Fund hourly guard", () => {
   assert.match(lifecycle, /pg_advisory_xact_lock\(\s*hashtext\(p_tenant_id\),\s*hashtext\(p_source_record_id \|\| ':' \|\| p_job_type\)/);
   assert.match(lifecycle, /limited to once per hour for this Fund/);
