@@ -53,3 +53,23 @@ Only `service_role` has table access. Never expose a service-role key, WAHA API 
 ## Migration boundary
 
 This migration adds new tables and validation functions/triggers only. It does not change CFCF financial data, PWA push-notification tables, existing CFCF automation tables/RPCs, campaign notification storage, or frontend behavior.
+
+
+## Non-billable static validation checklist
+
+Run these against an isolated test database before production deployment; repository checks alone do not prove PostgreSQL execution:
+
+1. Apply both migrations in order and verify all three tables, indexes, triggers and RPC signatures.
+2. Register a valid job with two distinct recipient phones; expect one job, one communication and two delivery rows.
+3. Repeat the same registration with the same idempotency key and source identity; expect the same IDs and no additional rows.
+4. Reuse that key with a different tenant, product, person or source; expect an error and no additional rows.
+5. Attempt an inactive or cross-tenant/product person; expect rejection.
+6. Submit duplicate phone numbers in one recipient array; expect one delivery per phone.
+7. Submit malformed recipient JSON or a blank phone; expect rejection of the entire transaction.
+8. Run two concurrent claims; expect a job to be returned to at most one claimant.
+9. Finalize a picked-up job; verify a second finalization returns false.
+10. Age a picked-up job past the timeout threshold in a disposable test database; verify it becomes `timed_out` and is not requeued automatically.
+11. Verify all registry tables have RLS enabled, client roles have no table/RPC access, and service-role RPC calls work.
+12. Compare the PWA push-notification schema/data before and after: no changes are expected.
+
+**Current evidence level:** source-level/static checks only. These runtime tests have not been executed because no billable test branch was approved. Do not treat this PR as production-ready until they pass.
