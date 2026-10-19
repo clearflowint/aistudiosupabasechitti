@@ -330,3 +330,11 @@ A repository contract test asserts the mapping guard. This remains static/source
 - Added a regression test that campaign dispatch uses the paginated helper and that the helper applies range-based paging. This is a source-level contract check; the full Node test suite and browser flow have not yet been run here.
 - Identified a separate remaining handoff blocker: bulk Pending/Report registration stores `message_text = null`, while the draft WAHA preflight requires nonblank text and explicitly does not compose messages. Those jobs must remain blocked until the intended per-recipient message/report content is defined and built from the registered payload. No report text was invented in this batch.
 - No SQL changes, migration deployment, n8n activation, sender configuration, registry writes, or WhatsApp sends. No retries/requeue/blind resend were added; PWA notification objects and UI gates remain untouched.
+
+
+## Batch 40 — Saved Contact identity handoff
+
+- Audited the Pending/Report registration payload: each recipient carries `recipient_contact_id`; the `share_ids_by_contact` and `pending_by_contact` maps use that same saved `contact_id` as their key. This preserves the identity needed for future per-recipient composition without guessing based on phone number.
+- Updated the disconnected n8n draft's queued-delivery validation to stop if a queued CFCF delivery has no `recipient_contact_id`. The worker continues to carry the Contact ID and message payload forward; it does not resolve or invent message content.
+- Pending/Report still register with `message_text = null`. They remain blocked at text preflight until intended recipient-facing content is defined. Manual Campaign's stored message text remains the only currently supported text source.
+- The workflow remains inactive, disconnected from the live claim/send path, and sender-blocked. No messages, provider calls, registry writes, UI-gate changes, migrations, or PWA notification changes were made.
