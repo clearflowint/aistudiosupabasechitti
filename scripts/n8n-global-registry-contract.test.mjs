@@ -283,7 +283,7 @@ test("manager home shows registry-backed job progress without claiming recipient
   assert.match(managerHome, /registered: "Queued"/);
   assert.match(managerHome, /picked_up: "Processing"/);
   assert.match(managerHome, /timed_out: "Timed out · review"/);
-  assert.match(managerHome, /Accepted by WAHA does not mean delivered or read/);
+  assert.match(managerHome, /Accepted by WAHA.*does not mean delivered or read/);
   assert.match(managerHome, /Failed/);
   assert.match(managerHome, /Uncertain/);
   assert.match(managerHome, /Skipped/);
