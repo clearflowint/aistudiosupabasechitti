@@ -53,6 +53,10 @@ begin
     raise exception 'recipients must be a JSON array' using errcode = '22023';
   end if;
 
+  if jsonb_array_length(p_recipients) = 0 then
+    raise exception 'At least one recipient is required for a WhatsApp communication' using errcode = '22023';
+  end if;
+
   if exists (
     select 1 from jsonb_array_elements(p_recipients) r
     where jsonb_typeof(r) <> 'object'
