@@ -245,12 +245,17 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
     try {
       const receipt = await dispatchCfcfCampaign(
         workspace.tenantId,
+        workspace.personId,
         campaignGroupIds,
         channels,
         message,
       );
       setPreparedCampaign(receipt);
-      setNotice("n8n acknowledged campaign " + receipt.campaign_id + ". Delivery is processing; final results will appear in Notifications.");
+      setNotice(
+        "WhatsApp job #" + receipt.n8n_global_job_id +
+        " registered with " + receipt.recipient_count + " recipients. " +
+        (receipt.was_existing ? "This was an existing idempotent request." : "It will be processed when the n8n worker is active.")
+      );
     } catch (prepareFailure) {
       setCampaignError(prepareFailure instanceof Error ? prepareFailure.message : "Unable to prepare this campaign.");
     } finally {
