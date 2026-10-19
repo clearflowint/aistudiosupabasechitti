@@ -34,3 +34,35 @@ export async function listCfcfNotifications(tenantId: string): Promise<CfcfNotif
     Boolean(item && typeof item === "object" && !Array.isArray(item)),
   ).sort((a, b) => String(b.updated_at ?? b.created_at ?? "").localeCompare(String(a.updated_at ?? a.created_at ?? "")));
 }
+
+export interface CfcfGlobalWhatsAppJob {
+  n8n_global_job_id: number;
+  product_id: string;
+  tenant_id: string;
+  person_id: string | null;
+  job_type: string;
+  source_table: string;
+  source_record_id: string;
+  job_status: string;
+  communication_type: string | null;
+  message_text: string | null;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+  last_error: string | null;
+  recipient_count: number;
+  queued_count: number;
+  sent_to_server_count: number;
+  failed_count: number;
+  uncertain_count: number;
+  skipped_count: number;
+}
+
+export async function listCfcfGlobalWhatsAppJobs(tenantId: string): Promise<CfcfGlobalWhatsAppJob[]> {
+  const { data, error } = await supabase.rpc("n8n_list_cfcf_whatsapp_jobs", {
+    p_tenant_id: tenantId,
+    p_limit: 50,
+  });
+  if (error) throw new Error("Unable to load WhatsApp job history: " + error.message);
+  return (Array.isArray(data) ? data : []) as CfcfGlobalWhatsAppJob[];
+}
