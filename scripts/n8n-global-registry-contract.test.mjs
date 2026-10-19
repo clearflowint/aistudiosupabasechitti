@@ -257,3 +257,11 @@ test("job finalization requires a complete, unique, tenant-matched delivery set"
   assert.match(contract, /matching `product_id`\/`tenant_id` scope/);
   assert.match(contract, /any remaining `queued` delivery stop finalization/);
 });
+
+
+test("runtime readiness remains blocked until delivery reads are complete and test RPCs are validated", () => {
+  assert.match(contract, /current scoped delivery HTTP read has no explicit pagination\/count verification/);
+  assert.match(contract, /not yet ready for end-to-end runtime testing/);
+  assert.match(contract, /non-billable disposable Supabase environment/);
+  assert.match(contract, /result and finalization HTTP nodes still use placeholder Supabase URLs and are disconnected/);
+});
