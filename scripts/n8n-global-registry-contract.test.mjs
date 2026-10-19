@@ -184,7 +184,7 @@ test("Pending/Report payload maps use the same saved Contact IDs as recipient id
   assert.match(workspace, /share_ids_by_contact:\s*shareIdsByContact/);
   assert.match(workspace, /pending_by_contact:\s*pendingByContact/);
   assert.match(workspace, /p_message_text:\s*null/);
-  assert.match(contract, /Pending\/Report.*message composition/i);
+  assert.match(contract, /Pending\/Report still register with `message_text = null`/);
 });
 
 test("send UI gates remain disabled", () => {
