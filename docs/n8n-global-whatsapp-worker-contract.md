@@ -338,3 +338,26 @@ A repository contract test asserts the mapping guard. This remains static/source
 - Updated the disconnected n8n draft's queued-delivery validation to stop if a queued CFCF delivery has no `recipient_contact_id`. The worker continues to carry the Contact ID and message payload forward; it does not resolve or invent message content.
 - Pending/Report still register with `message_text = null`. They remain blocked at text preflight until intended recipient-facing content is defined. Manual Campaign's stored message text remains the only currently supported text source.
 - The workflow remains inactive, disconnected from the live claim/send path, and sender-blocked. No messages, provider calls, registry writes, UI-gate changes, migrations, or PWA notification changes were made.
+
+## Batch 41 — Pending and Report message composition
+
+- Defined recipient-specific WhatsApp messages from the saved CFCF payload. Pending reminders include only shares with a positive saved pending balance; Reports include all shares in the selected Fund. Multiple shares belonging to one Contact are grouped into one message.
+- Each share line includes Share ID, pending amount and advance amount. The message also includes Fund name, current cycle progress (current cycle and planned total when available), saved Contact name when available, and a closing thank-you signed with the tenant business/name, falling back to the initiating manager name and then a generic Fund Manager label.
+- The registration service now carries `shares_by_contact`, `contact_names_by_id`, `current_cycle`, `number_of_cycles`, and `sender_name`. Each share's pending and advance values are copied from stored CFCF Share fields; no new balance calculations were introduced. There is no separate `share_name` field in the current CFCF Share schema, so the stable Share ID is used as the share label.
+- The disconnected n8n preflight composes text from the payload only when stored `message_text` is blank and the communication type is Pending or Report. It requires the saved Contact's matching payload and valid per-share amounts before it can mark the draft payload preflight-valid. Manual Campaign continues to use its stored message text.
+- Example structure:
+  ```text
+  Hello [Contact name],
+
+  Fund: [Fund name]
+  Cycle progress: Cycle [current] of [planned total]
+
+  Pending reminder / Fund report
+  Share ID: [share ID]
+  Pending amount: ₹[stored pending amount]
+  Advance amount: ₹[stored advance amount]
+
+  Thank you,
+  [Tenant or manager name]
+  ```
+- This is message composition/preflight only. The sender remains blocked, the workflow remains inactive, and no WhatsApp message, registry write, production migration, UI-gate change or PWA notification change was performed.
