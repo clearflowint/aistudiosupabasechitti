@@ -35,20 +35,20 @@ Do not use `delivered` or `read`: those device-level states are out of scope.
 
 ## Idempotency and hourly limits
 
-`n8n_global_jobs.idempotency_key` is unique. Registration code must derive a stable key from the source action/request so browser retries cannot create duplicate jobs. Do not add a second hourly limiter: the existing one-Pending and one-Report bulk send per tenant per hour remains authoritative. Preserve its existing duplicate-request protection.
+`n8n_global_jobs.idempotency_key` is unique. Registration code must derive a stable key from the source action/request so duplicate submissions cannot create duplicate jobs. This is duplicate-request protection, not an instruction to retry processing or resend messages. Do not add a second hourly limiter: the existing one-Pending and one-Report bulk send per tenant per hour remains authoritative. Preserve its existing duplicate-request protection.
 
 Each batch has one global job and one communication row; every recipient has one delivery row. Campaign launch integration must reuse the existing campaign ID/acceptance lifecycle rather than create a second campaign or send twice.
 
 ## Registration and lifecycle RPCs
 
-- `n8n_register_whatsapp_job(...)` atomically creates the global job, one communication record and the recipient delivery rows. It requires product, tenant, person, source identity and idempotency key. Reusing the same key for the same logical source returns the original IDs; reusing it for a different scope/source fails. Registrations with the same key are serialized with a transaction-scoped advisory lock so simultaneous retries resolve idempotently.
-- `n8n_claim_global_jobs(p_limit)` atomically claims registered jobs with `FOR UPDATE SKIP LOCKED`. Stale picked-up jobs older than 15 minutes become `timed_out` and are not automatically resent.
+- `n8n_register_whatsapp_job(...)` atomically creates the global job, one communication record and the recipient delivery rows. It requires product, tenant, person, source identity and idempotency key. Reusing the same key for the same logical source returns the original IDs; reusing it for a different scope/source fails. Registrations with the same key are serialized with a transaction-scoped advisory lock so simultaneous duplicate submissions resolve idempotently.
+- `n8n_claim_global_jobs(p_limit)` atomically claims registered jobs with `FOR UPDATE SKIP LOCKED`. Stale picked-up jobs older than 15 minutes become `timed_out`; they are not automatically requeued or resent. The 15-minute threshold is provisional and must be checked against expected worker runtime before activation.
 - `n8n_finish_global_job(job_id, status, error)` finalizes a picked-up job as `completed`, `failed` or `timed_out`.
 - These RPCs are service-role-only. They are not yet connected to any active n8n workflow.
 
 ## Credentials and activation
 
-Only `service_role` has table access. Never expose a service-role key, WAHA API key, callback secret, or private webhook URL to browser code or commit them to GitHub. No sender workflow should be activated until session routing, delivery idempotency, callbacks, and tenant-isolation tests pass.
+Only `service_role` has table access. Never expose a service-role key, WAHA API key, callback secret, or private webhook URL to browser code or commit them to GitHub. No sender workflow should be activated until session routing, duplicate-request protection, callback handling, and tenant-isolation tests pass. There is no automatic send-retry loop in this design; uncertain sends are recorded for inspection rather than resent automatically.
 
 ## Migration boundary
 
