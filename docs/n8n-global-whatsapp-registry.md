@@ -69,11 +69,11 @@ Run these against an isolated test database before production deployment; reposi
 7. Submit an empty recipient array, malformed recipient JSON or a blank phone; expect rejection of the entire transaction.
 8. Run two concurrent claims; expect a job to be returned to at most one claimant.
 9. Race a delivery-result callback against job completion; job completion must not succeed while the callback is still leaving a delivery queued.
-9. Finalize a picked-up job; verify a second finalization returns false.
-10. Age a picked-up job past the timeout threshold in a disposable test database; verify it becomes `timed_out` and is not requeued automatically.
-11. Verify all registry tables have RLS enabled, client roles have no table/RPC access, and service-role RPC calls work.
-12. Verify delivery transitions: queued to each valid outcome; uncertain to sent_to_server only on positive acknowledgement; reject conflicting terminal transitions; duplicate callbacks are harmless.
-13. Verify a global job cannot be completed while any delivery remains queued.
-14. Compare the PWA push-notification schema/data before and after: no changes are expected.
+10. Finalize a picked-up job; verify a second finalization returns false.
+11. Age a picked-up job past the timeout threshold in a disposable test database; verify it becomes `timed_out` and is not requeued automatically.
+12. Verify all registry tables have RLS enabled, client roles have no table/RPC access, and service-role RPC calls work.
+13. Verify delivery transitions: queued to each valid outcome; uncertain to sent_to_server only on positive acknowledgement; reject conflicting terminal transitions; duplicate callbacks are harmless.
+14. Verify a global job cannot be completed while any delivery remains queued.
+15. Compare the PWA push-notification schema/data before and after: no changes are expected.
 
 **Current evidence level:** source-level/static checks only. These runtime tests have not been executed because no billable test branch was approved. Do not treat this PR as production-ready until they pass.
