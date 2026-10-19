@@ -130,4 +130,10 @@ Before any controlled live test, verify with synthetic data that:
 7. The worker remains inactive, UI gates remain disabled, and no live messages are sent before WAHA setup and database runtime validation.
 
 These requirements are part of the worker contract. The n8n draft now contains a random-delay selector connected to a native Wait node, but that two-node chain is disconnected from all triggers, queue claims, and sender paths. The durable global queue claim and sequential delivery-processing path are still not implemented in n8n. The workflow remains inactive and no messages have been sent.
+## Batch 16 — Queue lifecycle contract checks
 
+- Added repository regression checks for the bounded `n8n_claim_global_jobs(p_limit)` contract: limits 1–100, only `registered` jobs are claimed, row locking uses `FOR UPDATE SKIP LOCKED`, and stale `picked_up` jobs time out after 90 minutes without being requeued.
+- Added checks for terminal delivery-state transitions and the guard that prevents job completion while any delivery remains `queued`.
+- The added SQL-pattern checks were independently exercised against the current migration text: **8/8 checks passed**. This is static validation only; it does not execute PostgreSQL or prove runtime locking/transaction behavior.
+- GitHub Actions passed all four stages on the earlier test-fix commit `bf4140d01879a60fb52eeea39df60460a2de8fe0`. The subsequent Batch 16 test additions and regex correction are newer commits; their GitHub Actions result is not yet confirmed. Do not report the latest head as CI-green until a run on that head passes.
+- n8n remains inactive with zero triggers. The randomized selector and native Wait node remain a disconnected draft chain. The actual global claim/read/delivery-result/finalization chain is not connected or executed.
