@@ -218,15 +218,10 @@ export async function dispatchCfcfCampaign(
     throw new Error("One or more Contact Groups are no longer available in this workspace.");
   }
 
-  const { data: memberships, error: membershipError } = await supabase
-    .from("contact_group_members")
-    .select("contact_id")
-    .eq("product_id", cfcfConfig.productId)
-    .eq("tenant_id", tenantId)
-    .in("group_id", selectedGroupIds);
-  if (membershipError) throw new Error("Unable to load selected group members: " + membershipError.message);
-
-  const contactIds = [...new Set((memberships ?? []).map((row) => row.contact_id).filter(Boolean))];
+  // Reuse the paginated helper so a large selected audience is not silently
+  // truncated by a single Supabase REST response.
+  const memberships = await listCfcfGroupMembers(tenantId, selectedGroupIds);
+  const contactIds = [...new Set(memberships.map((row) => row.contact_id).filter(Boolean))];
   if (contactIds.length === 0) throw new Error("The selected groups contain no Contacts.");
 
   const recipients: Array<{ recipient_contact_id: string; recipient_phone: string }> = [];
