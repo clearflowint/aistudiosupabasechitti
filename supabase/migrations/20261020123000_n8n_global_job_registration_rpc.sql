@@ -260,7 +260,7 @@ begin
     raise exception 'Service role required' using errcode = '42501';
   end if;
 
-  if p_status not in ('sent_to_server', 'failed', 'uncertain', 'skipped') then
+  if p_status is null or p_status not in ('sent_to_server', 'failed', 'uncertain', 'skipped') then
     raise exception 'Unsupported recipient delivery result' using errcode = '22023';
   end if;
 
@@ -343,7 +343,7 @@ begin
     raise exception 'Service role required' using errcode = '42501';
   end if;
 
-  if p_status not in ('completed', 'failed', 'timed_out') then
+  if p_status is null or p_status not in ('completed', 'failed', 'timed_out') then
     raise exception 'Final status must be completed, failed or timed_out'
       using errcode = '22023';
   end if;
