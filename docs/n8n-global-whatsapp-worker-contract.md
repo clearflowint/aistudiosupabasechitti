@@ -282,3 +282,11 @@ A repository contract test asserts the mapping guard. This remains static/source
 - Added repository regression assertions for worker RPC role checks, grants and lock order. Targeted static review passed 9 of 10 initial checks; the remaining check was a temporary verification-script string-match issue, not a source failure. A corrected review confirmed the updated stale-timeout assertion is present. This is not execution of the Node test suite or PostgreSQL.
 - No runtime/deployment changes. Worker inactive, UI gates disabled, no billable branch, no live sends, no retries/requeue, and PWA notification objects untouched.
 
+## Batch 33 — Registration atomicity and duplicate-submission audit
+
+- Reviewed `n8n_register_whatsapp_job` from input validation through job, communication and delivery inserts.
+- Confirmed the function validates the recipient array and nonempty recipient set before any insert, serializes a given idempotency key with a transaction-scoped advisory lock before checking for an existing job, and creates the job, communication and delivery rows in one PostgreSQL function call. There is no exception handler that swallows a failure after partial writes; a raised error aborts the statement transaction.
+- Confirmed the delivery `ON CONFLICT DO NOTHING` is constrained by per-communication phone uniqueness and duplicate phones are checked for conflicting person/contact identities first. This suppresses duplicate input rows, not delivery retries.
+- Added static regression assertions for validation/write ordering, idempotency-lock ordering and absence of swallowed exceptions. This is source inspection; the Node test suite and SQL have not been executed against PostgreSQL, so runtime atomicity still requires the approved test environment.
+- No live WAHA test was needed for this registration/database-only audit. No messages were sent. No database deployment, n8n activation, UI-gate change, billable branch, PWA notification change, retry, or requeue was performed.
+
