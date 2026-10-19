@@ -91,7 +91,7 @@ test("contract forbids PWA changes and activation before runtime validation", ()
 });
 
 test("worker contract requires randomized waits and sequential queue processing", () => {
-  assert.match(contract, /native n8n **Wait** node/);
+  assert.ok(contract.includes("native n8n **Wait** node"));
   assert.match(contract, /15 seconds, 30 seconds, or 60 seconds/);
   assert.match(contract, /Process claimed jobs and their queued deliveries sequentially/);
   assert.match(contract, /one sender execution at a time/);
