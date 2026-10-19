@@ -309,3 +309,9 @@ A repository contract test asserts the mapping guard. This remains static/source
 - Corrected the registration RPC validation order so null/non-array recipient input is rejected before either the authenticated authorization branch or any call to jsonb_array_elements. This ensures malformed input fails through the intended validation error and cannot reach iteration logic first.
 - Added a regression assertion that the array-shape guard precedes the first jsonb_array_elements call, while retaining the existing empty-array and pre-insert ordering checks.
 - Source-level validation only; PostgreSQL runtime tests and migration deployment remain pending. No PWA notification changes, billable branch, n8n activation, UI-gate changes, retries, requeue, blind resend, or WhatsApp sends.
+
+## Batch 37 — Recipient edits and audit consistency
+
+- Reviewed the existing scope constraints and status RPCs without adding a new status framework or redundant constraints. Found one narrow gap: the delivery scope trigger validated saved Contact/phone consistency on insert and scope edits, but its UPDATE OF list did not include recipient_contact_id or recipient_phone themselves.
+- Updated the existing trigger event list so changing a delivery's Contact or phone re-runs the same saved-Contact, tenant/product, and phone match check. Added a focused static regression assertion for that trigger event list.
+- This is a small correction to an existing invariant, not a new policy layer. No other constraints were added in this batch. Static validation only; no PostgreSQL execution or migration deployment. No PWA changes, billable branch, worker activation, retries, requeue, blind resend, or WhatsApp sends.
