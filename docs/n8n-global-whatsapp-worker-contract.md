@@ -55,7 +55,7 @@ Repository-level checks can verify workflow structure, integer ID usage, scope p
 
 ## Existing send-flow migration status
 
-**Neither existing send entry point has been switched to the global job-ID route in this PR.** This distinction is intentional: the registry migrations are not deployed, and the worker is not yet executable or active.
+**The new direct registration code paths are now implemented but remain gated off.** Launch Campaign and bulk Pending/Reports register through the authenticated Supabase RPC when their UI gates are enabled; neither sends directly from the browser. The registry migrations are not deployed and the worker is not yet executable or active, so the production sending route is not cut over.
 
 | Existing entry point | Current route | Required target |
 |---|---|---|
@@ -73,4 +73,4 @@ Repository-level checks can verify workflow structure, integer ID usage, scope p
 6. Only after SQL runtime tests and a user-authorized controlled test pass, enable the relevant gates in a separate, reviewed change. Do not enable SMS/email through the WhatsApp-only registry.
 7. Do not introduce automatic retries, automatic requeue, or blind resend for uncertain sends. Keep the current no-retry policy for the global worker.
 
-The direct registration code paths now exist for Launch Campaign and bulk Pending/Reports, but both UI gates remain disabled. The active production sending route is **not cut over** until the worker, status/history display, runtime tests and controlled delivery pass.
+The direct registration code paths now exist for Launch Campaign and bulk Pending/Reports, and Notifications includes a registry-backed job history view. Both UI gates remain disabled. The active production sending route is **not cut over** until the worker, runtime tests and controlled delivery pass.
