@@ -59,6 +59,7 @@ import {
   type CfcfFundOtherAdjustmentSummary,
 } from "../services/workspace.service";
 import type { CfcfBillRow, CfcfContactRow, CfcfFundRow, CfcfShareRow } from "../types/database.types";
+import { registerCfcfBulkWhatsAppJob, type CfcfWorkspaceAutomation } from "../services/workspace-automation.service";
 
 type WorkspaceTab = "shares" | "ledger";
 type WorkspaceSectionTab = "fund-summary" | "shares";
@@ -102,6 +103,7 @@ function readSavedWorkspaceView(tenantId: string): SavedWorkspaceView {
 
 export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [funds, setFunds] = useState<CfcfFundRow[]>([]);
+  const [isRegisteringBulkWhatsApp, setIsRegisteringBulkWhatsApp] = useState(false);
   const [archivedFunds, setArchivedFunds] = useState<CfcfArchivedFundRow[]>([]);
   const [isLoadingArchivedFunds, setIsLoadingArchivedFunds] = useState(false);
   const [isArchivingFund, setIsArchivingFund] = useState(false);
@@ -214,6 +216,27 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
 
   function showDatabaseResult(message: string, status: "success" | "error" = "success"): void {
     setDatabaseResult({ status, message });
+  }
+
+  async function handleBulkWhatsAppRegistration(automation: CfcfWorkspaceAutomation): Promise<void> {
+    if (!selectedFund || isRegisteringBulkWhatsApp) return;
+    setIsRegisteringBulkWhatsApp(true);
+    try {
+      const receipt = await registerCfcfBulkWhatsAppJob(
+        workspace.tenantId,
+        workspace.personId,
+        selectedFund.fund_id,
+        automation,
+      );
+      showDatabaseResult(
+        "WhatsApp job #" + receipt.n8n_global_job_id + " registered for " +
+        receipt.recipient_count + " recipient(s). It will send only after the n8n worker is configured and activated.",
+      );
+    } catch (error) {
+      showDatabaseResult(error instanceof Error ? error.message : "Unable to register WhatsApp job.", "error");
+    } finally {
+      setIsRegisteringBulkWhatsApp(false);
+    }
   }
   const [deleteTarget, setDeleteTarget] = useState<{ kind: "share"; id: string; label: string; fundId?: string } | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -1622,10 +1645,10 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <button type="button" disabled title="Disabled until the n8n reminder workflow is configured." aria-label="Send pending reminder to all shares (disabled)" className="inline-flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-2 py-2 text-center text-xs font-bold leading-4 text-amber-900 opacity-60 cursor-not-allowed"><MessageCircle size={16} className="shrink-0" /><span>Send Pending Reminder to All</span></button>
-              <button type="button" disabled title="Disabled until the n8n report workflow is configured." aria-label="Send report to all shares (disabled)" className="inline-flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-sky-300 bg-sky-50 px-2 py-2 text-center text-xs font-bold leading-4 text-sky-900 opacity-60 cursor-not-allowed"><FileText size={16} className="shrink-0" /><span>Send Report to All</span></button>
+              <button type="button" onClick={() => void handleBulkWhatsAppRegistration("pending-reminder-all")} disabled={!selectedFund || isRegisteringBulkWhatsApp} title="Register a tenant-scoped WhatsApp job in Supabase; the n8n worker must be configured before sending." aria-label="Register pending reminder job for all shares" className="inline-flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-2 py-2 text-center text-xs font-bold leading-4 text-amber-900 disabled:opacity-50"><MessageCircle size={16} className="shrink-0" /><span>{isRegisteringBulkWhatsApp ? "Registering…" : "Send Pending Reminder to All"}</span></button>
+              <button type="button" onClick={() => void handleBulkWhatsAppRegistration("report-all")} disabled={!selectedFund || isRegisteringBulkWhatsApp} title="Register a tenant-scoped WhatsApp job in Supabase; the n8n worker must be configured before sending." aria-label="Register report job for all shares" className="inline-flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-sky-300 bg-sky-50 px-2 py-2 text-center text-xs font-bold leading-4 text-sky-900 disabled:opacity-50"><FileText size={16} className="shrink-0" /><span>{isRegisteringBulkWhatsApp ? "Registering…" : "Send Report to All"}</span></button>
             </div>
-            <p className="text-center text-xs text-slate-500">Bulk WhatsApp automation is disabled until the n8n webhook is configured.</p>
+            <p className="text-center text-xs text-slate-500">These actions register integer job IDs directly through Supabase. Actual sending remains gated until the n8n worker and WAHA session are validated.</p>
 
             <section className="space-y-3">
               <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
