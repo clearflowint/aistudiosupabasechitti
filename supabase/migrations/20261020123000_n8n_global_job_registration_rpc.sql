@@ -497,7 +497,10 @@ begin
     return false;
   end if;
 
-  if p_status = 'completed' and exists (
+  -- Do not finalize any job while queued deliveries remain. Failed/timed-out
+  -- jobs must first record every remaining recipient as failed, uncertain, or
+  -- skipped; otherwise queued work would be stranded outside the claim path.
+  if exists (
     select 1
     from public.n8n_whatsapp_communications c
     join public.n8n_whatsapp_deliveries d
@@ -505,7 +508,7 @@ begin
     where c.n8n_global_job_id = p_n8n_global_job_id
       and d.status = 'queued'
   ) then
-    raise exception 'Cannot complete a global job while recipient deliveries remain queued'
+    raise exception 'Cannot finalize a global job while recipient deliveries remain queued'
       using errcode = '23514';
   end if;
 
