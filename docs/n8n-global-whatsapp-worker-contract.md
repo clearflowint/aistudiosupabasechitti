@@ -154,3 +154,19 @@ These requirements are part of the worker contract. The n8n draft now contains a
 - After the user confirms the base URL, create a dedicated HTTP Header Auth credential in the n8n UI using header `X-Api-Key` only if that matches the deployed WAHA version/configuration; otherwise follow the API-key header documented by that deployment. Enter the key directly into n8n's credential form, never into chat.
 - No credential creation action is available through the current automation connector. User must add the secret in the n8n UI, then confirm the credential name (not its secret) so it can be attached to the future WAHA HTTP Request node.
 - No live WAHA test, queue claim, registry call, workflow activation, or message send has been performed. Worker remains inactive and the new queue nodes remain disconnected.
+
+## Batch 19 — WAHA endpoint and credential verified
+
+- User supplied the WAHA base URL directly in conversation and configured a generic n8n HTTP Header Auth credential using the `X-Api-Key` header. The credential is stored in n8n; its secret is not present in this repository.
+- A disconnected read-only HTTP Request node was added for `GET /api/sessions` using the saved Header Auth credential.
+- With explicit user approval, the read-only request completed successfully. WAHA returned a working session named `Lakki`. This is runtime evidence for endpoint reachability and credential validity; it does not test message sending.
+- A temporary second Manual Trigger used for isolation was removed after the successful check. The read-only session inventory node is connected to the existing Manual Start trigger only. The workflow remains inactive, has no active version, and has zero triggers in its inactive state.
+- No message send endpoint was called. No Supabase RPC, queue claim, registry migration, or PWA notification object was executed or changed.
+
+## Batch 20 — Initial agency/session configuration
+
+- The user explicitly selected `Lakki` as the initial agency name and WAHA session name. Do not substitute `default` or assume a session name.
+- The workflow safety/configuration node now carries `agencyName = 'Lakki'` and `wahaSessionName = 'Lakki'` as explicit configuration values. The read-only inventory node is named `WAHA — Read Agency Sessions (Lakki)`.
+- The name is a configuration value for the initial agency, not a claim that multi-agency routing is already implemented. Future agency-specific sessions must be configurable and scoped deliberately before any send path is connected.
+- Safety remains unchanged: `liveCallsEnabled = false`, `projectConfigured = false`, worker mode `draft-safe-dry-run`, workflow inactive, and no active version. No sendText node or live sender path was added.
+- Remaining worker blockers: registry migrations have not been deployed/runtime-tested; the global claim/read/record/finalize nodes remain disconnected placeholders; the sequential send path with one randomized 15/30/60-second wait per new queued delivery is not implemented end-to-end. Do not activate the worker or enable the app UI gates.
