@@ -84,8 +84,13 @@ test("stale claims time out without requeue", () => {
   assert.match(contract, /no automatic requeue/i);
 });
 
+test("all job final statuses are blocked while queued deliveries remain", () => {
+  assert.match(lifecycle, /if exists \([\s\S]*?where c\.n8n_global_job_id = p_n8n_global_job_id[\s\S]*?and d\.status = 'queued'[\s\S]*?Cannot finalize a global job while recipient deliveries remain queued/);
+  assert.doesNotMatch(lifecycle, /if p_status = 'completed' and exists/);
+});
+
 test("completion cannot leave queued deliveries behind", () => {
-  assert.match(lifecycle, /Cannot complete a global job while recipient deliveries remain queued/);
+  assert.match(lifecycle, /Cannot finalize a global job while recipient deliveries remain queued/);
   assert.match(lifecycle, /d\.status = 'queued'/);
 });
 
@@ -137,5 +142,5 @@ test("global queue claim is bounded, serialized, and never reclaims picked-up jo
 test("terminal delivery states cannot return to queued", () => {
   assert.match(lifecycle, /v_current_status <> 'queued'[\s\S]*?not \(v_current_status = 'uncertain' and p_status = 'sent_to_server'\)/);
   assert.match(lifecycle, /p_status not in \('sent_to_server', 'failed', 'uncertain', 'skipped'\)/);
-  assert.match(lifecycle, /Cannot complete a global job while recipient deliveries remain queued/);
+  assert.match(lifecycle, /Cannot finalize a global job while recipient deliveries remain queued/);
 });
