@@ -49,7 +49,7 @@ test("authenticated campaign registration proves group ownership server-side", (
 });
 
 test("CFCF job types must match their communication types at the RPC boundary", () => {
-  assert.match(lifecycle, /p_communication_type is null[\\s\\S]*?Unsupported WhatsApp communication type/);
+  assert.match(lifecycle, /p_communication_type is null[\s\S]*?Unsupported WhatsApp communication type/);
   assert.match(lifecycle, /p_job_type = 'manual_campaign' and p_communication_type <> 'campaign'/);
   assert.match(lifecycle, /p_job_type = 'pending_reminder' and p_communication_type <> 'pending_reminder'/);
   assert.match(lifecycle, /p_job_type = 'report' and p_communication_type <> 'report'/);
