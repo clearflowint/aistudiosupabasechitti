@@ -290,3 +290,9 @@ A repository contract test asserts the mapping guard. This remains static/source
 - Added static regression assertions for validation/write ordering, idempotency-lock ordering and absence of swallowed exceptions. This is source inspection; the Node test suite and SQL have not been executed against PostgreSQL, so runtime atomicity still requires the approved test environment.
 - No live WAHA test was needed for this registration/database-only audit. No messages were sent. No database deployment, n8n activation, UI-gate change, billable branch, PWA notification change, retry, or requeue was performed.
 
+## Batch 34 — CFCF recipient authorization boundary
+
+- Reviewed authenticated registration: it requires an authenticated user with a JWT email, an active CFCF tenant, and an active tenant-owner access row matching the requested tenant/person and JWT email. Campaign groups are revalidated against that tenant/person. Pending and Report jobs must reference a Fund in the same CFCF tenant.
+- Found a defense-in-depth gap: saved-Contact phone matching was checked in the authenticated registration branch, but the delivery scope trigger did not enforce the same rule for rows created by other trusted service-role callers.
+- Strengthened the delivery scope trigger so every CFCF delivery must include a saved contacts row matching product_id, tenant_id, contact_id, and normalized phone. The database invariant now applies to both authenticated and service-role registration paths. Added a regression assertion.
+- Static review only; no PostgreSQL test or migration deployment. No live WhatsApp message was sent; the sender remains unconfigured. No PWA notification changes, billable branch, worker activation, retries, or requeue.
