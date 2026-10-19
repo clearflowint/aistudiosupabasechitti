@@ -241,3 +241,11 @@ test("terminal delivery states cannot return to queued", () => {
   assert.match(lifecycle, /p_status not in \('sent_to_server', 'failed', 'uncertain', 'skipped'\)/);
   assert.match(lifecycle, /Cannot finalize a global job while recipient deliveries remain queued/);
 });
+
+
+test("preflight rejection is a draft-only skipped outcome, while valid payload stays not attempted", () => {
+  assert.match(contract, /preflight rejection is classified as draft-only `skipped`/i);
+  assert.match(contract, /valid preflight remains `not_attempted_sender_blocked`/);
+  assert.match(contract, /result writes remain blocked/);
+  assert.match(contract, /No provider result may be inferred from preflight success alone/);
+});
