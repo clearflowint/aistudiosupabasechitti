@@ -131,6 +131,12 @@ test("worker contract requires randomized waits and sequential queue processing"
   assert.match(contract, /A non-queued delivery is skipped before the wait\/send path/);
 });
 
+test("stale claim timeout has a safe timestamp fallback and never requeues", () => {
+  assert.match(lifecycle, /set status = 'timed_out'[\s\S]*?where status = 'picked_up'[\s\S]*?coalesce\(picked_up_at, updated_at, created_at\) < now\(\) - interval '90 minutes'/);
+  assert.match(lifecycle, /where j\.status = 'registered'[\s\S]*?for update skip locked/);
+  assert.doesNotMatch(lifecycle, /set status = 'registered'[\s\S]{0,500}where status = 'timed_out'/);
+});
+
 test("global queue claim is bounded, serialized, and never reclaims picked-up jobs", () => {
   assert.match(lifecycle, /create or replace function public\.n8n_claim_global_jobs\(p_limit integer default 25\)/);
   assert.match(lifecycle, /p_limit < 1 or p_limit > 100/);
