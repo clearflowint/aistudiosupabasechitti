@@ -59,7 +59,7 @@ Repository-level checks can verify workflow structure, integer ID usage, scope p
 
 | Existing entry point | Current route | Required target |
 |---|---|---|
-| Contact Groups → Launch Campaign | `ContactGroupsPanel.tsx` → authenticated `campaign-dispatch` Edge Function → `N8N_CAMPAIGN_WEBHOOK_URL` → existing n8n campaign flow/callback | For WhatsApp recipients, register an idempotent global job and recipient delivery rows, then let the global worker send. Preserve the existing campaign notification and acceptance/final-callback contract. Keep SMS/email behavior separate until the registry explicitly supports those channels; never send the same WhatsApp recipient through both paths. |
+| Contact Groups → Launch Campaign | `ContactGroupsPanel.tsx` → `contact-groups.service.ts` → authenticated `n8n_register_whatsapp_job` RPC → global worker | The direct registration path is implemented in source but the UI gate remains disabled. It supports WhatsApp only. The legacy `campaign-dispatch` Edge Function remains in the repository but is not called by the new route. Campaign notification-history integration still needs a registry-backed UI path; do not treat the legacy callback as wired to this new route. |
 | Workspace bulk Pending / Reports WhatsApp actions | `workspace-automation.service.ts` currently has a placeholder URL and `CFCF_WORKSPACE_AUTOMATIONS_ENABLED = false`; no production route is connected | Replace the placeholder with an authenticated server-side handoff that registers a global job scoped to `product_id = 'CFCF'` and the authorized `tenant_id`, then return an immediate acceptance receipt. The worker uses the integer `n8n_global_job_id` and per-recipient delivery IDs. Preserve the existing per-tenant hourly limits and source-record/idempotency protections. |
 | Monthly scheduled evaluator | Existing workflow JSON uses placeholder Supabase URLs and is inactive; it does not call the global registry | Keep inactive until the schedule-to-job handoff is explicitly wired and tested. Do not treat the evaluator as the sender. |
 
@@ -73,4 +73,4 @@ Repository-level checks can verify workflow structure, integer ID usage, scope p
 6. Only after SQL runtime tests and a user-authorized controlled test pass, enable the relevant gates in a separate, reviewed change. Do not enable SMS/email through the WhatsApp-only registry.
 7. Do not introduce automatic retries, automatic requeue, or blind resend for uncertain sends. Keep the current no-retry policy for the global worker.
 
-Until these steps are complete, report the old flows as **not migrated** rather than implying that adding the registry tables automatically reroutes them.
+The direct registration code paths now exist for Launch Campaign and bulk Pending/Reports, but both UI gates remain disabled. The active production sending route is **not cut over** until the worker, status/history display, runtime tests and controlled delivery pass.
