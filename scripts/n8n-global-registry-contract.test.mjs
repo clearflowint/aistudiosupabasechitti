@@ -177,6 +177,16 @@ test("campaign registration paginates Contact Group memberships before recipient
   assert.match(membershipHelper, /\.range\(offset, offset \+ pageSize - 1\)/);
 });
 
+test("Pending/Report payload maps use the same saved Contact IDs as recipient identities", () => {
+  assert.match(workspace, /recipient_contact_id:\s*contact\.contact_id/);
+  assert.match(workspace, /shareIdsByContact\[share\.contact_id\]/);
+  assert.match(workspace, /pendingByContact\[share\.contact_id\]/);
+  assert.match(workspace, /share_ids_by_contact:\s*shareIdsByContact/);
+  assert.match(workspace, /pending_by_contact:\s*pendingByContact/);
+  assert.match(workspace, /p_message_text:\s*null/);
+  assert.match(contract, /Pending\/Report.*message composition/i);
+});
+
 test("send UI gates remain disabled", () => {
   assert.match(campaignUi, /CAMPAIGN_AUTOMATION_ENABLED\s*=\s*false/);
   assert.match(workspaceUi, /CFCF_GLOBAL_WHATSAPP_REGISTRATION_ENABLED\s*=\s*false/);
