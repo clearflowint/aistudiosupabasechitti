@@ -43,6 +43,7 @@ Each batch has one global job and one communication row; every recipient has one
 
 - `n8n_register_whatsapp_job(...)` atomically creates the global job, one communication record and the recipient delivery rows. It requires product, tenant, source identity and idempotency key; the initiating person is optional. Reusing the same key for the same logical source and identical communication details/recipient set returns the original IDs; reusing it for a different scope/source, changed message/payload/schedule, or changed recipient set fails. A phone cannot map to conflicting person/contact identities within one request. Registrations with the same key are serialized with a transaction-scoped advisory lock so simultaneous duplicate submissions resolve idempotently.
 - `n8n_claim_global_jobs(p_limit)` atomically claims registered jobs with `FOR UPDATE SKIP LOCKED`. Stale picked-up jobs older than 90 minutes become `timed_out`; they are not automatically requeued or resent. The 90-minute threshold is provisional and must be checked against expected worker runtime before activation.
+- `n8n_record_whatsapp_delivery_result(delivery_id, status, provider_message_id, error_code, error_message, session_name)` records a recipient result. Allowed first outcomes are `sent_to_server`, `failed`, `uncertain` or `skipped`; `sent_to_server` requires the actual WAHA session name. A later positive provider acknowledgement may change `uncertain` to `sent_to_server`, but never initiates a resend. Other conflicting terminal transitions are rejected. Repeated same-status callbacks are idempotent.
 - `n8n_finish_global_job(job_id, status, error)` finalizes a picked-up job as `completed`, `failed` or `timed_out`. It rejects `completed` while any recipient delivery remains `queued`; failed and uncertain recipient outcomes can still be recorded without claiming device delivery.
 - These RPCs are service-role-only. They are not yet connected to any active n8n workflow.
 
@@ -70,6 +71,8 @@ Run these against an isolated test database before production deployment; reposi
 9. Finalize a picked-up job; verify a second finalization returns false.
 10. Age a picked-up job past the timeout threshold in a disposable test database; verify it becomes `timed_out` and is not requeued automatically.
 11. Verify all registry tables have RLS enabled, client roles have no table/RPC access, and service-role RPC calls work.
-12. Compare the PWA push-notification schema/data before and after: no changes are expected.
+12. Verify delivery transitions: queued to each valid outcome; uncertain to sent_to_server only on positive acknowledgement; reject conflicting terminal transitions; duplicate callbacks are harmless.
+13. Verify a global job cannot be completed while any delivery remains queued.
+14. Compare the PWA push-notification schema/data before and after: no changes are expected.
 
 **Current evidence level:** source-level/static checks only. These runtime tests have not been executed because no billable test branch was approved. Do not treat this PR as production-ready until they pass.
