@@ -101,12 +101,12 @@ create or replace function public.n8n_set_updated_at()
 returns trigger
 language plpgsql
 set search_path = public, pg_temp
-as $
+as $n8n$
 begin
   new.updated_at := now();
   return new;
 end;
-$;
+$n8n$;
 
 drop trigger if exists n8n_global_jobs_updated_at_trg on public.n8n_global_jobs;
 create trigger n8n_global_jobs_updated_at_trg
