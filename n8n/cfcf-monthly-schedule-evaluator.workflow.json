@@ -1,0 +1,204 @@
+{
+  "name": "CFCF — Monthly Schedule Evaluator (Setup Required)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "cfcf-schedule-trigger",
+      "name": "Every Minute",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://YOUR_SUPABASE_PROJECT_REF.supabase.co/rest/v1/rpc/cfcf_claim_due_automation_schedules",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_limit\": 25 }",
+        "options": {}
+      },
+      "id": "cfcf-claim-schedules",
+      "name": "Claim Due Schedules",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        300
+      ],
+      "notesInFlow": true,
+      "notes": "SETUP REQUIRED: replace YOUR_SUPABASE_PROJECT_REF and select an n8n Custom Auth credential containing both apikey and Authorization: Bearer headers for the Supabase service role. Never use this credential in the browser."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const { DateTime } = require('luxon');\n\nfunction nextMonthlyRun(schedule, after) {\n  const zone = schedule.timezone || 'Asia/Kolkata';\n  const [hour, minute, second = '0'] = String(schedule.time_of_day).split(':');\n  const cursor = after.setZone(zone).startOf('month');\n\n  for (let offset = 0; offset < 15; offset++) {\n    const month = cursor.plus({ months: offset });\n    const day = Math.min(Number(schedule.day_of_month), month.daysInMonth);\n    const candidate = month.set({\n      day,\n      hour: Number(hour),\n      minute: Number(minute),\n      second: Number(second),\n      millisecond: 0,\n    });\n    if (candidate.toMillis() > after.toMillis()) return candidate.toUTC().toISO();\n  }\n  throw new Error('Unable to calculate the next monthly run');\n}\n\n// HTTP Request may return a JSON array directly or as a body property.\n// Empty claim results intentionally produce no output items.\nconst rows = items.flatMap(({ json }) => {\n  const payload = json.body ?? json;\n  if (Array.isArray(payload)) return payload;\n  if (payload && payload.schedule_id) return [payload];\n  return [];\n});\n\nconst now = DateTime.now();\nreturn rows.map(schedule => {\n  if (!schedule.schedule_id || !schedule.time_of_day || !schedule.day_of_month) {\n    throw new Error('Claimed schedule is missing required fields');\n  }\n\n  const next = nextMonthlyRun(schedule, now);\n  if (!schedule.next_run_at) {\n    return { json: { action: 'initialize', schedule_id: schedule.schedule_id, next_run_at: next, claimed_until: schedule.claimed_until } };\n  }\n\n  return {\n    json: {\n      action: 'enqueue',\n      schedule_id: schedule.schedule_id,\n      scheduled_for: schedule.next_run_at,\n      next_run_at: next,\n    },\n  };\n});"
+      },
+      "id": "cfcf-calculate-occurrence",
+      "name": "Calculate Monthly Occurrence",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        300
+      ],
+      "notesInFlow": true,
+      "notes": "Day 29–31 falls back to the month's final day. A null next_run_at is initialized for a future occurrence and does not create a job immediately."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cfcf-action-initialize",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "initialize",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "cfcf-initialize-or-enqueue",
+      "name": "Initialize or Enqueue?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://YOUR_SUPABASE_PROJECT_REF.supabase.co/rest/v1/rpc/cfcf_initialize_automation_schedule",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { p_schedule_id: $json.schedule_id, p_next_run_at: $json.next_run_at, p_claimed_until: $json.claimed_until } }}",
+        "options": {}
+      },
+      "id": "cfcf-initialize-schedule",
+      "name": "Initialize Next Run",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        180
+      ],
+      "notesInFlow": true,
+      "notes": "SETUP REQUIRED: use the same Supabase Custom Auth credential as the claim node. The claimed_until value is passed back so a stale execution cannot initialize a schedule after its lease has been replaced. This only initializes a future run; it does not send or queue anything."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://YOUR_SUPABASE_PROJECT_REF.supabase.co/rest/v1/rpc/cfcf_enqueue_scheduled_automation_job",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { p_schedule_id: $json.schedule_id, p_scheduled_for: $json.scheduled_for, p_next_run_at: $json.next_run_at } }}",
+        "options": {}
+      },
+      "id": "cfcf-enqueue-job",
+      "name": "Enqueue Idempotent Job",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        420
+      ],
+      "notesInFlow": true,
+      "notes": "SETUP REQUIRED: use the same Supabase Custom Auth credential. This RPC atomically creates the queued job and advances the schedule. It does not deliver messages."
+    }
+  ],
+  "connections": {
+    "Every Minute": {
+      "main": [
+        [
+          {
+            "node": "Claim Due Schedules",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim Due Schedules": {
+      "main": [
+        [
+          {
+            "node": "Calculate Monthly Occurrence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Monthly Occurrence": {
+      "main": [
+        [
+          {
+            "node": "Initialize or Enqueue?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initialize or Enqueue?": {
+      "main": [
+        [
+          {
+            "node": "Initialize Next Run",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enqueue Idempotent Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "b2a6b6cb-7b8e-4f3b-9ec5-2a9a72bcb811",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
