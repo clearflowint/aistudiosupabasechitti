@@ -251,7 +251,7 @@ $$;
 
 drop trigger if exists n8n_validate_whatsapp_delivery_scope_trg on public.n8n_whatsapp_deliveries;
 create trigger n8n_validate_whatsapp_delivery_scope_trg
-before insert or update of n8n_whatsapp_communication_id, tenant_id, product_id, recipient_person_id
+before insert or update of n8n_whatsapp_communication_id, tenant_id, product_id, recipient_person_id, recipient_contact_id, recipient_phone
 on public.n8n_whatsapp_deliveries
 for each row execute function public.n8n_validate_whatsapp_delivery_scope();
 
