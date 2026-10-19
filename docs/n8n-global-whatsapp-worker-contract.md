@@ -296,3 +296,10 @@ A repository contract test asserts the mapping guard. This remains static/source
 - Found a defense-in-depth gap: saved-Contact phone matching was checked in the authenticated registration branch, but the delivery scope trigger did not enforce the same rule for rows created by other trusted service-role callers.
 - Strengthened the delivery scope trigger so every CFCF delivery must include a saved contacts row matching product_id, tenant_id, contact_id, and normalized phone. The database invariant now applies to both authenticated and service-role registration paths. Added a regression assertion.
 - Static review only; no PostgreSQL test or migration deployment. No live WhatsApp message was sent; the sender remains unconfigured. No PWA notification changes, billable branch, worker activation, retries, or requeue.
+
+## Batch 35 — Tenant-scoped history data minimization
+
+- Audited the CFCF WhatsApp history RPC and its Notifications panel. The RPC requires an authenticated user with an active tenant-owner access row for the active CFCF tenant, constrains results to that tenant, and caps history at 100 rows.
+- Reduced the history response to operational status and aggregate delivery counts. Removed person IDs, source table/record IDs, message body text, and raw last-error strings from the RPC result and client type. The Notifications panel no longer renders message bodies or raw provider/worker errors. This reduces unnecessary exposure if a provider error includes personal data or diagnostic details.
+- Added a regression assertion for tenant/product/active-owner scope, bounded result count, and omission of sensitive fields.
+- Static repository review only; no PostgreSQL runtime test or migration deployment. Worker remains inactive, registration UI gates remain false, PWA notification objects are untouched, no billable branch was created, and no retries/requeue/blind resend or WhatsApp message was performed.
