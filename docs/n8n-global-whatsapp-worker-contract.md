@@ -129,5 +129,5 @@ Before any controlled live test, verify with synthetic data that:
 6. A timeout after the provider request becomes `uncertain`; it does not requeue or resend.
 7. The worker remains inactive, UI gates remain disabled, and no live messages are sent before WAHA setup and database runtime validation.
 
-These requirements are part of the worker contract. They do not mean the Wait node or live sender has already been connected or executed in n8n; that remains a separate draft-only implementation step.
+These requirements are part of the worker contract. The n8n draft now contains a random-delay selector connected to a native Wait node, but that two-node chain is disconnected from all triggers, queue claims, and sender paths. The durable global queue claim and sequential delivery-processing path are still not implemented in n8n. The workflow remains inactive and no messages have been sent.
 
