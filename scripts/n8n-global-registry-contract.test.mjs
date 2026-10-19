@@ -11,6 +11,7 @@ const campaign = read("../src/features/cfcf/services/contact-groups.service.ts")
 const workspace = read("../src/features/cfcf/services/workspace-automation.service.ts");
 const campaignUi = read("../src/features/cfcf/pages/ContactGroupsPanel.tsx");
 const workspaceUi = read("../src/features/cfcf/pages/WorkspacePage.tsx");
+const managerHome = read("../src/components/workspace/WorkspaceHomePage.tsx");
 
 test("registry uses sequential integer identity primary keys", () => {
   for (const column of [
@@ -273,4 +274,18 @@ test("delivery read is tenant-scoped, paginated, bounded, and must stop on an em
   assert.match(contract, /100-request ceiling bounds the read/);
   assert.match(contract, /Do not set the expected count from a potentially truncated single page/);
   assert.match(contract, /exact n8n pagination output shape and empty-page behavior remain unverified by execution/);
+});
+
+
+test("manager home shows registry-backed job progress without claiming recipient delivery", () => {
+  assert.match(managerHome, /listCfcfGlobalWhatsAppJobs\(workspace\.tenantId\)/);
+  assert.match(managerHome, /Automation Centre/);
+  assert.match(managerHome, /registered: "Queued"/);
+  assert.match(managerHome, /picked_up: "Processing"/);
+  assert.match(managerHome, /timed_out: "Timed out · review"/);
+  assert.match(managerHome, /Accepted by WAHA does not mean delivered or read/);
+  assert.match(managerHome, /Failed/);
+  assert.match(managerHome, /Uncertain/);
+  assert.match(managerHome, /Skipped/);
+  assert.doesNotMatch(managerHome, /progress percentage|\b\d+% complete/);
 });
