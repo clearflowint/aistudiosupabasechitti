@@ -2,7 +2,7 @@
 
 ## Scope
 
-This migration introduces three global n8n tables only:
+This migration introduces three global n8n tables only. Their database-generated primary keys are sequential integers starting at 100 (not UUIDs); existing tenant, person and source-record identifiers retain their existing types.
 - `n8n_global_jobs`: handoff/status registry; it does not replace product-owned business records.
 - `n8n_whatsapp_communications`: one WhatsApp communication/batch per global job.
 - `n8n_whatsapp_deliveries`: one row per recipient and communication.
@@ -60,7 +60,7 @@ This migration adds new tables and validation functions/triggers only. It does n
 
 Run these against an isolated test database before production deployment; repository checks alone do not prove PostgreSQL execution:
 
-1. Apply both migrations in order and verify all three tables, indexes, triggers and RPC signatures.
+1. Apply both migrations in order and verify all three tables, indexes, triggers, RPC signatures, and sequential integer IDs starting at 100 for all three registry tables.
 2. Register a valid job with two distinct recipient phones; expect one job, one communication and two delivery rows.
 3. Repeat the same registration with the same idempotency key and source identity; expect the same IDs and no additional rows.
 4. Reuse that key with a different tenant, product, person (including null/non-null mismatch) or source; expect an error and no additional rows.
