@@ -89,3 +89,13 @@ test("contract forbids PWA changes and activation before runtime validation", ()
   assert.match(contract, /Do not modify PWA push-notification tables/);
   assert.match(contract, /Do not activate or enable UI gates/);
 });
+
+test("worker contract requires randomized waits and sequential queue processing", () => {
+  assert.match(contract, /native n8n **Wait** node/);
+  assert.match(contract, /15 seconds, 30 seconds, or 60 seconds/);
+  assert.match(contract, /Process claimed jobs and their queued deliveries sequentially/);
+  assert.match(contract, /one sender execution at a time/);
+  assert.match(contract, /do not connect an error branch back to the sender/);
+  assert.match(contract, /A timeout or ambiguous provider result is recorded as `uncertain`/);
+  assert.match(contract, /A non-queued delivery is skipped before the wait\/send path/);
+});
