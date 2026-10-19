@@ -185,6 +185,76 @@ export function WorkspaceHomePage({ product, workspace, onNavigate }: WorkspaceH
         )}
       </section>
 
+      <section aria-labelledby="automation-centre-heading" className="space-y-3 rounded-2xl border border-violet-100 bg-white p-3 shadow-sm sm:p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 id="automation-centre-heading" className="text-base font-bold text-slate-900">Automation Centre</h3>
+            <p className="mt-1 text-sm leading-5 text-slate-600">WhatsApp job progress and recent results for this tenant.</p>
+          </div>
+          <button type="button" onClick={() => void loadAutomationJobs()} disabled={automationJobsLoading} aria-label="Refresh automation jobs" className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 disabled:opacity-50">
+            <RefreshCw size={15} className={automationJobsLoading ? "animate-spin" : ""} /> Refresh
+          </button>
+        </div>
+        {(() => {
+          const activeCount = automationJobs.filter((job) => ["registered", "picked_up"].includes(job.job_status)).length;
+          const completedCount = automationJobs.filter((job) => job.job_status === "completed").length;
+          const acceptedCount = automationJobs.reduce((sum, job) => sum + Number(job.sent_to_server_count ?? 0), 0);
+          const reviewCount = automationJobs.filter((job) => ["failed", "timed_out"].includes(job.job_status) || Number(job.failed_count ?? 0) > 0 || Number(job.uncertain_count ?? 0) > 0).length;
+          return (
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-xl bg-slate-50 p-3"><p className="text-xs font-medium text-slate-500">In progress</p><p className="mt-1 text-xl font-bold tabular-nums text-slate-900">{automationJobsLoading ? "—" : activeCount}</p></div>
+              <div className="rounded-xl bg-slate-50 p-3"><p className="text-xs font-medium text-slate-500">Completed jobs</p><p className="mt-1 text-xl font-bold tabular-nums text-slate-900">{automationJobsLoading ? "—" : completedCount}</p></div>
+              <div className="rounded-xl bg-slate-50 p-3"><p className="text-xs font-medium text-slate-500">Accepted by WAHA</p><p className="mt-1 text-xl font-bold tabular-nums text-slate-900">{automationJobsLoading ? "—" : acceptedCount}</p><p className="mt-1 text-xs text-slate-500">Server acceptance, not delivery/read</p></div>
+              <div className="rounded-xl bg-slate-50 p-3"><p className="text-xs font-medium text-slate-500">Needs review</p><p className="mt-1 text-xl font-bold tabular-nums text-slate-900">{automationJobsLoading ? "—" : reviewCount}</p><p className="mt-1 text-xs text-slate-500">Failed, uncertain or timed out</p></div>
+            </div>
+          );
+        })()}
+        {automationJobsError && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{automationJobsError}</p>}
+        {!automationJobsError && !automationJobsLoading && automationJobs.length === 0 && <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">No registered WhatsApp jobs yet. Start Pending or Report from the Fund workspace; jobs will appear here after registry-backed history is available.</p>}
+        {automationJobsLoading && <p role="status" className="text-sm text-slate-500">Loading saved job history…</p>}
+        {!automationJobsLoading && automationJobs.length > 0 && (
+          <div className="space-y-2">
+            <h4 className="text-sm font-semibold text-slate-800">Recent jobs</h4>
+            {automationJobs.slice(0, 5).map((job) => {
+              const status = ({
+                registered: "Queued",
+                picked_up: "Processing",
+                completed: "Completed",
+                failed: "Failed",
+                timed_out: "Timed out · review",
+              } as Record<string, string>)[job.job_status] ?? job.job_status.replace(/_/g, " ");
+              const type = ({
+                manual_campaign: "Campaign",
+                pending_reminder: "Pending reminder",
+                report: "Report",
+              } as Record<string, string>)[job.job_type] ?? job.job_type.replace(/_/g, " ");
+              const hasReview = job.job_status === "timed_out" || job.job_status === "failed" || job.failed_count > 0 || job.uncertain_count > 0;
+              return (
+                <article key={job.n8n_global_job_id} className="rounded-xl border border-slate-200 p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="break-words text-sm font-semibold text-slate-900">{type} · Job {job.n8n_global_job_id}</p>
+                      <p className="mt-1 text-xs text-slate-500">Created {job.created_at ? new Date(job.created_at).toLocaleString() : "time unavailable"}</p>
+                    </div>
+                    <span className={"shrink-0 rounded-full px-2 py-1 text-xs font-semibold " + (hasReview ? "bg-amber-100 text-amber-900" : job.job_status === "completed" ? "bg-emerald-100 text-emerald-800" : "bg-sky-100 text-sky-800")}>{status}</span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-600">
+                    <p>Recipients: <strong className="tabular-nums text-slate-900">{job.recipient_count}</strong></p>
+                    <p>Queued: <strong className="tabular-nums text-slate-900">{job.queued_count}</strong></p>
+                    <p>Accepted by WAHA: <strong className="tabular-nums text-slate-900">{job.sent_to_server_count}</strong></p>
+                    <p>Failed: <strong className="tabular-nums text-slate-900">{job.failed_count}</strong></p>
+                    <p>Uncertain: <strong className="tabular-nums text-slate-900">{job.uncertain_count}</strong></p>
+                    <p>Skipped: <strong className="tabular-nums text-slate-900">{job.skipped_count}</strong></p>
+                  </div>
+                  {(job.uncertain_count > 0 || job.job_status === "timed_out") && <p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs leading-5 text-amber-900">Outcome needs manual review. Do not resend automatically; WAHA acceptance may be uncertain.</p>}
+                </article>
+              );
+            })}
+          </div>
+        )}
+        <p className="text-xs leading-5 text-slate-500">Counts reflect saved registry state. “Accepted by WAHA” does not mean delivered or read. Scheduled/manual origin is not shown until the registry stores a reliable trigger-source field; scheduled handoff is not yet active.</p>
+      </section>
+
       <Modal isOpen={quickPaymentOpen} title="Record Payment (Quick)" description="Contact first → Fund → Share → amount. Payments remain independent of Cycle billing and payouts." onClose={closeQuickPayment}>
         <form onSubmit={(event) => void handleQuickPaymentSubmit(event)} className="space-y-3">
           {quickReview && <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3"><p className="font-semibold text-amber-900">Second confirmation required</p><p className="mt-1 text-sm text-amber-800">{quickEntryType === "credit" ? "Credit payment" : "Debit correction"} · {selectedContact?.name} · {selectedFund?.fund_name} (ID {selectedFund?.fund_id}) · Share {selectedShare?.share_id} · {"₹" + Number(quickAmount).toLocaleString("en-IN")} · {quickMode}. Date is automatic. This entry is not linked to a Cycle or payout.</p><button type="button" onClick={() => { setQuickReview(false); quickPaymentRequestRef.current = null; }} className="mt-2 min-h-9 text-sm font-semibold underline">Back to edit</button></div>}
