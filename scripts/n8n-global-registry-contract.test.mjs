@@ -249,3 +249,11 @@ test("preflight rejection is a draft-only skipped outcome, while valid payload s
   assert.match(contract, /resultWriteBlocked = true/);
   assert.match(contract, /marked accepted, failed, or delivered merely because the text is valid/);
 });
+
+
+test("job finalization requires a complete, unique, tenant-matched delivery set", () => {
+  assert.match(contract, /expectedDeliveryCount/);
+  assert.match(contract, /delivery IDs must be unique/);
+  assert.match(contract, /tenant\/product scope must match the claimed job/);
+  assert.match(contract, /finalization remains blocked until every delivery is terminal/);
+});
