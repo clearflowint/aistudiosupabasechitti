@@ -32,12 +32,12 @@ begin
 
   if p_product_id is null or length(btrim(p_product_id)) = 0
      or p_tenant_id is null or length(btrim(p_tenant_id)) = 0
-     or p_person_id is null or length(btrim(p_person_id)) = 0
+     or (p_person_id is not null and length(btrim(p_person_id)) = 0)
      or p_job_type is null or length(btrim(p_job_type)) = 0
      or p_source_table is null or length(btrim(p_source_table)) = 0
      or p_source_record_id is null or length(btrim(p_source_record_id)) = 0
      or p_idempotency_key is null or length(btrim(p_idempotency_key)) = 0 then
-    raise exception 'Product, tenant, person, job type, source and idempotency key are required'
+    raise exception 'Product, job type, source and idempotency key are required; person is optional'
       using errcode = '22023';
   end if;
 
@@ -77,7 +77,7 @@ begin
   if found then
     if v_existing.product_id <> p_product_id
        or v_existing.tenant_id <> p_tenant_id
-       or v_existing.person_id <> p_person_id
+       or v_existing.person_id is distinct from p_person_id
        or v_existing.job_type <> p_job_type
        or v_existing.source_table <> p_source_table
        or v_existing.source_record_id <> p_source_record_id then
