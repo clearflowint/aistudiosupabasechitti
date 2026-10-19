@@ -1,4 +1,4 @@
-# Global n8n WhatsApp Worker Contract — Batch 9
+# Global n8n WhatsApp Worker Contract — Batch 12
 
 ## Status
 
@@ -48,6 +48,12 @@ This is the repository-side implementation contract for the future worker. It is
 4. Import the worker as inactive and validate node expressions with synthetic data only.
 5. Validate tenant/product-scoped lookups, integer registry IDs, and each delivery outcome using a disposable PostgreSQL test database. No billable Supabase branch is assumed or created.
 6. Run controlled end-to-end delivery tests only after the database runtime checks pass and the user explicitly authorizes the controlled send. Until then, keep the worker and monthly evaluator inactive.
+
+## Batch 12 — Registration boundary hardening
+
+The authenticated `n8n_register_whatsapp_job` RPC now independently validates campaign group ownership on the server. For `manual_campaign`, it requires `source_table = 'contactgroups'`, parses the submitted comma-separated group IDs, rejects blank or duplicate IDs, and verifies that every group belongs to product `CFCF`, the submitted tenant, and the authorized person. Browser-side group preflight remains useful for UX but is no longer the only group-ownership check.
+
+This is a repository migration edit only. It has not been applied to Supabase and has not been runtime-tested against PostgreSQL. Do not enable the UI gate until the migration is reviewed and tested in an approved disposable database.
 
 ## Current n8n draft safety state — Batch 10
 
