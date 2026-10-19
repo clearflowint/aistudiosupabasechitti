@@ -30,6 +30,10 @@ declare
 begin
   -- n8n uses service_role. Authenticated CFCF owners may also register a
   -- scoped job directly from the app; the browser never receives service_role.
+  if p_recipients is null or jsonb_typeof(p_recipients) <> 'array' then
+    raise exception 'p_recipients must be a JSON array' using errcode = '22023';
+  end if;
+
   if not v_is_service_role then
     v_user_email := lower(btrim(coalesce(auth.jwt() ->> 'email', '')));
     if coalesce(auth.role(), '') <> 'authenticated'
