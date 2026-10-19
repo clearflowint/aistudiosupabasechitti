@@ -196,3 +196,14 @@ These requirements are part of the worker contract. The n8n draft now contains a
 - Current safety state rechecked: worker inactive, no active version, zero triggers, `liveCallsEnabled = false`, `projectConfigured = false`, `agencyName = 'Lakki'`, `wahaSessionName = 'Lakki'`. The read-only WAHA inventory node remains disconnected and disabled.
 - The CI run for the prior implementation/documentation commit completed successfully across TypeScript validation, CFCF financial calculation tests, registry contract tests, and production build. The later documentation-only commits do not change application code; do not infer a new CI run unless one appears for the latest commit.
 - Next blocker remains live schema/response validation and safe result/finalization wiring. Registry migrations remain undeployed; no billable Supabase branch may be created. Keep the worker and UI gates disabled.
+
+
+## Batch 23 — Sequential randomized pacing loop (draft only)
+
+- Added a native n8n `Loop Over Items` node with `batchSize = 1` after the queued-delivery validator. Each validated queued delivery flows through the existing uniform 15/30/60-second selector, then the native Wait node, then `Pacing Complete — Sender Still Blocked`, and loops to the next delivery.
+- The loop's done output goes to `Draft Queue Pacing Summary — No Sends`, which explicitly reports `senderConfigured = false` and `messagesSent = 0`. This is not a delivery result and does not finalize a registry job.
+- The pacing marker keeps both `senderBlocked = true` and `resultWriteBlocked = true`. There is still no WAHA send node connected to the queue path and no registry result/finalization call connected to it.
+- Set `retryOnFail = false` and `onError = stopWorkflow` explicitly on the global registry HTTP placeholders and the disabled WAHA session inventory node. No automatic retry or error-loop path is configured.
+- The full claim/read/validate/pacing path remains disconnected from Manual Start. The only Manual Start connection is the safe configuration gate; the WAHA inventory node is disconnected and disabled. This prevents accidental execution of placeholder Supabase URLs or repeated session inventory reads.
+- The loop structure was statically inspected after update. It was not executed because the native Wait can legitimately pause for 15, 30, or 60 seconds per item, and no sender is present to justify that execution. Synthetic validator tests from Batch 21/22 passed or failed as expected.
+- Remaining blockers: the global registry migrations are not deployed or runtime-tested; the queue/read/result/finalization nodes still contain placeholder URLs or lack service-role credentials; delivery-result and job-finalization behavior must be wired and tested with the RPC contract before any sender exists. Keep the worker inactive, UI gates disabled, and no retries/requeue/blind resend.
