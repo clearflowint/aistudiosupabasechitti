@@ -433,8 +433,8 @@ begin
   if v_current_status = p_status then
     update public.n8n_whatsapp_deliveries
     set provider_message_id = coalesce(provider_message_id, p_provider_message_id),
-        error_code = coalesce(error_code, p_error_code),
-        error_message = coalesce(error_message, left(p_error_message, 2000)),
+        error_code = case when p_status = 'sent_to_server' then null else coalesce(error_code, left(p_error_code, 200)) end,
+        error_message = case when p_status = 'sent_to_server' then null else coalesce(error_message, left(p_error_message, 2000)) end,
         session_name = coalesce(session_name, nullif(btrim(p_session_name), '')),
         accepted_at = case when p_status = 'sent_to_server' then coalesce(accepted_at, now()) else accepted_at end,
         updated_at = now()
