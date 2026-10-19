@@ -50,7 +50,9 @@ create table if not exists public.n8n_whatsapp_communications (
     references public.n8n_global_jobs(n8n_global_job_id, tenant_id, product_id)
     on delete cascade,
   constraint n8n_whatsapp_communications_channels_check
-    check (requested_channels <@ array['whatsapp']::text[] and cardinality(requested_channels) > 0)
+    check (requested_channels <@ array['whatsapp']::text[] and cardinality(requested_channels) > 0),
+  constraint n8n_whatsapp_communications_scope_unique
+    unique (n8n_whatsapp_communication_id, tenant_id, product_id)
 );
 
 create index if not exists n8n_whatsapp_communications_tenant_recent_idx
