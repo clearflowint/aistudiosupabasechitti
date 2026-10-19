@@ -234,6 +234,81 @@ begin
 end;
 $$;
 
+create or replace function public.n8n_record_whatsapp_delivery_result(
+  p_n8n_whatsapp_delivery_id uuid,
+  p_status text,
+  p_provider_message_id text default null,
+  p_error_code text default null,
+  p_error_message text default null,
+  p_session_name text default null
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $
+declare
+  v_current_status text;
+  v_updated integer;
+begin
+  if coalesce(auth.role(), '') <> 'service_role' then
+    raise exception 'Service role required' using errcode = '42501';
+  end if;
+
+  if p_status not in ('sent_to_server', 'failed', 'uncertain', 'skipped') then
+    raise exception 'Unsupported recipient delivery result' using errcode = '22023';
+  end if;
+
+  if p_status = 'sent_to_server' and nullif(btrim(p_session_name), '') is null then
+    raise exception 'A confirmed send result must include the actual WAHA session name'
+      using errcode = '22023';
+  end if;
+
+  select d.status into v_current_status
+  from public.n8n_whatsapp_deliveries d
+  where d.n8n_whatsapp_delivery_id = p_n8n_whatsapp_delivery_id
+  for update;
+
+  if not found then
+    return false;
+  end if;
+
+  -- Repeated identical callbacks are harmless. A later positive server
+  -- acknowledgement may resolve an uncertain result, but never triggers resend.
+  if v_current_status = p_status then
+    update public.n8n_whatsapp_deliveries
+    set provider_message_id = coalesce(provider_message_id, p_provider_message_id),
+        error_code = coalesce(error_code, p_error_code),
+        error_message = coalesce(error_message, left(p_error_message, 2000)),
+        session_name = coalesce(session_name, nullif(btrim(p_session_name), '')),
+        accepted_at = case when p_status = 'sent_to_server' then coalesce(accepted_at, now()) else accepted_at end,
+        updated_at = now()
+    where n8n_whatsapp_delivery_id = p_n8n_whatsapp_delivery_id;
+    return true;
+  end if;
+
+  if v_current_status <> 'queued'
+     and not (v_current_status = 'uncertain' and p_status = 'sent_to_server') then
+    raise exception 'Invalid delivery status transition from % to %', v_current_status, p_status
+      using errcode = '23514';
+  end if;
+
+  update public.n8n_whatsapp_deliveries
+  set status = p_status,
+      provider_message_id = coalesce(p_provider_message_id, provider_message_id),
+      error_code = case when p_status = 'sent_to_server' then null else left(p_error_code, 200) end,
+      error_message = case when p_status = 'sent_to_server' then null else left(p_error_message, 2000) end,
+      session_name = coalesce(nullif(btrim(p_session_name), ''), session_name),
+      attempted_at = coalesce(attempted_at, now()),
+      accepted_at = case when p_status = 'sent_to_server' then now() else accepted_at end,
+      updated_at = now()
+  where n8n_whatsapp_delivery_id = p_n8n_whatsapp_delivery_id;
+
+  get diagnostics v_updated = row_count;
+  return v_updated = 1;
+end;
+$;
+
 create or replace function public.n8n_finish_global_job(
   p_n8n_global_job_id uuid,
   p_status text,
@@ -283,6 +358,8 @@ $$;
 
 revoke all on function public.n8n_register_whatsapp_job(text,text,text,text,text,text,text,text,text,jsonb,jsonb,timestamptz) from public, anon, authenticated;
 revoke all on function public.n8n_claim_global_jobs(integer) from public, anon, authenticated;
+revoke all on function public.n8n_record_whatsapp_delivery_result(uuid,text,text,text,text,text) from public, anon, authenticated;
+grant execute on function public.n8n_record_whatsapp_delivery_result(uuid,text,text,text,text,text) to service_role;
 revoke all on function public.n8n_finish_global_job(uuid,text,text) from public, anon, authenticated;
 grant execute on function public.n8n_register_whatsapp_job(text,text,text,text,text,text,text,text,text,jsonb,jsonb,timestamptz) to service_role;
 grant execute on function public.n8n_claim_global_jobs(integer) to service_role;
@@ -292,5 +369,7 @@ comment on function public.n8n_register_whatsapp_job(text,text,text,text,text,te
   'Atomically registers one global n8n job, one WhatsApp communication and recipient delivery rows; service-role only.';
 comment on function public.n8n_claim_global_jobs(integer) is
   'Atomically claims registered global n8n jobs; stale picked-up jobs time out instead of being blindly resent.';
+comment on function public.n8n_record_whatsapp_delivery_result(uuid,text,text,text,text,text) is
+  'Records one recipient outcome with guarded status transitions; uncertain may become sent_to_server only on positive provider acknowledgement; service-role only.';
 comment on function public.n8n_finish_global_job(uuid,text,text) is
   'Marks a picked-up global n8n job completed, failed or timed_out; service-role only.';
