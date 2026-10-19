@@ -15,14 +15,14 @@ create or replace function public.n8n_register_whatsapp_job(
   p_recipients jsonb default '[]'::jsonb,
   p_scheduled_at timestamptz default null
 )
-returns table (n8n_global_job_id uuid, n8n_whatsapp_communication_id uuid, was_existing boolean)
+returns table (n8n_global_job_id integer, n8n_whatsapp_communication_id integer, was_existing boolean)
 language plpgsql
 security definer
 set search_path = public, pg_temp
 as $$
 declare
-  v_job_id uuid;
-  v_communication_id uuid;
+  v_job_id integer;
+  v_communication_id integer;
   v_existing public.n8n_global_jobs%rowtype;
   v_recipient jsonb;
 begin
@@ -239,7 +239,7 @@ end;
 $$;
 
 create or replace function public.n8n_record_whatsapp_delivery_result(
-  p_n8n_whatsapp_delivery_id uuid,
+  p_n8n_whatsapp_delivery_id integer,
   p_status text,
   p_provider_message_id text default null,
   p_error_code text default null,
@@ -253,7 +253,7 @@ set search_path = public, pg_temp
 as $$
 declare
   v_current_status text;
-  v_global_job_id uuid;
+  v_global_job_id integer;
   v_updated integer;
 begin
   if coalesce(auth.role(), '') <> 'service_role' then
@@ -326,7 +326,7 @@ end;
 $$;
 
 create or replace function public.n8n_finish_global_job(
-  p_n8n_global_job_id uuid,
+  p_n8n_global_job_id integer,
   p_status text,
   p_error text default null
 )
@@ -385,18 +385,18 @@ $$;
 
 revoke all on function public.n8n_register_whatsapp_job(text,text,text,text,text,text,text,text,text,jsonb,jsonb,timestamptz) from public, anon, authenticated;
 revoke all on function public.n8n_claim_global_jobs(integer) from public, anon, authenticated;
-revoke all on function public.n8n_record_whatsapp_delivery_result(uuid,text,text,text,text,text) from public, anon, authenticated;
-grant execute on function public.n8n_record_whatsapp_delivery_result(uuid,text,text,text,text,text) to service_role;
-revoke all on function public.n8n_finish_global_job(uuid,text,text) from public, anon, authenticated;
+revoke all on function public.n8n_record_whatsapp_delivery_result(integer,text,text,text,text,text) from public, anon, authenticated;
+grant execute on function public.n8n_record_whatsapp_delivery_result(integer,text,text,text,text,text) to service_role;
+revoke all on function public.n8n_finish_global_job(integer,text,text) from public, anon, authenticated;
 grant execute on function public.n8n_register_whatsapp_job(text,text,text,text,text,text,text,text,text,jsonb,jsonb,timestamptz) to service_role;
 grant execute on function public.n8n_claim_global_jobs(integer) to service_role;
-grant execute on function public.n8n_finish_global_job(uuid,text,text) to service_role;
+grant execute on function public.n8n_finish_global_job(integer,text,text) to service_role;
 
 comment on function public.n8n_register_whatsapp_job(text,text,text,text,text,text,text,text,text,jsonb,jsonb,timestamptz) is
   'Atomically registers one global n8n job, one WhatsApp communication and recipient delivery rows; service-role only.';
 comment on function public.n8n_claim_global_jobs(integer) is
   'Atomically claims registered global n8n jobs; stale picked-up jobs time out instead of being blindly resent.';
-comment on function public.n8n_record_whatsapp_delivery_result(uuid,text,text,text,text,text) is
+comment on function public.n8n_record_whatsapp_delivery_result(integer,text,text,text,text,text) is
   'Records one recipient outcome with guarded status transitions; uncertain may become sent_to_server only on positive provider acknowledgement; service-role only.';
-comment on function public.n8n_finish_global_job(uuid,text,text) is
+comment on function public.n8n_finish_global_job(integer,text,text) is
   'Marks a picked-up global n8n job completed, failed or timed_out; service-role only.';
