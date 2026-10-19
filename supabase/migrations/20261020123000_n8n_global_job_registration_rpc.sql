@@ -209,11 +209,11 @@ begin
   -- resent. A human/operator can inspect and explicitly re-register if needed.
   update public.n8n_global_jobs
   set status = 'timed_out',
-      last_error = coalesce(last_error, 'n8n pickup exceeded 15-minute processing window'),
+      last_error = coalesce(last_error, 'n8n pickup exceeded 90-minute processing window'),
       completed_at = now(),
       updated_at = now()
   where status = 'picked_up'
-    and picked_up_at < now() - interval '15 minutes';
+    and picked_up_at < now() - interval '90 minutes';
 
   return query
   with picked as (
