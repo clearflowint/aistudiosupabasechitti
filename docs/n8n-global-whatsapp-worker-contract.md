@@ -267,3 +267,10 @@ A repository contract test asserts the mapping guard. This remains static/source
 - Added a regression assertion for both fields. Seven targeted static checks passed against the fetched migration and test source, covering this fix, all-status finalization guard, uncertain-to-accepted transition, no timeout requeue, and service-role-only access.
 - Source-level only: no PostgreSQL execution, deployment, n8n activation, database write, or WhatsApp send. PWA notification objects and UI gates remain untouched; no retries or automatic requeue were added.
 
+## Batch 31 — Stale claim timeout audit
+
+- Audited the claim RPC's 90-minute stale-job timeout. The original predicate depended only on `picked_up_at`; a malformed `picked_up` row with a null pickup timestamp would never time out.
+- Updated the timeout predicate to fall back to `updated_at`, then `created_at`, only when `picked_up_at` is missing. The claim still only selects `registered` jobs with `FOR UPDATE SKIP LOCKED`; no timed-out job is requeued.
+- Added a regression assertion for the fallback and no-requeue behavior. Updated both registry and worker documentation to clarify that a timed-out job can retain queued deliveries for manual reconciliation; the claim-timeout update is a separate lifecycle path from the finalization RPC guard. No automatic status rewrite of delivery rows was added because the worker cannot prove whether an in-flight provider request was attempted.
+- Static source assertions only; no PostgreSQL execution or migration deployment. n8n remains inactive, UI gates remain disabled, no WAHA sends or registry writes occurred, PWA notification objects remain untouched, and no retries/requeue/blind resend were introduced.
+
