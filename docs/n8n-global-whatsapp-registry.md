@@ -68,6 +68,7 @@ Run these against an isolated test database before production deployment; reposi
 6. Submit duplicate phone numbers in one recipient array; expect one delivery per phone.
 7. Submit an empty recipient array, malformed recipient JSON or a blank phone; expect rejection of the entire transaction.
 8. Run two concurrent claims; expect a job to be returned to at most one claimant.
+9. Race a delivery-result callback against job completion; job completion must not succeed while the callback is still leaving a delivery queued.
 9. Finalize a picked-up job; verify a second finalization returns false.
 10. Age a picked-up job past the timeout threshold in a disposable test database; verify it becomes `timed_out` and is not requeued automatically.
 11. Verify all registry tables have RLS enabled, client roles have no table/RPC access, and service-role RPC calls work.
