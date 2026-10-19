@@ -246,7 +246,7 @@ returns boolean
 language plpgsql
 security definer
 set search_path = public, pg_temp
-as $
+as $$
 declare
   v_current_status text;
   v_updated integer;
@@ -307,7 +307,7 @@ begin
   get diagnostics v_updated = row_count;
   return v_updated = 1;
 end;
-$;
+$$;
 
 create or replace function public.n8n_finish_global_job(
   p_n8n_global_job_id uuid,
