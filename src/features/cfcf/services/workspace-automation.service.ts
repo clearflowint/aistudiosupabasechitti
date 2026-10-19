@@ -26,7 +26,7 @@ export async function registerCfcfBulkWhatsAppJob(
 
   const { data: fund, error: fundError } = await supabase
     .from("cfcf_funds")
-    .select("fund_id, fund_name")
+    .select("fund_id, fund_name, current_cycle, number_of_cycles")
     .eq("product_id", cfcfConfig.productId)
     .eq("tenant_id", tenantId)
     .eq("fund_id", fundId)
@@ -37,7 +37,7 @@ export async function registerCfcfBulkWhatsAppJob(
 
   let shareQuery = supabase
     .from("cfcf_shares")
-    .select("share_id, contact_id, total_pending")
+    .select("share_id, contact_id, total_pending, total_advance")
     .eq("product_id", cfcfConfig.productId)
     .eq("tenant_id", tenantId)
     .eq("fund_id", fundId);
@@ -52,18 +52,18 @@ export async function registerCfcfBulkWhatsAppJob(
       : "This Fund has no shares to report.");
   }
 
-  const contacts: Array<{ contact_id: string; phone: string }> = [];
+  const contacts: Array<{ contact_id: string; name: string; phone: string }> = [];
   for (let offset = 0; offset < contactIds.length; offset += 500) {
     const { data, error } = await supabase
       .from("contacts")
-      .select("contact_id, phone")
+      .select("contact_id, name, phone")
       .eq("product_id", cfcfConfig.productId)
       .eq("tenant_id", tenantId)
       .in("contact_id", contactIds.slice(offset, offset + 500));
     if (error) throw new Error("Unable to resolve saved Contact phone numbers: " + error.message);
     for (const contact of data ?? []) {
       if (typeof contact.phone === "string" && contact.phone.trim()) {
-        contacts.push({ contact_id: contact.contact_id, phone: contact.phone.trim() });
+        contacts.push({ contact_id: contact.contact_id, name: typeof contact.name === "string" ? contact.name.trim() : "", phone: contact.phone.trim() });
       }
     }
   }
@@ -74,13 +74,33 @@ export async function registerCfcfBulkWhatsAppJob(
   }])).values()];
   if (recipients.length === 0) throw new Error("No shares have Contacts with usable phone numbers.");
 
-  const shareIdsByContact: Record<string, string[]> = {};
-  const pendingByContact: Record<string, number> = {};
+  const sharesByContact: Record<string, Array<{ share_id: string; pending_amount: number; advance_amount: number }>> = {};
   for (const share of shares ?? []) {
     if (!share.contact_id) continue;
-    (shareIdsByContact[share.contact_id] ??= []).push(share.share_id);
-    pendingByContact[share.contact_id] = (pendingByContact[share.contact_id] ?? 0) + Number(share.total_pending ?? 0);
+    (sharesByContact[share.contact_id] ??= []).push({
+      share_id: share.share_id,
+      pending_amount: Number(share.total_pending ?? 0),
+      advance_amount: Number(share.total_advance ?? 0),
+    });
   }
+  const contactNamesById = Object.fromEntries(contacts.map((contact) => [contact.contact_id, contact.name]).filter(([, name]) => Boolean(name)));
+  const { data: tenant, error: tenantError } = await supabase
+    .from("tenants")
+    .select("business_name, name")
+    .eq("product_id", cfcfConfig.productId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (tenantError) throw new Error("Unable to load workspace name for WhatsApp message: " + tenantError.message);
+  const { data: manager, error: managerError } = await supabase
+    .from("persons")
+    .select("name")
+    .eq("product_id", cfcfConfig.productId)
+    .eq("tenant_id", tenantId)
+    .eq("person_id", personId)
+    .maybeSingle();
+  if (managerError) throw new Error("Unable to load manager name for WhatsApp message: " + managerError.message);
+  const senderName = [tenant?.business_name, tenant?.name, manager?.name]
+    .find((name) => typeof name === "string" && name.trim())?.trim() ?? "Fund Manager";
 
   const jobType = automation === "pending-reminder-all" ? "pending_reminder" : "report";
   const communicationType = automation === "pending-reminder-all" ? "pending_reminder" : "report";
@@ -99,8 +119,11 @@ export async function registerCfcfBulkWhatsAppJob(
       automation,
       fund_id: fundId,
       fund_name: fund.fund_name,
-      share_ids_by_contact: shareIdsByContact,
-      pending_by_contact: pendingByContact,
+      current_cycle: Number(fund.current_cycle ?? 0),
+      number_of_cycles: fund.number_of_cycles == null ? null : Number(fund.number_of_cycles),
+      sender_name: senderName,
+      contact_names_by_id: contactNamesById,
+      shares_by_contact: sharesByContact,
     },
     p_recipients: recipients,
     p_scheduled_at: null,
