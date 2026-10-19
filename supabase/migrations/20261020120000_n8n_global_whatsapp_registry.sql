@@ -7,7 +7,7 @@ create table if not exists public.n8n_global_jobs (
   tenant_id text not null references public.tenants(tenant_id) on delete restrict,
   product_id text not null,
   person_id text not null references public.persons(person_id) on delete restrict,
-  job_type not null,
+  job_type text not null,
   source_table text not null,
   source_record_id text not null,
   status text not null default 'registered'
@@ -61,7 +61,7 @@ create index if not exists n8n_whatsapp_communications_tenant_recent_idx
 create table if not exists public.n8n_whatsapp_deliveries (
   n8n_whatsapp_delivery_id uuid primary key default gen_random_uuid(),
   n8n_whatsapp_communication_id uuid not null
-    references public.n8n_whatsapp_communications(n8n_whatsapp_communication_id) on delete cascade,
+    references public.n8n_whatsapp_communications(n8n_whatsapp_communication_id) on delete restrict,
   tenant_id text not null,
   product_id text not null,
   recipient_person_id text references public.persons(person_id) on delete set null,
