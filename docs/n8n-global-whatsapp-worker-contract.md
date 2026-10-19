@@ -303,3 +303,9 @@ A repository contract test asserts the mapping guard. This remains static/source
 - Reduced the history response to operational status and aggregate delivery counts. Removed person IDs, source table/record IDs, message body text, and raw last-error strings from the RPC result and client type. The Notifications panel no longer renders message bodies or raw provider/worker errors. This reduces unnecessary exposure if a provider error includes personal data or diagnostic details.
 - Added a regression assertion for tenant/product/active-owner scope, bounded result count, and omission of sensitive fields.
 - Static repository review only; no PostgreSQL runtime test or migration deployment. Worker remains inactive, registration UI gates remain false, PWA notification objects are untouched, no billable branch was created, and no retries/requeue/blind resend or WhatsApp message was performed.
+
+## Batch 36 — Recipient array validation order
+
+- Corrected the registration RPC validation order so null/non-array recipient input is rejected before either the authenticated authorization branch or any call to jsonb_array_elements. This ensures malformed input fails through the intended validation error and cannot reach iteration logic first.
+- Added a regression assertion that the array-shape guard precedes the first jsonb_array_elements call, while retaining the existing empty-array and pre-insert ordering checks.
+- Source-level validation only; PostgreSQL runtime tests and migration deployment remain pending. No PWA notification changes, billable branch, n8n activation, UI-gate changes, retries, requeue, blind resend, or WhatsApp sends.
