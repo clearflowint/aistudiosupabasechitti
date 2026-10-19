@@ -299,7 +299,7 @@ begin
       error_code = case when p_status = 'sent_to_server' then null else left(p_error_code, 200) end,
       error_message = case when p_status = 'sent_to_server' then null else left(p_error_message, 2000) end,
       session_name = coalesce(nullif(btrim(p_session_name), ''), session_name),
-      attempted_at = coalesce(attempted_at, now()),
+      attempted_at = case when p_status = 'skipped' then attempted_at else coalesce(attempted_at, now()) end,
       accepted_at = case when p_status = 'sent_to_server' then now() else accepted_at end,
       updated_at = now()
   where n8n_whatsapp_delivery_id = p_n8n_whatsapp_delivery_id;
