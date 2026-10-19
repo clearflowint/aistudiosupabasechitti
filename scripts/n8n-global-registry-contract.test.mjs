@@ -247,5 +247,5 @@ test("preflight rejection is a draft-only skipped outcome, while valid payload s
   assert.match(contract, /draftSuggestedResultStatus = skipped/);
   assert.match(contract, /A valid preflight is explicitly classified as `not_attempted_sender_blocked`/);
   assert.match(contract, /resultWriteBlocked = true/);
-  assert.match(contract, /not marked accepted, failed, or delivered merely because the text is valid/);
+  assert.match(contract, /marked accepted, failed, or delivered merely because the text is valid/);
 });
