@@ -12,6 +12,9 @@ Deno.serve(async (req: Request) => {
     return reply(401, { error: "Unauthorized evaluator" });
   }
 
+  let mode = "new_alerts";
+  try { const body = await req.json(); if (body?.mode === "daily_summary") mode = "daily_summary"; } catch { /* default to new-alert mode */ }
+
   const url = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !serviceKey) return reply(503, { error: "Evaluator is not configured." });
@@ -28,8 +31,7 @@ Deno.serve(async (req: Request) => {
     .eq("product_id", "CFCF").eq("status", "active").is("archived_at", null);
   if (fundsError) return reply(500, { error: "Unable to load active CFCF funds." });
 
-  // A tenant's current alert set is persisted per product origin. Daily evaluation
-  // compares the set and only queues alerts that have appeared since the last run.
+  // Six-hour mode notifies only newly appearing alerts; daily-summary mode reminds about all currently active alerts.
   const tenantAlertKeys = new Map<string, Set<string>>();
   const addAlert = (tenantId: string, key: string) => {
     if (!tenantAlertKeys.has(tenantId)) tenantAlertKeys.set(tenantId, new Set<string>());
@@ -101,21 +103,34 @@ Deno.serve(async (req: Request) => {
       }, { onConflict: "product_id,tenant_id,origin_id" });
       if (stateWriteError) return reply(500, { error: "Unable to update manager alert state." });
 
-      // First run records a baseline, preventing a burst for alerts that already existed.
-      if (!previous || newlyAdded.length === 0) continue;
+      // The six-hour run records a baseline without sending a burst for existing alerts.
+      if (mode === "new_alerts" && (!previous || newlyAdded.length === 0)) continue;
+      if (mode === "daily_summary" && currentKeys.size === 0) continue;
 
-      const digestBytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(newlyAdded.join("\n")));
-      const digest = Array.from(new Uint8Array(digestBytes)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+      const alertKeysForNotice = mode === "daily_summary" ? Array.from(currentKeys).sort() : newlyAdded;
+      const istDate = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit",
+      }).format(new Date());
+      let eventKey: string;
+      if (mode === "daily_summary") {
+        eventKey = "manager-alerts-daily:" + istDate;
+      } else {
+        const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(alertKeysForNotice.join("\\n")));
+        eventKey = "manager-alerts:" + Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+      }
+      const count = alertKeysForNotice.length;
       const { data, error } = await admin.from("clearflow_push_outbox").upsert({
         product_id: "CFCF",
         tenant_id: tenantId,
         origin_id: origin.origin_id,
-        event_key: "manager-alerts:" + digest,
+        event_key: eventKey,
         notification_type: "manager_alerts",
-        title: "ClearFlow manager alerts",
-        body: newlyAdded.length === 1 ? "A new manager alert needs your attention." : newlyAdded.length + " new manager alerts need your attention.",
+        title: mode === "daily_summary" ? "ClearFlow daily manager alert summary" : "ClearFlow manager alerts",
+        body: mode === "daily_summary"
+          ? count + " outstanding manager alert" + (count === 1 ? "" : "s") + " need your attention."
+          : count === 1 ? "A new manager alert needs your attention." : count + " new manager alerts need your attention.",
         target_url: "/",
-        payload: { source: "cfcf-manager-alerts", alert_count: newlyAdded.length },
+        payload: { source: mode === "daily_summary" ? "cfcf-manager-alerts-daily-summary" : "cfcf-manager-alerts", alert_count: count },
         delivery_status: "pending",
         available_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
