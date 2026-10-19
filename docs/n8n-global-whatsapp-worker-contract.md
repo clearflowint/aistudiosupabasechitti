@@ -7,7 +7,7 @@ This is the repository-side implementation contract for the future worker. It is
 ## Scope boundary
 
 - The global worker handles only jobs registered in `n8n_global_jobs` and their linked communication/delivery rows.
-- Existing CFCF campaign dispatch and campaign callbacks remain separate. Do not invoke campaign dispatch from this worker or create a second campaign send path.
+- New Launch Campaign WhatsApp requests register directly through the authenticated Supabase RPC and enter this same global worker path. Do not call the legacy `campaign-dispatch` Edge Function from the new route or create a second campaign send path. Existing campaign notification history is a separate product UI concern and must not be mistaken for the registry delivery ledger.
 - The monthly schedule evaluator remains inactive and is not the WhatsApp worker.
 - Do not modify PWA push-notification tables, functions, triggers, cron jobs, or data.
 - n8n owns orchestration and WAHA calls. Supabase registry RPCs own atomic claiming and durable lifecycle state.
