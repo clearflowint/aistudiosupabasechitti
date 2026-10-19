@@ -60,17 +60,17 @@ Repository-level checks can verify workflow structure, integer ID usage, scope p
 | Existing entry point | Current route | Required target |
 |---|---|---|
 | Contact Groups → Launch Campaign | `ContactGroupsPanel.tsx` → `contact-groups.service.ts` → authenticated `n8n_register_whatsapp_job` RPC → global worker | The direct registration path is implemented in source but the UI gate remains disabled. It supports WhatsApp only. The legacy `campaign-dispatch` Edge Function remains in the repository but is not called by the new route. Campaign notification-history integration still needs a registry-backed UI path; do not treat the legacy callback as wired to this new route. |
-| Workspace bulk Pending / Reports WhatsApp actions | `workspace-automation.service.ts` currently has a placeholder URL and `CFCF_WORKSPACE_AUTOMATIONS_ENABLED = false`; no production route is connected | Replace the placeholder with an authenticated server-side handoff that registers a global job scoped to `product_id = 'CFCF'` and the authorized `tenant_id`, then return an immediate acceptance receipt. The worker uses the integer `n8n_global_job_id` and per-recipient delivery IDs. Preserve the existing per-tenant hourly limits and source-record/idempotency protections. |
+| Workspace bulk Pending / Reports WhatsApp actions | `WorkspacePage.tsx` → `workspace-automation.service.ts` → authenticated `n8n_register_whatsapp_job` RPC → global worker | Direct integer job-ID registration is implemented in source, with tenant-scoped Fund/Share/Contact reads and server-side tenant-owner/phone checks. The UI gate remains disabled until runtime tests and the worker/WAHA route are validated. Existing per-tenant hourly limits still need to be enforced before cutover. |
 | Monthly scheduled evaluator | Existing workflow JSON uses placeholder Supabase URLs and is inactive; it does not call the global registry | Keep inactive until the schedule-to-job handoff is explicitly wired and tested. Do not treat the evaluator as the sender. |
 
 ### Safe cutover order
 
-1. Keep both UI gates disabled and the existing campaign route unchanged while the registry is only in a draft PR.
+1. Keep both UI gates disabled while the registry is only in a draft PR; direct registration source code exists, but it must not be used before runtime validation.
 2. Finish and validate the worker with synthetic data, including integer IDs, scoped lookups, duplicate-registration behavior, and terminal delivery states.
 3. Confirm the actual WAHA endpoint and session name; configure credentials in n8n, not in source files.
-4. Add the server-side registration handoff for workspace Pending/Reports and the WhatsApp portion of Launch Campaign. Use a stable source-based idempotency key. Do not put service-role credentials or registry writes in browser code.
+4. Validate the already-added authenticated registration RPC route for workspace Pending/Reports and the WhatsApp portion of Launch Campaign. Confirm a job ID is returned and visible in Notifications before enabling either UI gate. Keep service-role credentials out of browser code.
 5. Ensure each WhatsApp send has exactly one path: either the legacy campaign workflow or the global worker, never both. Keep the existing campaign callback/notification aggregation for campaign status; the registry is the per-recipient WhatsApp delivery ledger, not a replacement for the product notification history.
-6. Only after SQL runtime tests and a user-authorized controlled test pass, enable the relevant gates in a separate, reviewed change. Do not enable SMS/email through the WhatsApp-only registry.
+6. Only after SQL runtime tests, tenant-scoped history UI checks and a user-authorized controlled test pass, enable the relevant gates in a separate, reviewed change. Do not enable SMS/email through the WhatsApp-only registry.
 7. Do not introduce automatic retries, automatic requeue, or blind resend for uncertain sends. Keep the current no-retry policy for the global worker.
 
 The direct registration code paths now exist for Launch Campaign and bulk Pending/Reports, and Notifications includes a registry-backed job history view. Both UI gates remain disabled. The active production sending route is **not cut over** until the worker, runtime tests and controlled delivery pass.
