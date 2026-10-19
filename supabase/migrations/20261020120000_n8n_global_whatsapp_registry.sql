@@ -4,7 +4,7 @@
 
 create table if not exists public.n8n_global_jobs (
   n8n_global_job_id uuid primary key default gen_random_uuid(),
-  tenant_id text not null references public.tenants(tenant_id) on delete cascade,
+  tenant_id text not null references public.tenants(tenant_id) on delete restrict,
   product_id text not null,
   person_id text not null references public.persons(person_id) on delete restrict,
   job_type not null,
@@ -48,7 +48,7 @@ create table if not exists public.n8n_whatsapp_communications (
   constraint n8n_whatsapp_communications_scope_fk
     foreign key (n8n_global_job_id, tenant_id, product_id)
     references public.n8n_global_jobs(n8n_global_job_id, tenant_id, product_id)
-    on delete cascade,
+    on delete restrict,
   constraint n8n_whatsapp_communications_channels_check
     check (requested_channels <@ array['whatsapp']::text[] and cardinality(requested_channels) > 0),
   constraint n8n_whatsapp_communications_scope_unique
@@ -80,7 +80,7 @@ create table if not exists public.n8n_whatsapp_deliveries (
   constraint n8n_whatsapp_deliveries_scope_fk
     foreign key (n8n_whatsapp_communication_id, tenant_id, product_id)
     references public.n8n_whatsapp_communications(n8n_whatsapp_communication_id, tenant_id, product_id)
-    on delete cascade,
+    on delete restrict,
   constraint n8n_whatsapp_deliveries_phone_nonblank check (length(btrim(recipient_phone)) > 0),
   constraint n8n_whatsapp_deliveries_session_nonblank check (session_name is null or length(btrim(session_name)) > 0),
   constraint n8n_whatsapp_deliveries_recipient_unique
