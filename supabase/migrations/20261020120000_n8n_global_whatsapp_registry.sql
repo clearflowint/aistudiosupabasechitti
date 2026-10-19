@@ -87,6 +87,9 @@ create table if not exists public.n8n_whatsapp_deliveries (
     unique (n8n_whatsapp_communication_id, recipient_contact_id, recipient_phone)
 );
 
+create unique index if not exists n8n_whatsapp_deliveries_phone_unique
+  on public.n8n_whatsapp_deliveries (n8n_whatsapp_communication_id, recipient_phone);
+
 create index if not exists n8n_whatsapp_deliveries_communication_status_idx
   on public.n8n_whatsapp_deliveries (n8n_whatsapp_communication_id, status);
 
@@ -129,7 +132,7 @@ $$;
 
 drop trigger if exists n8n_validate_global_job_scope_trg on public.n8n_global_jobs;
 create trigger n8n_validate_global_job_scope_trg
-before insert or update of tenant_id, product_id, person_id
+before insert or update
 on public.n8n_global_jobs
 for each row execute function public.n8n_validate_global_job_scope();
 
@@ -168,7 +171,7 @@ $$;
 
 drop trigger if exists n8n_validate_whatsapp_communication_scope_trg on public.n8n_whatsapp_communications;
 create trigger n8n_validate_whatsapp_communication_scope_trg
-before insert or update of n8n_global_job_id, tenant_id, product_id, requested_by_person_id
+before insert or update
 on public.n8n_whatsapp_communications
 for each row execute function public.n8n_validate_whatsapp_communication_scope();
 
@@ -208,7 +211,7 @@ $$;
 
 drop trigger if exists n8n_validate_whatsapp_delivery_scope_trg on public.n8n_whatsapp_deliveries;
 create trigger n8n_validate_whatsapp_delivery_scope_trg
-before insert or update of n8n_whatsapp_communication_id, tenant_id, product_id, recipient_person_id
+before insert or update
 on public.n8n_whatsapp_deliveries
 for each row execute function public.n8n_validate_whatsapp_delivery_scope();
 
