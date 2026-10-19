@@ -315,3 +315,10 @@ A repository contract test asserts the mapping guard. This remains static/source
 - Reviewed the existing scope constraints and status RPCs without adding a new status framework or redundant constraints. Found one narrow gap: the delivery scope trigger validated saved Contact/phone consistency on insert and scope edits, but its UPDATE OF list did not include recipient_contact_id or recipient_phone themselves.
 - Updated the existing trigger event list so changing a delivery's Contact or phone re-runs the same saved-Contact, tenant/product, and phone match check. Added a focused static regression assertion for that trigger event list.
 - This is a small correction to an existing invariant, not a new policy layer. No other constraints were added in this batch. Static validation only; no PostgreSQL execution or migration deployment. No PWA changes, billable branch, worker activation, retries, requeue, blind resend, or WhatsApp sends.
+
+
+## Batch 38 — Lifecycle assertion consistency
+
+- Rechecked delivery-result transitions and job finalization. The existing behavior remains coherent: a delivery can move from `queued` to an explicit terminal outcome, and only a positive later acknowledgement can move `uncertain` to `sent_to_server`; finalization refuses to finish any picked-up job while a delivery is still queued.
+- Found one stale repository-test assertion that still expected the older `picked_up_at`-only timeout predicate after Batch 31 introduced the timestamp fallback. Updated the assertion to match `coalesce(picked_up_at, updated_at, created_at)` so it tests the current intended timeout behavior.
+- No SQL lifecycle changes were needed. No new status rules, retries, requeue, or blind resend were added. This remains source-level validation; no PostgreSQL execution, migration deployment, n8n activation, registry write, or WhatsApp send occurred. PWA notification objects remain untouched and the UI gates remain disabled.
