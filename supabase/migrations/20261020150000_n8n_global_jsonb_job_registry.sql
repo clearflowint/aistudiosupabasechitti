@@ -61,3 +61,19 @@ comment on table public.n8n_global_jobs is
 
 comment on column public.n8n_global_jobs.job_data is
   'Single JSONB document for request details, prepared payload, recipients (maximum 100 for campaigns), per-recipient status, acknowledgement events, progress, errors and result summary. n8n updates this same row as work proceeds.';
+
+-- Transport-level idempotency for authenticated inbound WhatsApp events.
+-- Event identity is scoped to product/tenant, provider, and trusted session.
+-- Only create these fields after ingress authentication and authoritative tenant/session resolution.
+create unique index n8n_global_jobs_inbound_event_unique_idx
+  on public.n8n_global_jobs (
+    product_id,
+    tenant_id,
+    (job_data ->> 'provider_name'),
+    (job_data ->> 'session_name'),
+    (job_data ->> 'provider_event_id')
+  )
+  where job_type = 'whatsapp_inbound'
+    and nullif(btrim(job_data ->> 'provider_name'), '') is not null
+    and nullif(btrim(job_data ->> 'session_name'), '') is not null
+    and nullif(btrim(job_data ->> 'provider_event_id'), '') is not null;
