@@ -62,7 +62,7 @@ n8n is the only writer for a job's JSONB progress. Keep recipient processing and
 - PR #24 contains the additive registry migration as a draft; it has not been merged or applied to production.
 - The n8n workflow **ClearFlow — JSONB Job Contract Preview (Draft Only)** exists in the personal n8n project, is confirmed inactive, and has three nodes: Webhook → validation-only Code node → JSON response.
 - That workflow performs structural validation only. It does not authenticate a caller, read Supabase, create/update a job, schedule work, call WAHA/provider APIs, or send callbacks. Do not activate it or connect the PWA to it.
-- The workflow was validated by the n8n Workflow SDK. Runtime preview validation and authenticated tenant checks remain outstanding.
+- The workflow passed an n8n Workflow SDK validation and two manual, side-effect-free executions: a valid campaign envelope returned `ok: true`, and 101 explicit unique contact IDs returned `ok: false` with the over-limit error. Group membership resolution and authenticated tenant checks remain outstanding.
 - The PWA still uses its existing `campaign-dispatch` path. It has not been changed in this batch.
 - No production migration, deployment, credential changes, workflow activation, or provider sends occurred.
 - Existing PWA push tables/functions/data/cron jobs remain untouched. The rolled-back CFCF schedule/job tables and prototype functions are not recreated here.
