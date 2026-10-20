@@ -1,8 +1,8 @@
 // CFCF PRODUCT: Contact Group management and bulk campaign composer.
-// MIX: Receives authorized workspace identity and existing Contacts; campaign dispatch goes through the authenticated Edge Function.
+// MIX: Sends campaign instructions to n8n; n8n resolves recipients and prepares/delivers WhatsApp messages.
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { FolderPlus, Pencil, Trash2, UsersRound, Megaphone, MessageCircle, Mail, Smartphone, RefreshCw, CheckCircle2 } from "lucide-react";
+import { FolderPlus, Pencil, Trash2, UsersRound, Megaphone, MessageCircle, RefreshCw, CheckCircle2 } from "lucide-react";
 import { Modal } from "../../../components/ui/Modal";
 import type { AuthorizedWorkspace } from "../../../core/workspace/workspace.types";
 import type { CfcfContactGroupMemberRow, CfcfContactGroupRow, CfcfContactRow } from "../types/database.types";
@@ -243,14 +243,15 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
     setPreparedCampaign(null);
     setIsPreparingCampaign(true);
     try {
+      const selectedGroupNames = groups.filter((group) => campaignGroupIds.includes(group.group_id)).map((group) => group.group_name);
       const receipt = await dispatchCfcfCampaign(
         workspace.tenantId,
-        campaignGroupIds,
+        selectedGroupNames,
         channels,
         message,
       );
       setPreparedCampaign(receipt);
-      setNotice("n8n acknowledged campaign " + receipt.campaign_id + ". Delivery is processing; final results will appear in Notifications.");
+      setNotice("n8n queued WhatsApp campaign job " + receipt.job_id + ". Recipient resolution and delivery have not been confirmed yet.");
     } catch (prepareFailure) {
       setCampaignError(prepareFailure instanceof Error ? prepareFailure.message : "Unable to prepare this campaign.");
     } finally {
@@ -399,7 +400,7 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
         </div>
       </Modal>
 
-      <Modal isOpen={isCampaignOpen} title="Launch Campaign" description={CAMPAIGN_AUTOMATION_ENABLED ? "Select an audience, choose delivery channels and write your message." : "Preview the campaign setup. Sending is disabled until n8n is configured."} size="large" onClose={() => { if (!isPreparingCampaign) setIsCampaignOpen(false); }}>
+      <Modal isOpen={isCampaignOpen} title="Launch Campaign" description={CAMPAIGN_AUTOMATION_ENABLED ? "Select Contact Groups and write the WhatsApp message. n8n handles recipients and delivery." : "Preview the campaign setup. Sending is disabled until n8n is configured."} size="large" onClose={() => { if (!isPreparingCampaign) setIsCampaignOpen(false); }}>
         <form onSubmit={(event) => void handlePrepareCampaign(event)} className="space-y-5">
           {!CAMPAIGN_AUTOMATION_ENABLED && <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-5 text-amber-900"><strong>Automation not enabled — no messages will be sent.</strong> Configure the n8n webhook and callback secret, test the workflow, then enable the campaign feature flag in this file.</div>}
           <fieldset>
@@ -407,8 +408,6 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               {([
                 { value: "whatsapp" as const, label: "WhatsApp", icon: MessageCircle, color: "emerald" },
-                { value: "sms" as const, label: "SMS", icon: Smartphone, color: "blue" },
-                { value: "email" as const, label: "Email", icon: Mail, color: "violet" },
               ]).map((channel) => {
                 const checked = channels.includes(channel.value);
                 const Icon = channel.icon;
@@ -449,9 +448,9 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
           {preparedCampaign && (
             <div role="status" className="space-y-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
               <div className="flex items-center gap-2 font-semibold"><CheckCircle2 size={17} /> n8n acknowledged receipt</div>
-              <p>{preparedCampaign.recipient_count} unique recipients queued across {preparedCampaign.channels.join(", ")}. This is an acceptance receipt, not a delivery confirmation.</p>
-              <p className="break-all text-xs text-emerald-800">Campaign ID: {preparedCampaign.campaign_id}</p>
-              <p className="text-xs text-emerald-800">Final delivery status will be recorded in Notifications when n8n calls the delivery callback.</p>
+              <p>Contact Group names and your message body were queued for n8n. n8n will resolve the unique recipients from Supabase; this acknowledgement is not a delivery confirmation.</p>
+              <p className="break-all text-xs text-emerald-800">Job ID: {preparedCampaign.job_id}</p>
+              <p className="text-xs text-emerald-800">Only WhatsApp bulk campaigns are supported in this phase.</p>
             </div>
           )}
           <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
