@@ -75,6 +75,7 @@ interface CfcfAutomationScheduleDraft {
   scheduleId?: string;
   nextRunAt?: string | null;
   lastRunAt?: string | null;
+  lastError?: string | null;
 }
 
 
@@ -282,6 +283,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         scheduleId: row?.schedule_id,
         nextRunAt: row?.next_run_at,
         lastRunAt: row?.last_run_at,
+        lastError: row?.last_error,
       };
     }));
   }
@@ -327,7 +329,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
         isEnabled: slot.isEnabled,
       });
       setScheduleSlots((current) => current.map((item) => item.jobType === slot.jobType && item.slotNumber === slot.slotNumber
-        ? { ...item, dayOfMonth: String(saved.day_of_month), timeOfDay: String(saved.time_of_day).slice(0, 5), isEnabled: saved.is_enabled, scheduleId: saved.schedule_id, nextRunAt: saved.next_run_at, lastRunAt: saved.last_run_at }
+        ? { ...item, dayOfMonth: String(saved.day_of_month), timeOfDay: String(saved.time_of_day).slice(0, 5), isEnabled: saved.is_enabled, scheduleId: saved.schedule_id, nextRunAt: saved.next_run_at, lastRunAt: saved.last_run_at, lastError: saved.last_error }
         : item));
       setScheduleNotice((slot.isEnabled ? "Enabled" : "Disabled") + " " + (slot.jobType === "pending_due_reminder" ? "Pending reminder" : "Report") + " slot " + slot.slotNumber + ".");
     } catch (error) {
@@ -2805,6 +2807,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
                         </div>
                         {slot.nextRunAt && <p className="mt-2 text-xs text-slate-500">Next run: {new Date(slot.nextRunAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}</p>}
                         {slot.lastRunAt && <p className="mt-1 text-xs text-slate-500">Last run: {new Date(slot.lastRunAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}</p>}
+                        {slot.lastError && <p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs leading-5 text-amber-900">Last occurrence note: {slot.lastError}</p>}
                         <div className="mt-3 flex justify-end">
                           <button type="button" onClick={() => void handleSaveScheduleSlot(slot)} disabled={Boolean(savingScheduleKey) || !hasDayTime} className={"inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-white disabled:opacity-50 " + (group.jobType === "pending_due_reminder" ? "bg-amber-700" : "bg-sky-700")}>
                             {isSaving ? <><RefreshCw size={15} className="animate-spin" /> Saving…</> : "Save slot"}
