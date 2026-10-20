@@ -11,6 +11,21 @@ Use one global table, `public.n8n_global_jobs`, for job tracking across ClearFlo
 - No per-recipient delivery table, separate communication table, automation RPC, or generic database function is introduced.
 - The PWA can read only jobs for its active product/tenant owner. n8n is the writer using server-side credentials, never browser code.
 
+## Workflow ownership and names
+
+The global table is not a global business workflow. Keep product-specific execution separate:
+
+- `public.n8n_global_jobs` is the global registry; each row is scoped by `product_id` and `tenant_id`.
+- **ClearFlow — JSONB Job Contract Preview (Draft Only)** is the global PWA contract preview only; it is not a CFCF business or WhatsApp workflow.
+- **CFCF Automation Worker — Draft** is CFCF-specific and remains incomplete/inactive.
+- **CFCF — Monthly Schedule Evaluator (Setup Required)** is CFCF-specific and remains inactive.
+- **CFCF — Shared Error Handler** is shared only across CFCF workflows, not a global cross-product error handler.
+- **ClearFlow MCP Connection Test** is a connection-test utility, not a business workflow.
+
+For WhatsApp, the selected design is a CFCF-dedicated shared number/session with CFCF-specific routing, plus a separate entry path for tenant-owned CFCF numbers/sessions. Keep inbound product routing out of a global workflow because the dedicated shared number already determines the product. The shared-number entry checks the sender against authoritative CFCF tenant/contact records before tenant-specific routing; the tenant-owned entry resolves the receiver number to a CFCF tenant and then checks the sender within that tenant. Ambiguous or unknown mappings follow the CFCF unknown-sender policy without private-data disclosure.
+
+Do not fan out one inbound event to multiple business workflows. Do not create or activate any new workflow as part of this design note. Reuse the exact existing names above and add a new workflow only when a distinct responsibility is confirmed. The CFCF schedule evaluator remains separate from WhatsApp inbound processing. Existing PWA notification tables/functions/data/cron jobs remain untouched; do not recreate rolled-back CFCF schedule/job tables or prototype RPCs.
+
 ## Flow
 
 1. The PWA sends the manager's instruction, product ID, tenant ID, action and selected IDs.
