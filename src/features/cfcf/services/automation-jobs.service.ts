@@ -71,6 +71,7 @@ export async function requestCfcfAutomationJob(
       request_id: requestId,
       product_id: cfcfConfig.productId,
       tenant_id: tenantId,
+      scope: "fund",
       action,
       selected: { fund_id: fundId },
       options: { execution_mode: "manual_send" },
