@@ -872,3 +872,28 @@ test("schedule contract: one durable job per stable occurrence and duplicate occ
     assert.ok(contract.includes(phrase), "missing occurrence idempotency rule: " + phrase);
   }
 });
+
+
+// Batch 37 — controlled non-production evidence matrix.
+test("non-production readiness: evidence matrix requires authorization, idempotency, atomic claim, and safe provider outcomes", () => {
+  for (const phrase of [
+    "Controlled non-production test evidence matrix — Batch 37",
+    "user explicitly approves a specific non-production Supabase project",
+    "same request and concurrent duplicate return the same canonical job ID",
+    "Two workers competing for one queued job yield one winning claim",
+    "Possible submission with unknown outcome becomes uncertain; no resend"
+  ]) {
+    assert.ok(contract.includes(phrase), "missing non-production evidence gate: " + phrase);
+  }
+});
+
+test("non-production readiness: real sends and production access remain prohibited until gates are met", () => {
+  for (const phrase of [
+    "Do not use real phone numbers, real WhatsApp sends, production data, production credentials, or production migration paths",
+    "actual WAHA-to-n8n authentication is verified from configuration",
+    "approved monthly dates are recovered",
+    "Passing static CI alone does not satisfy any live integration gate"
+  ]) {
+    assert.ok(contract.includes(phrase), "missing non-production safety boundary: " + phrase);
+  }
+});
