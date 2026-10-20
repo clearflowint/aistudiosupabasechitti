@@ -148,3 +148,15 @@ Static repository tests now assert that the draft inbound-event uniqueness index
 The tests also pin the required conflict behavior: only a confirmed duplicate may return the existing same-scope job with transport success; any other persistence error must remain retryable non-2xx. Event deduplication is not an authorization shortcut: ingress authentication and authoritative session/tenant/contact resolution must happen first.
 
 These are repository-level contract tests only. They do not execute PostgreSQL, prove unique-index behavior against a live database, or implement the ingress queue. The migration remains draft-only, all relevant n8n workflows remain inactive, and no PWA notification objects are changed.
+
+
+## Manager progress read-model security hardening — Batch 38
+
+The draft migration now separates manager progress visibility from the private JSONB job document:
+
+- `progress_summary` is a generated, allowlisted JSONB summary containing only validated numeric progress counters. Invalid/missing values become null rather than being cast unsafely.
+- Authenticated managers receive column-level SELECT grants only for safe metadata and `progress_summary`; they do not receive SELECT on the full `job_data` column.
+- `public.n8n_global_job_progress` is a read-only view with `security_invoker = true`, preserving the underlying table's tenant-owner RLS and column privileges.
+- The view exposes job reference, product/tenant scope, type/status, timestamps, progress summary and a review flag. It does not expose raw `job_data`, recipient arrays, provider payloads, message text, phone numbers, event history or raw errors.
+- The n8n service role remains the intended writer. PWA remains read-only.
+- This is a draft migration and static contract only. It has not been applied or tested against a live database. Before any approval, verify the deployed PostgreSQL version supports the view option, confirm grants and RLS behavior in an approved non-production project, and test cross-tenant reads.
