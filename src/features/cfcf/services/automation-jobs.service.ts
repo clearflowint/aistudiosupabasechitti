@@ -43,35 +43,43 @@ export async function requestCfcfCampaignJob(
   if (!tenantId.trim()) throw new Error("Authorized tenant scope is required.");
   if (!fundId.trim()) throw new Error("Select a Fund before starting a campaign.");
 
+  const webhookUrl = import.meta.env.VITE_CFCF_N8N_CAMPAIGN_WEBHOOK_URL as string | undefined;
+  if (!webhookUrl) {
+    throw new Error("Campaign request service is not configured yet. No job was created.");
+  }
+
+  // The PWA submits an authenticated request; n8n, not the browser, creates the job row.
+  const { data: sessionResult, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) throw new Error("Unable to verify the signed-in session.");
+  const accessToken = sessionResult.session?.access_token;
+  if (!accessToken) throw new Error("Sign in again before requesting a campaign.");
+
   const requestId = crypto.randomUUID();
-  const { data, error } = await supabase
-    .from("n8n_global_jobs")
-    .insert({
+  const response = await fetch(webhookUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: "Bearer " + accessToken,
+    },
+    body: JSON.stringify({
+      request_id: requestId,
       product_id: cfcfConfig.productId,
       tenant_id: tenantId,
-      source_type: "pwa",
-      job_type: campaignKind,
-      status: "queued",
-      request_id: requestId,
-      scheduled_at: null,
-      job_data: {
-        fund_id: fundId,
-        campaign_kind: campaignKind,
-        execution_mode: "manual_send",
-      },
-    })
-    .select("job_id, product_id, tenant_id, source_type, job_type, status, request_id, scheduled_at, created_at, updated_at, completed_at")
-    .single();
+      action: campaignKind,
+      selected: { fund_id: fundId },
+      options: { execution_mode: "manual_send" },
+    }),
+  });
 
-  if (error) {
-    if (error.code === "42501") {
-      throw new Error("Only an authorized workspace owner can queue this campaign.");
-    }
-    throw new Error("Unable to queue campaign: " + error.message);
+  const result = await response.json().catch(() => null) as
+    | { job?: CfcfAutomationJobStatus; error?: string }
+    | null;
+  if (!response.ok || !result?.job) {
+    throw new Error(result?.error || "n8n did not confirm the campaign request. No success was reported.");
   }
 
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event("clearflow:cfcf-job-queued"));
   }
-  return data as CfcfAutomationJobStatus;
+  return result.job;
 }
