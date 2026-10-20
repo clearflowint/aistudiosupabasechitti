@@ -451,3 +451,67 @@ test("enqueue model: same request ID in another tenant or product is never retur
     outcome: "created", httpStatus: 202, jobId: 100, dispatch: false
   });
 });
+
+
+// Batch 27 — recipient submission state transition contract.
+function modelRecipientSubmission({ currentState, submissionAttempted = false, providerOutcome = "unknown" }) {
+  if (currentState === "uncertain") {
+    return { state: "uncertain", maySubmitAgain: false, needsReview: true };
+  }
+  if (currentState === "provider_accepted") {
+    return { state: "provider_accepted", maySubmitAgain: false, needsReview: false };
+  }
+  if (currentState === "failed" && providerOutcome === "definitive_rejection") {
+    return { state: "failed", maySubmitAgain: false, needsReview: false };
+  }
+  if (submissionAttempted && providerOutcome === "unknown") {
+    return { state: "uncertain", maySubmitAgain: false, needsReview: true };
+  }
+  if (!submissionAttempted && currentState === "submitting") {
+    return { state: "pending", maySubmitAgain: true, needsReview: false };
+  }
+  if (providerOutcome === "accepted") {
+    return { state: "provider_accepted", maySubmitAgain: false, needsReview: false };
+  }
+  if (providerOutcome === "definitive_rejection") {
+    return { state: "failed", maySubmitAgain: false, needsReview: false };
+  }
+  return { state: currentState, maySubmitAgain: false, needsReview: true };
+}
+
+test("recipient state model: ambiguous result after submission becomes uncertain and cannot resend", () => {
+  assert.deepEqual(modelRecipientSubmission({
+    currentState: "submitting",
+    submissionAttempted: true,
+    providerOutcome: "unknown"
+  }), { state: "uncertain", maySubmitAgain: false, needsReview: true });
+});
+
+test("recipient state model: uncertain remains manual-review only even if worker runs again", () => {
+  assert.deepEqual(modelRecipientSubmission({
+    currentState: "uncertain",
+    submissionAttempted: true,
+    providerOutcome: "unknown"
+  }), { state: "uncertain", maySubmitAgain: false, needsReview: true });
+});
+
+test("recipient state model: provider acceptance is terminal for dispatch and is not proof of delivery", () => {
+  assert.deepEqual(modelRecipientSubmission({
+    currentState: "submitting",
+    submissionAttempted: true,
+    providerOutcome: "accepted"
+  }), { state: "provider_accepted", maySubmitAgain: false, needsReview: false });
+});
+
+test("recipient state model: only proven no-submission state may return to pending", () => {
+  assert.deepEqual(modelRecipientSubmission({
+    currentState: "submitting",
+    submissionAttempted: false,
+    providerOutcome: "unknown"
+  }), { state: "pending", maySubmitAgain: true, needsReview: false });
+  assert.equal(modelRecipientSubmission({
+    currentState: "submitting",
+    submissionAttempted: true,
+    providerOutcome: "unknown"
+  }).maySubmitAgain, false);
+});
