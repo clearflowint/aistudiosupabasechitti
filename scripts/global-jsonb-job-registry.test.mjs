@@ -4,6 +4,9 @@ import { readFileSync } from "node:fs";
 
 const migration = readFileSync(new URL("../supabase/migrations/20261020150000_n8n_global_jsonb_job_registry.sql", import.meta.url), "utf8");
 const contract = readFileSync(new URL("../docs/n8n-global-jsonb-job-registry.md", import.meta.url), "utf8");
+const progressService = readFileSync(new URL("../src/features/cfcf/services/automation-jobs.service.ts", import.meta.url), "utf8");
+const progressCard = readFileSync(new URL("../src/features/cfcf/components/AutomationJobProgressCard.tsx", import.meta.url), "utf8");
+const homeShell = readFileSync(new URL("../src/components/workspace/WorkspaceHomePage.tsx", import.meta.url), "utf8");
 
 test("one global job table stores status and recipient updates in JSONB", () => {
   assert.ok(migration.includes("create table public.n8n_global_jobs"));
@@ -113,6 +116,19 @@ test("inbound event idempotency is not an authorization shortcut or a live enque
   assert.equal(migration.includes("create table public.clearflow_push_alert_state"), false);
 });
 
+
+test("manager home progress UI is read-only, tenant-scoped, and safely gated", () => {
+  assert.ok(progressService.includes('from("n8n_global_job_progress")'));
+  assert.ok(progressService.includes('.eq("product_id", cfcfConfig.productId)'));
+  assert.ok(progressService.includes('.eq("tenant_id", tenantId)'));
+  assert.ok(progressService.includes(".limit(5)"));
+  assert.ok(progressService.includes("Never select job_data"));
+  assert.equal(progressService.includes('"job_data"'), false);
+  assert.ok(progressCard.includes('import.meta.env.VITE_CFCF_JOB_PROGRESS_ENABLED === "true"'));
+  assert.ok(progressCard.includes("No job data has been requested"));
+  assert.ok(progressCard.includes("Do not resend automatically"));
+  assert.ok(homeShell.includes("{product.renderHomeContent?.(workspace)}"));
+});
 
 test("manager progress view exposes only sanitized summary fields", () => {
   assert.equal(migration.split("create table public.n8n_global_jobs").length - 1, 1);
