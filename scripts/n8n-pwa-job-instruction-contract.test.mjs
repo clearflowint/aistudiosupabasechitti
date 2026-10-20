@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 
 const contract = readFileSync(new URL("../docs/n8n-pwa-job-instruction-contract.md", import.meta.url), "utf8");
 const migration = readFileSync(new URL("../supabase/migrations/20261020150000_n8n_global_jsonb_job_registry.sql", import.meta.url), "utf8");
+const progressCard = readFileSync(new URL("../src/features/cfcf/components/AutomationJobProgressCard.tsx", import.meta.url), "utf8");
 
 test("request contract carries identity and action, not authoritative contact data", () => {
   for (const field of ['"request_id"', '"product_id"', '"tenant_id"', '"person_id"', '"action"']) {
@@ -77,4 +78,12 @@ test("no live integration is authorized by the draft contract", () => {
   assert.ok(contract.includes("migration remains unapplied"));
   assert.ok(contract.includes("remain inactive"));
   assert.ok(contract.includes("No production migration/deployment, credential change, live WhatsApp send, or billable Supabase branch is authorized."));
+});
+
+
+test("automation status card discards stale responses across tenant switches", () => {
+  assert.ok(progressCard.includes("const requestVersion = useRef(0)"));
+  assert.ok(progressCard.includes("if (version !== requestVersion.current) return"));
+  assert.ok(progressCard.includes("Never carry the previous tenant's status rows into a new workspace."));
+  assert.ok(progressCard.includes("requestVersion.current += 1"));
 });
