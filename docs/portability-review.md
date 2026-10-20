@@ -35,8 +35,9 @@ This is a practical inventory, not a rewrite mandate. It identifies where the cu
 
 ### 5. New automation job status
 
-- The draft global job table is now intentionally minimal: identity, product/tenant scope, type, simple status, optional request ID, JSONB request/result, and timestamps.
-- The PWA reads safe status columns directly; it does not read private JSONB.
+- The draft global job table is source-independent: identity, product/tenant scope, open-ended source type, action type, simple status, optional request ID and scheduled time, JSONB request/result, and timestamps.
+- PWA, WhatsApp, AI agents, APIs, and future products enter through authenticated n8n source adapters. n8n creates a row only for work needing tracking or deferred execution; ordinary fetch/insert/update operations are not automatically jobs.
+- A shared n8n dispatcher handles future-dated jobs from `scheduled_at`; the PWA reads safe status columns only and does not read private JSONB.
 - There is no generated progress view, database queue, lease/claim RPC, event-history framework, campaign-size constraint, or unique-index-based deduplication in this draft.
 - PWA double-submit prevention and n8n ingress checks are the first duplicate controls. If a controlled test demonstrates a material concurrent/restart duplicate problem, add a narrow fix for that action rather than a general-purpose database engine.
 
@@ -44,7 +45,7 @@ This is a practical inventory, not a rewrite mandate. It identifies where the cu
 
 1. **UI → product service functions:** UI asks for a business operation; it does not know query syntax.
 2. **Product service → storage adapter:** storage details are confined to service modules and the shared client.
-3. **PWA → n8n request envelope:** pass stable IDs, action, and options; do not make the envelope depend on Supabase row shapes beyond the IDs needed by the product.
+3. **Any source → n8n request envelope:** normalize PWA, WhatsApp, AI, API, and future product requests to stable identity, action, options, and correlation fields; do not make the contract depend on Supabase row shapes beyond IDs needed by the product.
 4. **n8n workflow → provider adapter:** keep WAHA, email, report generation, and future AI providers behind their own workflow nodes/modules.
 5. **Status display → safe record:** UI reads status metadata and does not depend on internal worker implementation.
 
@@ -74,7 +75,7 @@ The remaining workflow exercises only the synthetic in-memory path: manual start
 
 A pinned-node preparation check completed, and manual test executions `31`, `32`, `33`, and `34` returned success; execution `34` followed the final cleanup to six nodes. The unused safety-gate/stop/dry-run branch was removed so the mock harness is one clear connected path. These are mock-only workflow tests, not live integration tests. The workflow remains inactive. Repository CI #850 passed TypeScript validation, CFCF financial tests, both focused contract suites, and the production build at commit `b0abb583fcd40dc7e7bc1fdbcbfefd98a3036adc`.
 
-The next real integration blockers remain unchanged: verify the actual WAHA-to-n8n authentication scheme, agree the per-Fund schedule-slot persistence location, and obtain explicit approval of a named non-production Supabase project. No production deployment or migration was performed.
+The next real integration blockers remain: verify the actual WAHA-to-n8n authentication scheme, define and test the source-independent n8n ingress/dispatcher path, and obtain explicit approval of a named non-production Supabase project. Per-Fund CFCF schedule-slot persistence is no longer a requirement. No production deployment or migration was performed.
 
 
 ### Inbound draft smoke checks — 2026-10-20
