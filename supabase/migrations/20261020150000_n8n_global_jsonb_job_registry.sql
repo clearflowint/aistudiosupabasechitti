@@ -34,6 +34,11 @@ create index n8n_global_jobs_due_idx
   on public.n8n_global_jobs (scheduled_at)
   where status = 'queued' and scheduled_at is not null;
 
+-- One shared n8n dispatcher can efficiently find queued jobs whose requested time has arrived.
+create index n8n_global_jobs_due_idx
+  on public.n8n_global_jobs (scheduled_at)
+  where status = 'queued' and scheduled_at is not null;
+
 -- Browser managers can read only safe status metadata, never the private job_data JSON.
 alter table public.n8n_global_jobs enable row level security;
 revoke all on table public.n8n_global_jobs from public, anon, authenticated;
@@ -50,6 +55,10 @@ create policy n8n_global_jobs_tenant_owner_read
 
 comment on table public.n8n_global_jobs is
   'Simple ClearFlow automation job storage. Workflow logic remains in n8n/product code; private request and result data are stored in job_data JSONB.';
+comment on column public.n8n_global_jobs.source_type is
+  'Open-ended request channel such as pwa, whatsapp, ai, api, or system. n8n validates the source.';
+comment on column public.n8n_global_jobs.scheduled_at is
+  'Optional requested execution instant. A shared n8n dispatcher handles due jobs; no per-job scheduler is created.';
 comment on column public.n8n_global_jobs.source_type is
   'Open-ended request channel such as pwa, whatsapp, ai, api, or system. n8n validates the source.';
 comment on column public.n8n_global_jobs.scheduled_at is
