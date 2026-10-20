@@ -72,3 +72,34 @@ test("mock inbound event idempotency distinguishes provider, session, tenant, an
   assert.equal(mockInboundEventKey({ ...base, sessionName: " " }), null);
   assert.equal(mockInboundEventKey({ ...base, providerEventId: "" }), null);
 });
+
+test("inbound event index is partial, fully scoped, and does not replace request idempotency", () => {
+  const start = migration.indexOf("create unique index n8n_global_jobs_inbound_event_unique_idx");
+  assert.notEqual(start, -1);
+  const block = migration.slice(start, migration.indexOf(";", start) + 1);
+  for (const required of [
+    "product_id",
+    "tenant_id",
+    "job_data ->> 'provider_name'",
+    "job_data ->> 'session_name'",
+    "job_data ->> 'provider_event_id'",
+    "where job_type = 'whatsapp_inbound'",
+    "nullif(btrim(job_data ->> 'provider_name'), '') is not null",
+    "nullif(btrim(job_data ->> 'session_name'), '') is not null",
+    "nullif(btrim(job_data ->> 'provider_event_id'), '') is not null"
+  ]) assert.ok(block.includes(required), `missing inbound index guard: ${required}`);
+  assert.ok(migration.includes("n8n_global_jobs_request_id_unique_idx"));
+  assert.ok(contract.includes("If insertion conflicts, fetch the existing job in the same product/tenant scope"));
+  assert.ok(contract.includes("If insert fails for any reason other than a confirmed duplicate, return retryable non-2xx"));
+  assert.ok(contract.includes("The migration remains draft-only and has not been applied to any database."));
+});
+
+test("inbound event idempotency is not an authorization shortcut or a live enqueue implementation", () => {
+  assert.ok(contract.includes("never accepted as proof of identity from caller-supplied tenant fields"));
+  assert.ok(contract.includes("Authenticate the inbound transport and validate required event fields."));
+  assert.ok(contract.includes("Resolve the trusted receiving session and exactly one authoritative CFCF tenant/contact/role"));
+  assert.equal(migration.includes("create or replace function"), false);
+  assert.equal(migration.includes("create table public.clearflow_push_subscriptions"), false);
+  assert.equal(migration.includes("create table public.clearflow_push_outbox"), false);
+  assert.equal(migration.includes("create table public.clearflow_push_alert_state"), false);
+});
