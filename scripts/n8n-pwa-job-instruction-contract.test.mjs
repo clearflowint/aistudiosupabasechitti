@@ -844,7 +844,7 @@ test("finalization adapter contract: all-accepted, partial, all-failed, and empt
 test("finalization adapter contract: stale counters and lease expiry cannot authorize a resend", () => {
   assert.ok(contract.includes("Counters are projections derived from the saved recipient array"));
   assert.ok(contract.includes("Lease expiry alone is not permission to reclaim and resend"));
-  assert.ok(contract.includes("do not activate workflows or apply the draft migration"));
+  assert.ok(contract.includes("Do not activate workflows or apply the draft migration based on this batch"));
 });
 
 
