@@ -60,10 +60,23 @@ import {
 } from "../services/workspace.service";
 import type { CfcfBillRow, CfcfContactRow, CfcfFundRow, CfcfShareRow } from "../types/database.types";
 import { registerCfcfBulkWhatsAppJob, type CfcfWorkspaceAutomation } from "../services/workspace-automation.service";
+import { listCfcfAutomationSchedules, saveCfcfAutomationSchedule, type CfcfAutomationSchedule, type CfcfAutomationScheduleType } from "../services/automation-schedules.service";
 
 type WorkspaceTab = "shares" | "ledger";
 type WorkspaceSectionTab = "fund-summary" | "shares";
 type ShareFilter = "all" | "pending" | "drawn" | "undrawn";
+
+interface CfcfAutomationScheduleDraft {
+  jobType: CfcfAutomationScheduleType;
+  slotNumber: number;
+  dayOfMonth: string;
+  timeOfDay: string;
+  isEnabled: boolean;
+  scheduleId?: string;
+  nextRunAt?: string | null;
+  lastRunAt?: string | null;
+}
+
 
 interface WorkspacePageProps {
   workspace: AuthorizedWorkspace;
@@ -106,6 +119,14 @@ function readSavedWorkspaceView(tenantId: string): SavedWorkspaceView {
 export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [funds, setFunds] = useState<CfcfFundRow[]>([]);
   const [isRegisteringBulkWhatsApp, setIsRegisteringBulkWhatsApp] = useState(false);
+  const [isMonthlyScheduleOpen, setIsMonthlyScheduleOpen] = useState(false);
+  const [scheduleFundId, setScheduleFundId] = useState("");
+  const [scheduleFundName, setScheduleFundName] = useState("");
+  const [scheduleSlots, setScheduleSlots] = useState<CfcfAutomationScheduleDraft[]>([]);
+  const [isLoadingScheduleSlots, setIsLoadingScheduleSlots] = useState(false);
+  const [savingScheduleKey, setSavingScheduleKey] = useState<string | null>(null);
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
+  const [scheduleNotice, setScheduleNotice] = useState<string | null>(null);
   const [archivedFunds, setArchivedFunds] = useState<CfcfArchivedFundRow[]>([]);
   const [isLoadingArchivedFunds, setIsLoadingArchivedFunds] = useState(false);
   const [isArchivingFund, setIsArchivingFund] = useState(false);
@@ -244,6 +265,84 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       setIsRegisteringBulkWhatsApp(false);
     }
   }
+  function makeScheduleDrafts(saved: CfcfAutomationSchedule[]): CfcfAutomationScheduleDraft[] {
+    const definitions: Array<{ jobType: CfcfAutomationScheduleType; count: number }> = [
+      { jobType: "pending_due_reminder", count: 3 },
+      { jobType: "report", count: 2 },
+    ];
+    return definitions.flatMap(({ jobType, count }) => Array.from({ length: count }, (_, index) => {
+      const slotNumber = index + 1;
+      const row = saved.find((item) => item.job_type === jobType && item.slot_number === slotNumber);
+      return {
+        jobType,
+        slotNumber,
+        dayOfMonth: row ? String(row.day_of_month) : "",
+        timeOfDay: row ? String(row.time_of_day).slice(0, 5) : "",
+        isEnabled: row?.is_enabled ?? false,
+        scheduleId: row?.schedule_id,
+        nextRunAt: row?.next_run_at,
+        lastRunAt: row?.last_run_at,
+      };
+    }));
+  }
+
+  async function openMonthlyScheduleSettings(): Promise<void> {
+    if (!selectedFund) return;
+    setScheduleFundId(selectedFund.fund_id);
+    setScheduleFundName(selectedFund.fund_name);
+    setIsMonthlyScheduleOpen(true);
+    setIsLoadingScheduleSlots(true);
+    setScheduleError(null);
+    setScheduleNotice(null);
+    try {
+      const saved = await listCfcfAutomationSchedules(workspace.tenantId, selectedFund.fund_id);
+      setScheduleSlots(makeScheduleDrafts(saved));
+    } catch (error) {
+      setScheduleError(error instanceof Error ? error.message : "Unable to load this Fund's monthly schedules.");
+      setScheduleSlots(makeScheduleDrafts([]));
+    } finally {
+      setIsLoadingScheduleSlots(false);
+    }
+  }
+
+  async function handleSaveScheduleSlot(slot: CfcfAutomationScheduleDraft): Promise<void> {
+    const key = slot.jobType + ":" + slot.slotNumber;
+    if (!scheduleFundId || savingScheduleKey) return;
+    const day = Number(slot.dayOfMonth);
+    if (!Number.isInteger(day) || day < 1 || day > 31 || !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(slot.timeOfDay)) {
+      setScheduleError("Enter a day from 1 to 31 and a valid time before saving this slot.");
+      return;
+    }
+    setSavingScheduleKey(key);
+    setScheduleError(null);
+    setScheduleNotice(null);
+    try {
+      const saved = await saveCfcfAutomationSchedule({
+        tenantId: workspace.tenantId,
+        fundId: scheduleFundId,
+        jobType: slot.jobType,
+        slotNumber: slot.slotNumber,
+        dayOfMonth: day,
+        timeOfDay: slot.timeOfDay,
+        isEnabled: slot.isEnabled,
+      });
+      setScheduleSlots((current) => current.map((item) => item.jobType === slot.jobType && item.slotNumber === slot.slotNumber
+        ? { ...item, dayOfMonth: String(saved.day_of_month), timeOfDay: String(saved.time_of_day).slice(0, 5), isEnabled: saved.is_enabled, scheduleId: saved.schedule_id, nextRunAt: saved.next_run_at, lastRunAt: saved.last_run_at }
+        : item));
+      setScheduleNotice((slot.isEnabled ? "Enabled" : "Disabled") + " " + (slot.jobType === "pending_due_reminder" ? "Pending reminder" : "Report") + " slot " + slot.slotNumber + ".");
+    } catch (error) {
+      setScheduleError(error instanceof Error ? error.message : "Unable to save this monthly schedule.");
+    } finally {
+      setSavingScheduleKey(null);
+    }
+  }
+
+  function updateScheduleDraft(jobType: CfcfAutomationScheduleType, slotNumber: number, patch: Partial<CfcfAutomationScheduleDraft>): void {
+    setScheduleSlots((current) => current.map((item) => item.jobType === jobType && item.slotNumber === slotNumber ? { ...item, ...patch } : item));
+    setScheduleError(null);
+    setScheduleNotice(null);
+  }
+
   const [deleteTarget, setDeleteTarget] = useState<{ kind: "share"; id: string; label: string; fundId?: string } | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteStep, setDeleteStep] = useState(1);
@@ -1655,6 +1754,9 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               <button type="button" onClick={() => void handleBulkWhatsAppRegistration("report-all")} disabled={!CFCF_GLOBAL_WHATSAPP_REGISTRATION_ENABLED || !selectedFund || isRegisteringBulkWhatsApp} title="Direct Supabase job registration is prepared but remains gated until the n8n worker and WAHA session are validated." aria-label="Register report job for all shares" className="inline-flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-sky-300 bg-sky-50 px-2 py-2 text-center text-xs font-bold leading-4 text-sky-900 disabled:opacity-50"><FileText size={16} className="shrink-0" /><span>{isRegisteringBulkWhatsApp ? "Registering…" : "Send Report to All"}</span></button>
             </div>
             <p className="text-center text-xs text-slate-500">The direct Supabase job-ID route is prepared. Registration and sending remain disabled until the n8n worker and WAHA session are validated.</p>
+            <button type="button" onClick={() => void openMonthlyScheduleSettings()} disabled={!selectedFund} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-900 disabled:opacity-50">
+              <CalendarDays size={17} /> Configure monthly Pending / Report schedules
+            </button>
 
             <section className="space-y-3">
               <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
