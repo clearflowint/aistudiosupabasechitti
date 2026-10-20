@@ -86,7 +86,8 @@ export function AutomationJobProgressCard({ workspace }: AutomationJobProgressCa
                 <p className="text-sm font-bold text-slate-900">Job #{job.job_id}</p>
                 <span className={"rounded-full border px-2.5 py-1 text-xs font-semibold " + statusStyle(job.status)}>{statusLabels[job.status] ?? job.status}</span>
               </div>
-              <p className="mt-1 break-words text-xs text-slate-600">{job.job_type.replaceAll("_", " ")}</p>
+              <p className="mt-1 break-words text-xs text-slate-600">{job.source_type.replaceAll("_", " ")} · {job.job_type.replaceAll("_", " ")}</p>
+              {job.scheduled_at && <p className="mt-2 text-xs leading-5 text-slate-600">Scheduled for {formatTime(job.scheduled_at)}</p>}
               <p className="mt-2 flex items-start gap-1.5 text-xs leading-5 text-slate-500"><Clock3 size={14} className="mt-0.5 shrink-0" /> Updated {formatTime(job.updated_at)}</p>
             </article>
           ))}
