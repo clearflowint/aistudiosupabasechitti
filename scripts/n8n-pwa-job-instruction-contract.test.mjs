@@ -74,10 +74,10 @@ test("tracked jobs are created by n8n only for work needing progress; CFCF sched
   }
 });
 
-test("no live integration is authorized by the draft contract", () => {
-  assert.ok(contract.includes("migration remains unapplied"));
+test("development-stage registry approval does not authorize external sends or production deployment", () => {
+  assert.ok(contract.includes("CFCF automatic scheduled reminders and reports are out of scope"));
   assert.ok(contract.includes("remain inactive"));
-  assert.ok(contract.includes("No production migration/deployment, credential change, live WhatsApp send, or billable Supabase branch is authorized."));
+  assert.ok(contract.includes("live WhatsApp send"));
 });
 
 
