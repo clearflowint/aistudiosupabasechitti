@@ -64,8 +64,8 @@ test("multi-trigger design distinguishes PWA, WhatsApp, and schedule authenticat
     "Inbound WhatsApp-originated actions",
     "Scheduled n8n-originated work",
     "validates the access token with Supabase Auth",
-    "webhook sender using the provider/transport's supported webhook signature",
-    "A schedule trigger has no end-user access token",
+    "WAHA server and n8n webhook",
+    "there is no inbound HTTP request and no external app to hold a secret",
     "shared authorization gate",
     "unknown, shared, inactive, or belongs to a different tenant"
   ]) {
@@ -74,8 +74,8 @@ test("multi-trigger design distinguishes PWA, WhatsApp, and schedule authenticat
 });
 
 test("scheduled and inbound events require idempotency and current tenant authorization", () => {
-  assert.ok(contract.includes("schedule identity plus the scheduled occurrence timestamp"));
-  assert.ok(contract.includes("deduplicate inbound webhook events"));
-  assert.ok(contract.includes("re-check that the tenant and schedule are still active"));
+  assert.ok(contract.includes("schedule identity plus the intended run timestamp"));
+  assert.ok(contract.includes("Deduplicate using the provider event/message ID"));
+  assert.ok(contract.includes("check that the target tenant is still active and eligible"));
   assert.ok(contract.includes("Source identity and action permissions are not interchangeable"));
 });
