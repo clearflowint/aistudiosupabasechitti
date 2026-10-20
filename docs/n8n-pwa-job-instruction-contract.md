@@ -11,7 +11,7 @@ Each source adapter normalizes a request to a common envelope. The following is 
   "request_id": "client-generated-uuid",
   "product_id": "CFCF",
   "tenant_id": "authorized-tenant-id",
-  "person_id": "authorized-person-id",
+  "person_id": "person-id",
   "action": "report",
   "selected": {
     "fund_id": "fund-id"
@@ -21,10 +21,11 @@ Each source adapter normalizes a request to a common envelope. The following is 
 ```
 
 - Use `product_id`, `tenant_id`, and `person_id` on every handover.
-- Derive tenant/person context from the authenticated workspace; do not treat body IDs as proof of authorization.
+- The PWA sends `product_id`, `tenant_id`, `person_id`, the requested action, and only the fields needed for that action. Include `request_id` for duplicate handling and `scheduled_at` only for a future-dated task.
+- Do not add a separate tenant-session key, API key, or authentication key to the PWA-to-n8n request contract.
 - Do not send authoritative phone numbers, recipient records, or computed results from the PWA when n8n can read the source records.
-- Do not send credentials or secrets in the request.
-- Keep product-specific rules in CFCF workflows. The shared contract contains only common identity, action, and correlation fields.
+- n8n uses the supplied IDs to locate the relevant product, tenant, person, and records; source-specific handling may differ for WhatsApp, AI, APIs, and future integrations.
+- Keep product-specific rules in product-owned workflows. The shared contract contains only common identity, action, and correlation fields.
 
 ## Simple duplicate handling
 
@@ -35,7 +36,7 @@ Each source adapter normalizes a request to a common envelope. The following is 
 
 ## Central engine and storage record
 
-Every source enters n8n through an authenticated adapter. n8n validates identity and tenant/product scope, then routes the request. Only tasks needing lifecycle visibility or deferred execution create a `public.n8n_global_jobs` row; ordinary fetch/insert/update workflow operations do not automatically create jobs.
+Every source enters through its appropriate n8n ingress. For PWA requests, the caller supplies the product, tenant, and person IDs without a separate tenant-session or authentication key; n8n uses those IDs to resolve the relevant records and route the action. Other sources can use their own source-specific input mapping. Only tasks needing lifecycle visibility or deferred execution create a `public.n8n_global_jobs` row; ordinary fetch/insert/update workflow operations do not automatically create jobs.
 
 A job record contains a generated reference, product/tenant scope, open-ended `source_type`, action type, status, optional request ID, optional `scheduled_at`, JSON request/result data, and timestamps. n8n creates and updates the record using its trusted server-side Supabase credential. A database function/RPC is not needed.
 
@@ -54,8 +55,8 @@ Allowed statuses for the first version: `queued`, `processing`, `completed`, `fa
 
 ## Authentication and tenant boundaries
 
-- PWA-originated actions must use the signed-in identity and the authorized workspace. Never trust a body-supplied email, person ID, or owner flag.
-- WAHA-to-n8n ingress authentication must be verified from the actual configuration; do not guess from credential names.
+- PWA-originated actions use the `product_id`, `tenant_id`, and `person_id` supplied by the PWA contract; do not add a separate tenant-session key or authentication key to that request.
+- WAHA-to-n8n ingress configuration is source-specific; document the actual configuration rather than imposing a PWA authentication-key pattern on every source.
 - For the CFCF shared agency number/session, match the sender to one authoritative CFCF contact/tenant before accessing tenant data.
 - For tenant-owned numbers/sessions, resolve the tenant from the trusted receiver-number mapping, then look up the sender inside that tenant.
 - Unknown or ambiguous mappings stop tenant-specific processing. Never guess a tenant.
