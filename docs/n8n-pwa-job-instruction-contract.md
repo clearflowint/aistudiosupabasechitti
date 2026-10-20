@@ -87,7 +87,7 @@ After the future production flow is separately approved, n8n creates one `public
 
 ## Scheduled reminders and reports
 
-Scheduling is not configured in this draft. When implemented, recurring dates belong in n8n's scheduling/workflow configuration, not in new Supabase schedule tables or generic database functions. Each actual reminder/report execution creates one job record, with the schedule identity and occurrence time stored in `job_data`. Preserve the already-decided monthly pending-reminder schedule (three configured dates) and report schedule (two configured dates) when the scheduling batch is implemented; do not guess the dates if they are not present in the approved prior configuration.
+Scheduling is not configured in this draft. Each Fund must support up to three manager-selected monthly pending-reminder date/time slots and two manager-selected monthly report date/time slots, recurring every month in `Asia/Kolkata` by default. Day 29–31 runs on the month's last calendar day when that date does not exist. These are configurable slots, not five fixed dates to recover or hard-code. The persistence location for per-Fund slot configuration is still unresolved: do not create a schedule table/RPC or change PWA notification objects, and do not store settings in unrelated financial JSONB fields. Each actual execution creates one job row with schedule identity and occurrence time in `job_data`; identify an already-approved safe configuration location before implementing the manager editor or evaluator.
 
 ## Required authorization and idempotency sequence
 
@@ -218,7 +218,7 @@ A trigger proves how a workflow started; it does not automatically prove who is 
 - At run time, check that the target tenant is still active and eligible. Use the n8n-stored server credential only for the necessary operations and explicitly scope every private read/write to that product and tenant.
 - Use a stable occurrence key, such as schedule identity plus the intended run timestamp, so duplicate execution of the same occurrence resolves to the existing job and does not repeat a send.
 - If a separate external scheduler/app calls an n8n webhook instead, **that external app** must store and send a credential (for example, a bearer token or custom header) and n8n must validate it. This is a different setup from n8n's native Schedule Trigger.
-- Record scheduled work in the same global JSONB job registry. Recover the approved three monthly pending-reminder dates and two report dates before implementing schedules; do not guess them.
+- Record each scheduled execution in the same global JSONB job registry. The manager chooses up to three reminder slots and two report slots per Fund; do not hard-code calendar dates. The schedule-slot persistence contract must be resolved without adding a schedule table/RPC or changing protected PWA notification objects.
 
 ### Practical rule — route by numbers, not by session secrets
 
@@ -393,7 +393,7 @@ Security and data boundaries:
 - Only show jobs authorized for the signed-in manager's active product and tenant. Do not trust tenant IDs supplied by client state without the existing authorization boundary.
 - Keep the layout mobile-first and avoid horizontal scrolling. Show concise progress first, with details available by opening a job card.
 - Do not change PWA notification tables, functions, data, or cron jobs. Do not create new notification tables or reintroduce the rolled-back schedule tables/RPCs.
-- Monthly reminder/report dates remain unimplemented until the previously approved three reminder dates and two report dates are recovered from an authoritative decision record. Do not guess dates or build a parallel schedule store.
+- Monthly reminder/report slot execution remains unimplemented. The approved behavior is up to three manager-selected recurring reminder slots and two manager-selected recurring report slots per Fund, defaulting to `Asia/Kolkata`; day 29–31 clamps to month end. The safe persistence location for these per-Fund settings remains unresolved. Do not invent fixed dates, repurpose unrelated financial JSONB, add a schedule table/RPC, or change protected PWA notification objects.
 
 Batch 30 adds contract tests and design documentation only. It does not implement a PWA screen, database access, a schedule, or notification changes.
 
@@ -424,7 +424,7 @@ Explicit readiness checklist:
 3. **Worker coordination:** implement and verify atomic job claims, serialized JSONB updates, lease handling, and bounded event history. Repository models alone do not satisfy this gate.
 4. **Provider safety:** use a controlled mock first. Unknown outcomes must become **uncertain**; there must be no blind resend or automatic requeue.
 5. **Manager view:** verify the PWA reads only the authenticated manager's exact product/tenant scope and exposes safe progress without modifying records.
-6. **Schedule readiness:** recover the approved three monthly pending-reminder dates and two report dates from an authoritative decision record. Do not guess dates or create a parallel schedule table.
+6. **Schedule readiness:** preserve three manager-selected monthly reminder slots and two manager-selected monthly report slots per Fund, defaulting to `Asia/Kolkata` and clamping day 29–31 to month end. Resolve the approved per-Fund settings persistence location before implementing the editor/evaluator; do not hard-code dates, add a schedule table/RPC, or alter PWA notification infrastructure.
 7. **Protected systems:** verify that existing PWA notification tables, functions, data, and cron jobs remain unchanged.
 
 Until the owner approves the next test environment and the prerequisites are evidenced, both inbound workflows remain inactive, the worker remains mock-only, the draft migration remains unapplied, and there are no live provider sends or deployments. No credential changes or production writes are authorized by this checklist.
@@ -476,12 +476,12 @@ The future registry adapter must derive final job status from the persisted reci
 
 ## Monthly occurrence idempotency contract — Batch 36
 
-- The three approved monthly pending-reminder dates and two approved report dates must be recovered from the authoritative prior configuration before schedule implementation. Until recovered, no exact dates or schedule nodes may be invented or activated.
+- The schedule contract is manager-configured, not a set of fixed dates: up to three recurring monthly pending-reminder slots and two recurring monthly report slots per Fund, default timezone `Asia/Kolkata`; day 29–31 clamps to the last day of shorter months. Do not invent default dates. The safe persistence location for these per-Fund slots remains unresolved, so no schedule editor/evaluator can be completed until that is resolved.
 - Each scheduled execution must have a stable occurrence identity based on the configured schedule identity, product, tenant, action/job type, and intended local calendar occurrence. Include `fund_id` when the reminder/report scope is fund-specific. Build the key from an unambiguous canonical tuple; do not concatenate ambiguous user-controlled strings.
 - Store the schedule identity, intended local occurrence, timezone, and resulting UTC execution timestamp in `job_data` so a manager can audit why the job ran. Do not store message text, phone numbers, or secrets in the occurrence key.
 - Derive a stable scoped `request_id` for that occurrence and use the existing unique `(product_id, tenant_id, request_id)` guard. If the occurrence already exists, return its existing job state; never create a second job or dispatch again.
 - A retryable pre-enqueue failure may be retried only when evidence proves no job was durably created and no provider submission occurred. If persistence outcome is ambiguous, stop and reconcile; do not invent a new occurrence key to bypass idempotency.
-- Scheduling remains in n8n configuration. Do not add schedule tables, RPCs, new cron jobs in Supabase, or changes to existing PWA notification cron jobs.
+- n8n owns schedule evaluation and occurrence identity; the manager-configured slot values must come from an approved, tenant-scoped persistence location. Do not assume global n8n workflow settings can represent per-Fund manager choices. Do not add schedule tables/RPCs, new Supabase cron jobs, or changes to existing PWA notification cron jobs.
 - This contract does not activate or configure any schedule and does not authorize production writes.
 
 
@@ -503,4 +503,4 @@ This is a go/no-go checklist, not authorization to execute against a database. A
 
 Capture each test's environment, commit SHA, workflow execution ID, expected result, observed result, and cleanup evidence. Use synthetic contacts and provider mocks only. Do not use real phone numbers, real WhatsApp sends, production data, production credentials, or production migration paths.
 
-The readiness review is blocked until actual WAHA-to-n8n authentication is verified from configuration, the approved monthly dates are recovered, and the user has explicitly approved the target non-production environment. Passing static CI alone does not satisfy any live integration gate.
+The readiness review is blocked until actual WAHA-to-n8n authentication is verified from configuration, the per-Fund slot persistence location is resolved without violating the no-schedule-table constraint, and the user has explicitly approved the target non-production environment. The dates are manager-selected recurring slots, not fixed dates to recover. Passing static CI alone does not satisfy any live integration gate.
