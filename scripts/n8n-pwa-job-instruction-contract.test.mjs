@@ -387,43 +387,47 @@ test("ingress model: transport 2xx follows durable storage or duplicate recognit
   assert.equal(failed.senderAcknowledgement, false);
 });
 
-function modelDurableEnqueue({ existingJobId = null, insertOutcome, conflictJobId = null }) {
-  if (Number.isInteger(existingJobId) && existingJobId >= 100) {
+function modelDurableEnqueue({ scope, existingScope = null, existingJobId = null, insertOutcome, conflictScope = null, conflictJobId = null }) {
+  const sameScope = (left, right) => Boolean(left && right)
+    && left.productId === right.productId
+    && left.tenantId === right.tenantId
+    && left.requestId === right.requestId;
+  if (sameScope(scope, existingScope) && Number.isInteger(existingJobId) && existingJobId >= 100) {
     return { outcome: "duplicate", httpStatus: 200, jobId: existingJobId, dispatch: false };
   }
   if (insertOutcome === "inserted" && Number.isInteger(conflictJobId) === false) {
     return { outcome: "created", httpStatus: 202, jobId: 100, dispatch: false };
   }
-  if (insertOutcome === "unique_conflict" && Number.isInteger(conflictJobId) && conflictJobId >= 100) {
+  if (insertOutcome === "unique_conflict" && sameScope(scope, conflictScope) && Number.isInteger(conflictJobId) && conflictJobId >= 100) {
     return { outcome: "duplicate", httpStatus: 200, jobId: conflictJobId, dispatch: false };
   }
   return { outcome: "persistence_failure", httpStatus: 503, jobId: null, dispatch: false };
 }
 
 test("enqueue model: pre-existing scoped request returns its canonical job without redispatch", () => {
-  assert.deepEqual(modelDurableEnqueue({ existingJobId: 143, insertOutcome: "not_attempted" }), {
+  assert.deepEqual(modelDurableEnqueue({ scope: { productId: "CFCF", tenantId: "tenant-a", requestId: "req-1" }, existingScope: { productId: "CFCF", tenantId: "tenant-a", requestId: "req-1" }, existingJobId: 143, insertOutcome: "not_attempted" }), {
     outcome: "duplicate", httpStatus: 200, jobId: 143, dispatch: false
   });
 });
 
 test("enqueue model: successful durable insert returns generated integer job ID but does not send inline", () => {
-  assert.deepEqual(modelDurableEnqueue({ insertOutcome: "inserted" }), {
+  assert.deepEqual(modelDurableEnqueue({ scope: { productId: "CFCF", tenantId: "tenant-a", requestId: "req-2" }, insertOutcome: "inserted" }), {
     outcome: "created", httpStatus: 202, jobId: 100, dispatch: false
   });
 });
 
 test("enqueue model: unique conflict returns only the confirmed existing job", () => {
-  assert.deepEqual(modelDurableEnqueue({ insertOutcome: "unique_conflict", conflictJobId: 157 }), {
+  assert.deepEqual(modelDurableEnqueue({ scope: { productId: "CFCF", tenantId: "tenant-a", requestId: "req-3" }, insertOutcome: "unique_conflict", conflictScope: { productId: "CFCF", tenantId: "tenant-a", requestId: "req-3" }, conflictJobId: 157 }), {
     outcome: "duplicate", httpStatus: 200, jobId: 157, dispatch: false
   });
-  assert.deepEqual(modelDurableEnqueue({ insertOutcome: "unique_conflict", conflictJobId: null }), {
+  assert.deepEqual(modelDurableEnqueue({ scope: { productId: "CFCF", tenantId: "tenant-a", requestId: "req-3" }, insertOutcome: "unique_conflict", conflictScope: { productId: "CFCF", tenantId: "tenant-a", requestId: "req-3" }, conflictJobId: null }), {
     outcome: "persistence_failure", httpStatus: 503, jobId: null, dispatch: false
   });
 });
 
 test("enqueue model: unknown persistence failure never returns a success receipt", () => {
   for (const insertOutcome of ["timeout", "permission_denied", "connection_lost", "unknown_error"]) {
-    assert.deepEqual(modelDurableEnqueue({ insertOutcome }), {
+    assert.deepEqual(modelDurableEnqueue({ scope: { productId: "CFCF", tenantId: "tenant-a", requestId: "req-4" }, insertOutcome }), {
       outcome: "persistence_failure", httpStatus: 503, jobId: null, dispatch: false
     });
   }
@@ -435,4 +439,15 @@ test("enqueue contract separates durable receipt from worker dispatch and forbid
   assert.ok(contract.includes("If durable enqueue fails, return a retryable non-2xx response"));
   assert.ok(contract.includes("no automatic resend"));
   assert.ok(contract.includes("The migration remains draft-only and has not been applied to any database.") || contract.includes("Do not point production UI at the draft webhook yet."));
+});
+
+test("enqueue model: same request ID in another tenant or product is never returned as a duplicate", () => {
+  const scope = { productId: "CFCF", tenantId: "tenant-a", requestId: "same-request" };
+  const existing = { productId: "CFCF", tenantId: "tenant-b", requestId: "same-request" };
+  assert.deepEqual(modelDurableEnqueue({ scope, existingScope: existing, existingJobId: 177, insertOutcome: "inserted" }), {
+    outcome: "created", httpStatus: 202, jobId: 100, dispatch: false
+  });
+  assert.deepEqual(modelDurableEnqueue({ scope, existingScope: { productId: "OTHER", tenantId: "tenant-a", requestId: "same-request" }, existingJobId: 178, insertOutcome: "inserted" }), {
+    outcome: "created", httpStatus: 202, jobId: 100, dispatch: false
+  });
 });
