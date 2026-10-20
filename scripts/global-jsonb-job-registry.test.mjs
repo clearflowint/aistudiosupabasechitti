@@ -18,6 +18,7 @@ test("one global job table stores status and recipient updates in JSONB", () => 
 
 test("job IDs start at 100 and jobs are tenant/product scoped", () => {
   assert.ok(migration.includes("identity (start with 100 increment by 1)"));
+  assert.ok(migration.includes("generated always as identity"));
   assert.ok(migration.includes("foreign key (tenant_id, product_id)"));
   assert.ok(migration.includes("is_active_tenant_owner(product_id, tenant_id)"));
   assert.ok(migration.includes("for select to authenticated"));
