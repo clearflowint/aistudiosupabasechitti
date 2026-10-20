@@ -32,10 +32,18 @@ create table public.n8n_global_jobs (
   constraint n8n_global_jobs_campaign_limit
     check (
       job_type not in ('campaign', 'manual_campaign')
-      or not (job_data ? 'recipients')
       or case
         when jsonb_typeof(job_data -> 'recipients') = 'array'
-          then jsonb_array_length(job_data -> 'recipients') <= 100
+          then jsonb_array_length(job_data -> 'recipients') between 1 and 100
+        else false
+      end
+    ),
+  constraint n8n_global_jobs_event_history_limit
+    check (
+      not (job_data ? 'events')
+      or case
+        when jsonb_typeof(job_data -> 'events') = 'array'
+          then jsonb_array_length(job_data -> 'events') <= 500
         else false
       end
     )
