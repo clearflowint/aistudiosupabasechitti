@@ -67,7 +67,7 @@ Allowed statuses for the first version: `queued`, `processing`, `completed`, `fa
 
 - The JSONB job storage migration remains unapplied.
 - PWA progress UI is feature-flagged off until its data source is approved and verified.
-- Shared-number ingress, tenant-owned ingress, worker, and schedule evaluator remain inactive.
+- Shared-number ingress, tenant-owned ingress, and worker remain inactive. Automatic CFCF scheduling is out of scope.
 - WAHA-to-n8n authentication remains unresolved. CFCF automatic scheduled reminders and reports are out of scope.
 - No production migration/deployment, credential change, live WhatsApp send, or billable Supabase branch is authorized.
 - Use synthetic data and mock provider actions for the first controlled test after the non-production environment is explicitly approved.
