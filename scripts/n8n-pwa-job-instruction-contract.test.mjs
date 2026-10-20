@@ -10,7 +10,7 @@ test("request contract carries identity and action, not authoritative contact da
     assert.ok(contract.includes(field), "missing request field " + field);
   }
   assert.ok(contract.includes("Do not send authoritative phone numbers"));
-  assert.ok(contract.includes("Do not send credentials or secrets"));
+  assert.ok(contract.includes("Do not add a separate tenant-session key, API key, or authentication key to the PWA-to-n8n request contract."));
 });
 
 test("PWA and n8n handle common duplicate submissions at entry points", () => {
@@ -30,6 +30,12 @@ test("storage remains simple and does not become a workflow engine", () => {
   assert.equal(migration.includes("create view"), false);
   assert.equal(migration.includes("create or replace function"), false);
   assert.equal(migration.includes("create unique index"), false);
+});
+
+test("RLS enforces tenant isolation without blanket staff isolation", () => {
+  assert.ok(contract.includes("enforce strict `product_id` + `tenant_id` boundaries"));
+  assert.ok(contract.includes("Add staff isolation only for products whose documented roles and workflows require it"));
+  assert.ok(contract.includes("CFCF's current manager-only access is a CFCF product rule"));
 });
 
 test("tenant boundaries and real ingress authentication remain required", () => {
