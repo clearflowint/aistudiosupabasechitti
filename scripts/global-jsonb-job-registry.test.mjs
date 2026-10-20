@@ -71,5 +71,5 @@ test("portability-first architecture is documented and notification subsystem st
   for (const protectedName of ["clearflow_push_subscriptions", "clearflow_push_outbox", "clearflow_push_alert_state"]) {
     assert.equal(migration.includes(protectedName), false);
   }
-  assert.ok(contract.includes("Existing PWA notification tables, functions, data, and cron jobs are untouched."));
+  assert.ok(contract.includes("It does not alter existing PWA notification tables, functions, data, or cron jobs."));
 });
