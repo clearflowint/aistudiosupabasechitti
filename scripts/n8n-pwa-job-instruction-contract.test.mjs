@@ -347,3 +347,42 @@ test("inbound auth configuration must be verified rather than guessed from crede
   assert.ok(contract.includes("Never put a secret in workflow code, a webhook URL, logs, or repository files."));
   assert.ok(contract.includes("HTTP 2xx is permitted only after enqueue succeeds or the same provider event is confirmed as already stored."));
 });
+
+// Contract model only: this function does not authenticate a real webhook.
+function modelInboundGate({ authState, eventValid = true, routeOutcome = "routed", enqueueOutcome = "stored" }) {
+  if (authState !== "verified") return { accepted: false, stage: "authentication", tenantLookup: false, enqueue: false, senderAcknowledgement: false, transportStatus: 401 };
+  if (!eventValid) return { accepted: false, stage: "event_validation", tenantLookup: false, enqueue: false, senderAcknowledgement: false, transportStatus: 400 };
+  if (routeOutcome !== "routed") return { accepted: false, stage: "authoritative_routing", tenantLookup: true, enqueue: false, senderAcknowledgement: false, transportStatus: 403 };
+  if (enqueueOutcome === "failed") return { accepted: false, stage: "durable_enqueue", tenantLookup: true, enqueue: false, senderAcknowledgement: false, transportStatus: 503 };
+  if (enqueueOutcome === "duplicate") return { accepted: true, stage: "duplicate_recognized", tenantLookup: true, enqueue: false, senderAcknowledgement: false, transportStatus: 200 };
+  return { accepted: true, stage: "durably_stored", tenantLookup: true, enqueue: true, senderAcknowledgement: false, transportStatus: 200 };
+}
+
+test("ingress model: missing or invalid authentication stops before tenant lookup", () => {
+  for (const authState of ["missing", "invalid", "malformed", "unknown"]) {
+    assert.deepEqual(modelInboundGate({ authState }), {
+      accepted: false, stage: "authentication", tenantLookup: false, enqueue: false, senderAcknowledgement: false, transportStatus: 401
+    });
+  }
+});
+
+test("ingress model: malformed event and ambiguous routing fail before enqueue or human acknowledgement", () => {
+  assert.equal(modelInboundGate({ authState: "verified", eventValid: false }).enqueue, false);
+  const ambiguous = modelInboundGate({ authState: "verified", routeOutcome: "ambiguous_sender" });
+  assert.equal(ambiguous.accepted, false);
+  assert.equal(ambiguous.enqueue, false);
+  assert.equal(ambiguous.senderAcknowledgement, false);
+});
+
+test("ingress model: transport 2xx follows durable storage or duplicate recognition only", () => {
+  const stored = modelInboundGate({ authState: "verified", enqueueOutcome: "stored" });
+  assert.equal(stored.transportStatus, 200);
+  assert.equal(stored.enqueue, true);
+  const duplicate = modelInboundGate({ authState: "verified", enqueueOutcome: "duplicate" });
+  assert.equal(duplicate.transportStatus, 200);
+  assert.equal(duplicate.senderAcknowledgement, false);
+  const failed = modelInboundGate({ authState: "verified", enqueueOutcome: "failed" });
+  assert.equal(failed.transportStatus, 503);
+  assert.equal(failed.accepted, false);
+  assert.equal(failed.senderAcknowledgement, false);
+});
