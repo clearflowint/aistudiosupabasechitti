@@ -144,3 +144,59 @@ Before any webhook activation or PWA integration:
 3. Test no-recipient, duplicate-recipient, >100-recipient (including group-resolved), provider timeout/uncertain result, and repeated request cases without provider sends.
 4. Verify PWA SELECT is tenant-owner scoped and INSERT/UPDATE/DELETE remain denied to authenticated browser users. Remember that this RLS policy does not constrain service-role requests.
 5. Confirm the workflow is inactive and preview-only until the owner explicitly authorizes live integration.
+
+
+## Multi-trigger authentication: PWA, inbound WhatsApp, and schedules
+
+A trigger proves how a workflow started; it does not automatically prove who is authorized to access a tenant. Use a separate source-authentication adapter for each entry point, then pass a normalized, verified identity/context to the shared authorization gate. Never treat `product_id`, `tenant_id`, phone number, person ID, or a claimed role from an incoming payload as proof of authorization.
+
+### PWA-originated manager actions
+
+- The signed-in PWA sends its current Supabase access token in the Authorization Bearer header over HTTPS, along with the requested action, product/tenant context, selected IDs, and manager-entered options.
+- n8n validates the access token with Supabase Auth, obtains the trusted user identity, and checks that identity against the active tenant-owner access record for the exact product and tenant.
+- The browser must not send the service-role key. The access token is short-lived user authorization and is not a database admin credential.
+- Reject missing/invalid/expired tokens before reading private records. Reject an active user who is not an authorized owner of that exact tenant/product.
+
+### Inbound WhatsApp-originated actions
+
+- A WhatsApp message does not carry a Supabase manager access token. Authenticate the webhook sender using the provider/transport's supported webhook signature or a strong shared secret, with replay protection where supported. Do not rely on a secret URL or sender-supplied phone number alone.
+- Treat the inbound phone number as an untrusted identity claim until matched to a verified, active ClearFlow person/manager record. Normalize the number and resolve it from authoritative records; do not trust names or tenant IDs included in message text.
+- Apply an explicit permission rule for the requested action. Being a known contact does not automatically make someone a tenant owner or authorize campaign sends, reports, or access to another person's financial details.
+- For manager-only actions, verify that the matched sender is an active manager/owner for the exact tenant/product. If the number is unlinked, ambiguous, shared, or lacks the required role, refuse private data/actions or request a secure PWA sign-in/approval flow.
+- For ordinary inbound customer messages, use a narrowly defined inbound-message workflow with only the permissions needed to process that conversation. Do not elevate the sender to manager access.
+- Validate provider event IDs/timestamps and deduplicate inbound webhook events so repeated provider callbacks do not repeat a command or create duplicate jobs.
+
+### Scheduled n8n-originated work
+
+- A schedule trigger has no end-user access token, because it is started by n8n's trusted scheduler rather than by a signed-in manager. Authenticate the workflow execution as an internal service action, using n8n's protected credentials and access controls.
+- The schedule must be configured by an authorized operator and bound to an explicit product, tenant, action, and schedule identity. Do not let a public webhook caller choose arbitrary tenant IDs or schedule identities.
+- At execution time, re-check that the tenant and schedule are still active and that the schedule is authorized for the intended product/tenant. A schedule is not a permanent bypass for a tenant that has been disabled or lost eligibility.
+- Use server-side credentials only for the specific required operations; enforce explicit tenant/product predicates for every private read and write. Never expose service credentials to the PWA or inbound WhatsApp sender.
+- Use a stable occurrence key such as schedule identity plus the scheduled occurrence timestamp as the idempotency key. A repeated scheduler invocation must resolve to the existing job rather than create a second run or repeat a send.
+- Record scheduled work in the same global JSONB job registry. The three monthly pending-reminder dates and two report dates must be recovered from the approved configuration before the scheduling batch; do not guess dates.
+
+### Shared authorization envelope
+
+After source authentication, each adapter should create an internal normalized context containing only verified fields, such as:
+
+- `source_type`: `pwa`, `whatsapp`, or `schedule`
+- `verified_actor_id`: Supabase Auth user ID for PWA; resolved authoritative person/manager ID for WhatsApp; controlled service/schedule identity for scheduled work
+- `product_id` and `tenant_id`: values verified against current authorization records
+- `action`: allowlisted action, not arbitrary SQL or a caller-selected workflow
+- `request_id`: stable idempotency key appropriate to the source
+- `authorization_basis`: the verified role/access check or controlled schedule permission
+
+The shared gate must authorize the exact action for the exact product and tenant before private data access. Source identity and action permissions are not interchangeable: a valid WhatsApp webhook signature authenticates the provider delivery, not the person; a known phone number does not prove tenant ownership; and a schedule trigger proves workflow initiation, not that a tenant remains active.
+
+### Multi-trigger security tests
+
+Before connecting any live trigger, verify without provider sends or production writes:
+
+- PWA missing, invalid, or expired Bearer token → reject.
+- PWA user is valid but has no active owner access for the exact product/tenant → reject.
+- Inbound WhatsApp invalid webhook authentication or replayed event → reject/deduplicate.
+- Inbound sender phone is unknown, shared, inactive, or belongs to a different tenant → no private data disclosure and no manager action.
+- Known tenant contact attempts an owner-only action without owner permissions → reject.
+- Scheduled execution targets an inactive tenant or disabled schedule → skip safely and record a non-sensitive reason.
+- Repeated PWA request, WhatsApp event ID, or scheduled occurrence → no duplicate job or repeated provider send.
+- All three sources attempt cross-tenant person/contact IDs → reject before private data is returned.
