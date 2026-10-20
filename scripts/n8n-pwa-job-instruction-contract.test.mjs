@@ -36,7 +36,7 @@ test("storage remains simple and does not become a workflow engine", () => {
 test("RLS enforces tenant isolation without blanket staff isolation", () => {
   assert.ok(contract.includes("enforce strict `product_id` + `tenant_id` boundaries"));
   assert.ok(contract.includes("Add staff isolation only for products whose documented roles and workflows require it"));
-  assert.ok(contract.includes("CFCF's current manager-only access is a CFCF product rule"));
+  assert.ok(contract.includes("CFCF's manager-only rule is not a universal staff-isolation rule"));
 });
 
 test("RLS changes preserve PWA refresh, cache isolation, and record presentation", () => {
