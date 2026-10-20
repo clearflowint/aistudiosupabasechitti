@@ -332,3 +332,10 @@ The repository test `modelInboundGate` exercises the required stage ordering wit
 A repository-only model now covers the intended durable-enqueue decisions: a scoped pre-existing request returns its canonical integer job ID without redispatch; a successful insert returns the database-generated ID; a unique conflict is accepted only after the existing same-scope job is confirmed; and an unclassified persistence error returns retryable non-2xx without a success receipt. The model also asserts that enqueue does not itself perform provider dispatch.
 
 This is a synthetic contract model, not a PostgreSQL or n8n integration test. It does not establish that a database row was created, that the webhook is authenticated, or that a worker is connected. The preview and inbound workflows remain inactive; the draft migration remains unapplied; no provider calls or PWA notification changes were made.
+
+
+## Scoped request deduplication model — Batch 26
+
+The enqueue contract model now checks that an existing request is considered a duplicate only when product ID, tenant ID, and request ID all match. A matching request ID from a different tenant or product must not be returned as the caller's job; it remains a distinct scope. This complements the database's scoped unique index and the separate inbound provider-event identity key.
+
+This is a synthetic test of decision rules, not a live database query or authorization implementation. A real ingress still must authenticate the source, resolve authoritative tenant scope, and confirm a duplicate row within that exact scope before returning success.
