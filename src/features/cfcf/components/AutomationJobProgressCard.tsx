@@ -62,7 +62,7 @@ export function AutomationJobProgressCard({ workspace }: AutomationJobProgressCa
         <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-700"><Activity size={20} /></div>
         <div className="min-w-0 flex-1">
           <h3 className="text-base font-bold text-slate-900">Automation progress</h3>
-          <p className="mt-1 text-sm leading-5 text-slate-600">Recent reminders, reports, and other approved jobs.</p>
+          <p className="mt-1 text-sm leading-5 text-slate-600">Recent explicitly tracked tasks. Ordinary record updates are not listed.</p>
         </div>
         {enabled && <button type="button" onClick={() => void refresh()} disabled={loading} aria-label="Refresh automation progress" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50"><RefreshCw size={17} className={loading ? "animate-spin" : ""} /></button>}
       </div>
