@@ -57,3 +57,25 @@ test("safety and existing architecture constraints are explicit", () => {
   assert.ok(contract.includes("Do not add automatic retries"));
   assert.ok(contract.includes("not in new Supabase schedule tables or generic database functions"));
 });
+
+test("multi-trigger design distinguishes PWA, WhatsApp, and schedule authentication", () => {
+  for (const phrase of [
+    "PWA-originated manager actions",
+    "Inbound WhatsApp-originated actions",
+    "Scheduled n8n-originated work",
+    "validates the access token with Supabase Auth",
+    "webhook sender using the provider/transport's supported webhook signature",
+    "A schedule trigger has no end-user access token",
+    "shared authorization gate",
+    "unknown, shared, inactive, or belongs to a different tenant"
+  ]) {
+    assert.ok(contract.includes(phrase), `missing multi-trigger security rule: ${phrase}`);
+  }
+});
+
+test("scheduled and inbound events require idempotency and current tenant authorization", () => {
+  assert.ok(contract.includes("schedule identity plus the scheduled occurrence timestamp"));
+  assert.ok(contract.includes("deduplicate inbound webhook events"));
+  assert.ok(contract.includes("re-check that the tenant and schedule are still active"));
+  assert.ok(contract.includes("Source identity and action permissions are not interchangeable"));
+});
