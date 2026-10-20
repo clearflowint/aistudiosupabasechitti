@@ -137,12 +137,13 @@ test("manager progress view exposes only sanitized summary fields", () => {
   assert.equal(migration.split("create view public.n8n_global_job_progress").length - 1, 1);
   assert.equal(migration.split("create unique index n8n_global_jobs_request_id_unique_idx").length - 1, 1);
   assert.equal(migration.includes("grant select on table public.n8n_global_jobs to authenticated"), false);
-  assert.ok(migration.includes("revoke all on table public.n8n_global_jobs from anon, authenticated"));
+  assert.ok(migration.includes("revoke all on table public.n8n_global_jobs from public, anon, authenticated"));
 
   assert.ok(migration.includes("progress_summary jsonb generated always as"));
   assert.ok(migration.includes("'submitting_count'"));
   assert.ok(migration.includes("create view public.n8n_global_job_progress"));
   assert.ok(migration.includes("with (security_invoker = true)"));
+  assert.ok(migration.includes("revoke all on public.n8n_global_job_progress from public, anon, authenticated"));
   assert.ok(migration.includes("grant select on public.n8n_global_job_progress to authenticated"));
   assert.ok(migration.includes("grant select ("));
   assert.ok(migration.includes("job_id, product_id, tenant_id, job_type, status"));
