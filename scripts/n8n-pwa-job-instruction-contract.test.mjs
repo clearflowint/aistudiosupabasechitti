@@ -592,3 +592,66 @@ test("job finalization model: terminal recipients derive completed, partial, or 
   assert.deepEqual(modelJobFinalization(["failed", "failed"]), { status: "failed", terminal: true });
   assert.deepEqual(modelJobFinalization([]), { status: "failed", terminal: true, reason: "no_recipients" });
 });
+
+
+// Batch 29 — progress consistency and bounded event history contract.
+function modelProgress({ recipientStates, events = [], newEvent = null, reportedProcessedCount = null }) {
+  const safeEvents = newEvent === null ? events : [...events, newEvent];
+  const boundedEvents = safeEvents.slice(-500);
+  const total = Array.isArray(recipientStates) ? recipientStates.length : 0;
+  const processedStates = new Set(["provider_accepted", "failed", "uncertain", "skipped"]);
+  const processed = Array.isArray(recipientStates) ? recipientStates.filter(state => processedStates.has(state)).length : 0;
+  const counts = {
+    total,
+    processed,
+    pending: Array.isArray(recipientStates) ? recipientStates.filter(state => state === "pending").length : 0,
+    submitting: Array.isArray(recipientStates) ? recipientStates.filter(state => state === "submitting").length : 0,
+    accepted: Array.isArray(recipientStates) ? recipientStates.filter(state => state === "provider_accepted").length : 0,
+    failed: Array.isArray(recipientStates) ? recipientStates.filter(state => state === "failed").length : 0,
+    uncertain: Array.isArray(recipientStates) ? recipientStates.filter(state => state === "uncertain").length : 0,
+    skipped: Array.isArray(recipientStates) ? recipientStates.filter(state => state === "skipped").length : 0
+  };
+  return {
+    counts,
+    countsConsistent: reportedProcessedCount === null || reportedProcessedCount === processed,
+    events: boundedEvents,
+    eventCount: boundedEvents.length
+  };
+}
+
+test("progress model: counts are derived from recipient states and never trust stale counters", () => {
+  const result = modelProgress({
+    recipientStates: ["provider_accepted", "pending", "failed", "uncertain", "skipped"],
+    reportedProcessedCount: 4
+  });
+  assert.deepEqual(result.counts, {
+    total: 5, processed: 4, pending: 1, submitting: 0, accepted: 1, failed: 1, uncertain: 1, skipped: 1
+  });
+  assert.equal(result.countsConsistent, true);
+  assert.equal(modelProgress({ recipientStates: ["pending", "pending"], reportedProcessedCount: 1 }).countsConsistent, false);
+});
+
+test("progress model: submitting is not counted as terminally processed", () => {
+  const result = modelProgress({ recipientStates: ["submitting", "pending"] });
+  assert.equal(result.counts.processed, 0);
+  assert.equal(result.counts.submitting, 1);
+});
+
+test("progress model: event history remains bounded to latest 500 entries", () => {
+  const events = Array.from({ length: 500 }, (_, i) => ({ sequence: i + 1 }));
+  const result = modelProgress({ recipientStates: [], events, newEvent: { sequence: 501 } });
+  assert.equal(result.eventCount, 500);
+  assert.equal(result.events[0].sequence, 2);
+  assert.equal(result.events[499].sequence, 501);
+});
+
+test("progress model: progress counters and bounded events are separate from delivery guarantees", () => {
+  const result = modelProgress({
+    recipientStates: ["provider_accepted", "uncertain", "failed"],
+    events: [{ type: "accepted" }]
+  });
+  assert.equal(result.counts.accepted, 1);
+  assert.equal(result.counts.uncertain, 1);
+  assert.equal(result.counts.failed, 1);
+  assert.equal(result.countsConsistent, true);
+});
