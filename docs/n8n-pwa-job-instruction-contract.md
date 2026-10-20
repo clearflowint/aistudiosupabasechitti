@@ -95,7 +95,7 @@ The future production worker must execute these gates in this order, before crea
 
 1. Require a Bearer token in the HTTP Authorization header. Reject a missing token with 401.
 2. Validate the token with the Supabase Auth user endpoint using the public anon key and the supplied Bearer token. Never trust a body-supplied email, person ID, or owner flag. Reject an invalid/expired token with 401.
-3. Normalize the verified Auth user's email, then use server-side credentials to confirm an active `global_access_list` row matching that email, the exact `product_id + tenant_id`, `access_type = tenantowner`, and `status = active`. Also confirm the tenant itself is active and belongs to that product. Reject mismatches with 403.
+3. Normalize the verified Auth user's email, then confirm an active `global_access_list` row matching that email, the exact `product_id + tenant_id`, `access_type = tenantowner`, and `status = active`. Also confirm the tenant itself is active and belongs to that product. Reject mismatches with 403.
 4. Only after authorization, resolve group membership and authoritative contact records from Supabase. Never use phone numbers supplied by the browser.
 5. Enforce the 1–100 unique recipient limit after resolving and deduplicating the complete audience, before creating a sendable job or making any provider call.
 6. Store `request_id` in `job_data`. Look up an existing job by the scoped request ID before insertion. The unique index `n8n_global_jobs_request_id_unique_idx` prevents concurrent duplicate creation; on conflict, fetch and return the existing job and do not dispatch again.
@@ -104,16 +104,32 @@ The future production worker must execute these gates in this order, before crea
 
 The service-role credential is held only in n8n and never returned to the PWA. The current inactive preview workflow does **not** implement these checks and must not be treated as secure merely because it validates the request shape.
 
+## Important: service-role credentials and RLS
+
+Supabase `service_role` credentials bypass Row Level Security. Therefore, a query made by n8n using a service-role credential is **not** restricted by the authenticated tenant-owner SELECT policy on `n8n_global_jobs`, and table grants/RLS policies must not be treated as a boundary for those privileged requests. A leaked key or a workflow bug could cross tenant boundaries.
+
+Required controls:
+
+- Never place a service-role key in the PWA, webhook payload, logs, execution output, or response. Keep it only in protected n8n credentials.
+- Verify the caller's Supabase access token server-side. Derive the caller identity from the verified token; ignore body-supplied identity fields.
+- Check active tenant-owner access for the exact product and tenant before any private read or write. Check that each selected contact/person and group membership belongs to that same tenant. Do not rely on an ID supplied by the browser as proof of ownership.
+- Prefer the caller's verified access token for user-authorized reads where RLS can enforce the intended scope. If privileged access is needed for a server-side operation, isolate that operation and enforce explicit tenant/product predicates and authorization checks.
+- Restrict privileged writes to the intended job row and allowed fields. Never accept arbitrary table names, SQL, filters, tenant IDs, or job IDs from the webhook caller.
+- Keep credential scope/permissions least-privileged where the platform permits it. A service-role key is project-wide privileged access, not a tenant-scoped credential.
+- Do not assume the existing n8n credential named `Supabase account` is the production project or has an appropriate permission scope. Credential metadata does not reveal its endpoint, secret, or effective permissions; verify its target and access through a safe, non-mutating check before using it.
+- Test unauthorized tenant, cross-tenant contact, inactive owner, inactive tenant, token expiry, repeated request, and ID-tampering cases without provider calls. Keep the workflow inactive until these gates pass and live use is separately approved.
+
 ## Authorization test matrix
 
 Before any live integration, run these cases with no provider calls and no production writes:
 
-- Missing Authorization header → 401; no database access beyond Auth validation.
+- Missing Authorization header → 401; no private database access.
 - Invalid or expired Supabase access token → 401.
 - Valid authenticated user with no active tenant access → 403.
 - Active non-owner or owner for a different tenant/product → 403.
 - Inactive tenant or inactive owner access row → 403.
 - Body-supplied email/person/owner flag conflicts with verified Auth identity → ignore body identity and authorize only from verified identity; reject if owner check fails.
+- Selected person/contact or group belongs to a different tenant → reject before private data is returned or any job/provider action occurs.
 - Duplicate `request_id` for the same product/tenant → return existing job ID and do not queue or dispatch a second time.
 - Same `request_id` in another tenant/product → separate scope; never expose the other tenant's job.
 - Group-resolved audience of 0 → reject without job dispatch; 1–100 unique → proceed to the next approved stage; 101+ unique → reject the whole request before provider calls.
@@ -122,8 +138,9 @@ Before any live integration, run these cases with no provider calls and no produ
 ## Security and rollout gates
 
 Before any webhook activation or PWA integration:
-1. Implement and verify each authorization step above, including inactive tenant, non-owner, expired token, and tenant-ID tampering cases.
+
+1. Implement and verify each authorization step above, including inactive tenant, non-owner, expired token, cross-tenant person/contact, and tenant-ID tampering cases.
 2. Apply and review the additive registry migration separately; do not run it from the workflow.
 3. Test no-recipient, duplicate-recipient, >100-recipient (including group-resolved), provider timeout/uncertain result, and repeated request cases without provider sends.
-4. Verify PWA SELECT is tenant-owner scoped and INSERT/UPDATE/DELETE remain denied to authenticated browser users.
+4. Verify PWA SELECT is tenant-owner scoped and INSERT/UPDATE/DELETE remain denied to authenticated browser users. Remember that this RLS policy does not constrain service-role requests.
 5. Confirm the workflow is inactive and preview-only until the owner explicitly authorizes live integration.
