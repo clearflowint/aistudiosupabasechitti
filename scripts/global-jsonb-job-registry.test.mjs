@@ -6,29 +6,30 @@ const migration = readFileSync(new URL("../supabase/migrations/20261020150000_n8
 const contract = readFileSync(new URL("../docs/n8n-global-jsonb-job-registry.md", import.meta.url), "utf8");
 
 test("one global job table stores status and recipient updates in JSONB", () => {
-  assert.match(migration, /create table public\.n8n_global_jobs/i);
-  assert.match(migration, /job_data jsonb not null default '\{\}'::jsonb/i);
-  assert.doesNotMatch(migration, /create table public\.n8n_whatsapp_(communications|deliveries)/i);
-  assert.doesNotMatch(migration, /create or replace function/i);
+  assert.ok(migration.includes("create table public.n8n_global_jobs"));
+  assert.ok(migration.includes("job_data jsonb not null default '{}'::jsonb"));
+  assert.equal(migration.includes("create table public.n8n_whatsapp_communications"), false);
+  assert.equal(migration.includes("create table public.n8n_whatsapp_deliveries"), false);
+  assert.equal(migration.includes("create or replace function"), false);
 });
 
 test("job IDs start at 100 and jobs are tenant/product scoped", () => {
-  assert.match(migration, /identity \(start with 100 increment by 1\)/i);
-  assert.match(migration, /foreign key \(tenant_id, product_id\)/i);
-  assert.match(migration, /is_active_tenant_owner\(product_id, tenant_id\)/i);
-  assert.match(migration, /for select\s+to authenticated/i);
+  assert.ok(migration.includes("identity (start with 100 increment by 1)"));
+  assert.ok(migration.includes("foreign key (tenant_id, product_id)"));
+  assert.ok(migration.includes("is_active_tenant_owner(product_id, tenant_id)"));
+  assert.ok(migration.includes("for select\n  to authenticated"));
 });
 
 test("campaign recipient arrays have a hard 100-contact ceiling", () => {
-  assert.match(migration, /jsonb_array_length\(job_data -> 'recipients'\) <= 100/i);
-  assert.match(contract, /1–100 unique contacts/i);
-  assert.match(contract, /before any provider call/i);
+  assert.ok(migration.includes("jsonb_array_length(job_data -> 'recipients') <= 100"));
+  assert.ok(contract.includes("1–100 unique contacts"));
+  assert.ok(contract.includes("before any provider call"));
 });
 
 test("schema avoids the protected PWA push subsystem and general automation RPCs", () => {
   for (const protectedName of ["clearflow_push_subscriptions", "clearflow_push_outbox", "clearflow_push_alert_state"]) {
     assert.equal(migration.includes(protectedName), false);
   }
-  assert.doesNotMatch(migration, /create or replace function/i);
-  assert.match(contract, /does not touch the existing PWA push-notification tables/i);
+  assert.equal(migration.includes("create or replace function"), false);
+  assert.ok(contract.includes("does not touch the existing PWA push-notification tables"));
 });
