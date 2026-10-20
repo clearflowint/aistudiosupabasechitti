@@ -119,6 +119,6 @@ Failure outcomes must be reviewable without blind retries:
 - Definitive provider rejection: record a safe failed status; retry only if the failure is classified transient and the action is known safe.
 - Timeout/lost provider response after submission: mark `uncertain`, stop automatic resend, require manual review.
 - Ambiguous sender-acknowledgement result: mark acknowledgement `uncertain`; do not blindly resend it.
-- Execution failure: current **CFCF — Shared Error Handler** captures sanitized workflow/execution metadata only. It is not a durable alert, job-state update, lease-release mechanism, or sender message. Once the registry is approved, append a bounded error event and a safe review flag to the same job JSONB row; expose status/reference to the manager PWA. Keep event history capped at 500.
+- Execution failure: current **CFCF — Shared Error Handler** captures sanitized workflow/execution metadata and explicit review/no-blind-retry flags only. It is not a durable alert, job-state update, lease-release mechanism, or sender message. Once the registry is approved, append a bounded error event and a safe review flag to the same job JSONB row; expose status/reference to the manager PWA. Keep event history capped at 500.
 
 Do not deduplicate distinct requests solely by message text. Use provider event IDs for transport deduplication and a scoped request ID for business-job idempotency. Keep queues/pacing independent per assigned WAHA session/manager; no cross-session fallback.
