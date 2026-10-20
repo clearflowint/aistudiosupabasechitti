@@ -814,3 +814,35 @@ test("worker adapter contract: legacy placeholders stay disabled until atomic re
   assert.ok(contract.includes("single-winner atomic claim against `n8n_global_jobs`"));
   assert.ok(contract.includes("No migration or workflow activation is authorized by this contract"));
 });
+
+
+// Batch 35 — evidence-based finalization adapter truth table.
+test("finalization adapter contract: uncertainty and in-flight states cannot be reported as success", () => {
+  for (const phrase of [
+    "Finalization adapter truth table — Batch 35",
+    "At least one recipient is `uncertain`",
+    "Any recipient remains `pending` or `submitting`",
+    "Manual reconciliation; never auto-resend",
+    "do not mark complete"
+  ]) {
+    assert.ok(contract.includes(phrase), "missing finalization evidence rule: " + phrase);
+  }
+});
+
+test("finalization adapter contract: all-accepted, partial, all-failed, and empty audiences are distinguished", () => {
+  for (const phrase of [
+    "All recipients are `provider_accepted`",
+    "A terminal mix of `provider_accepted` and `failed` or `skipped`",
+    "Non-empty recipient list with no accepted recipients",
+    "Empty or missing recipient list for a sendable job",
+    "Means provider accepted all requests, not delivery/read"
+  ]) {
+    assert.ok(contract.includes(phrase), "missing finalization mapping: " + phrase);
+  }
+});
+
+test("finalization adapter contract: stale counters and lease expiry cannot authorize a resend", () => {
+  assert.ok(contract.includes("Counters are projections derived from the saved recipient array"));
+  assert.ok(contract.includes("Lease expiry alone is not permission to reclaim and resend"));
+  assert.ok(contract.includes("do not activate workflows or apply the draft migration"));
+});
