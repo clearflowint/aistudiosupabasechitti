@@ -45,3 +45,30 @@ test("schema avoids the protected PWA push subsystem and general automation RPCs
   assert.equal(migration.includes("create or replace function"), false);
   assert.ok(contract.includes("Existing PWA push tables/functions/data/cron jobs remain untouched."));
 });
+
+test("inbound provider events have a scoped uniqueness guard separate from request idempotency", () => {
+  assert.ok(migration.includes("n8n_global_jobs_inbound_event_unique_idx"));
+  assert.ok(migration.includes("where job_type = 'whatsapp_inbound'"));
+  assert.ok(migration.includes("(job_data ->> 'provider_name')"));
+  assert.ok(migration.includes("(job_data ->> 'session_name')"));
+  assert.ok(migration.includes("(job_data ->> 'provider_event_id')"));
+  assert.ok(contract.includes("trusted `session_name`, and `provider_event_id`"));
+  assert.ok(contract.includes("The migration remains draft-only and has not been applied to any database."));
+});
+
+function mockInboundEventKey({ productId, tenantId, providerName, sessionName, providerEventId }) {
+  const fields = [productId, tenantId, providerName, sessionName, providerEventId];
+  if (fields.some(value => typeof value !== "string" || value.trim() === "")) return null;
+  return fields.map(value => value.trim()).join("::");
+}
+
+test("mock inbound event idempotency distinguishes provider, session, tenant, and event", () => {
+  const base = { productId: "CFCF", tenantId: "tenant-a", providerName: "WAHA", sessionName: "Lakki", providerEventId: "evt-123" };
+  assert.equal(mockInboundEventKey(base), mockInboundEventKey({ ...base }));
+  assert.notEqual(mockInboundEventKey(base), mockInboundEventKey({ ...base, providerEventId: "evt-124" }));
+  assert.notEqual(mockInboundEventKey(base), mockInboundEventKey({ ...base, sessionName: "tenant-session-2" }));
+  assert.notEqual(mockInboundEventKey(base), mockInboundEventKey({ ...base, tenantId: "tenant-b" }));
+  assert.notEqual(mockInboundEventKey(base), mockInboundEventKey({ ...base, providerName: "other-provider" }));
+  assert.equal(mockInboundEventKey({ ...base, sessionName: " " }), null);
+  assert.equal(mockInboundEventKey({ ...base, providerEventId: "" }), null);
+});
