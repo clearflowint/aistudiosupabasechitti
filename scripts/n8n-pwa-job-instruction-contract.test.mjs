@@ -47,8 +47,10 @@ test("acknowledgement stays simple and ambiguous external sends are not automati
 });
 
 test("tracked jobs are created by n8n only for work needing progress; CFCF schedules are out of scope", () => {
-  assert.ok(contract.includes("n8n creates and updates this record"));
-  assert.ok(contract.includes("do not automatically create job records"));
+  assert.ok(contract.includes("n8n creates and updates the record using its trusted server-side Supabase credential"));
+  assert.ok(contract.includes("One shared n8n dispatcher checks for queued jobs whose time has arrived"));
+  assert.ok(contract.includes("do not automatically create jobs"));
+  assert.ok(contract.includes("PWA, WhatsApp, AI agents, APIs, and future products"));
   assert.ok(contract.includes("CFCF automatic scheduled reminders and reports are out of scope"));
   assert.ok(contract.includes("change existing PWA notification tables, functions, data, or cron jobs"));
   for (const protectedName of ["clearflow_push_subscriptions", "clearflow_push_outbox", "clearflow_push_alert_state"]) {
