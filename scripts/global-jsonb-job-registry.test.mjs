@@ -42,7 +42,7 @@ test("global registry status access is tenant-scoped and product-specific", () =
   assert.ok(policyMigration.includes("when product_id = 'CFCF'"));
   assert.ok(policyMigration.includes("then public.is_active_tenant_owner(product_id, tenant_id)"));
   assert.ok(policyMigration.includes("else public.has_active_access(product_id, tenant_id)"));
-  assert.ok(contract.includes("CFCF status reads remain manager-only"));
+  assert.ok(contract.includes("CFCF status remains manager-only"));
 });
 
 test("draft schema avoids workflow-engine machinery and duplicate indexes", () => {
