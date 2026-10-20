@@ -1,4 +1,7 @@
-# CFCF Scheduled Automation — Design and Rollout
+# CFCF Scheduled Automation — Archived Prototype
+
+> **Status: rolled back / superseded.** This document describes the historical prototype only. The unfinished `cfcf_automation_schedules` / `cfcf_automation_jobs` schema and its `cfcf_*automation*` RPCs are being removed by migration `20261020040000_rollback_cfcf_scheduled_automation.sql`. Do not implement or activate this design. The existing PWA push notification infrastructure and daily manager summary are separate and remain protected.
+
 
 ## Confirmed behavior
 
