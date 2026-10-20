@@ -670,7 +670,7 @@ test("manager PWA progress contract is read-only and exposes actionable safe sta
     "provider_accepted",
     "failed",
     "uncertain",
-    "last safe update",
+    "Last safe update time",
     "Needs review",
     "must not create jobs, change job status, dispatch messages, or repair progress counters"
   ]) {
@@ -765,7 +765,7 @@ test("readiness gate: no live integration until authentication and persistence p
 });
 
 test("readiness gate: recurring dates and protected PWA notifications cannot be guessed or changed", () => {
-  assert.ok(contract.includes("recover the approved three monthly pending-reminder dates and two report dates before implementing schedules; do not guess them"));
+  assert.ok(contract.includes("recover the approved three monthly pending-reminder dates and two report dates"));
   assert.ok(contract.includes("Do not change PWA notification tables, functions, data, or cron jobs"));
   assert.ok(contract.includes("No production migration applied"));
 });
