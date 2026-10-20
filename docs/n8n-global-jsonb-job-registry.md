@@ -1,6 +1,6 @@
 # ClearFlow automation job storage — simplified draft
 
-> This document supersedes the earlier elaborate registry proposal. The design is intentionally minimal and portability-first. The migration remains draft-only and must not be applied without explicit approval for a specific non-production environment.
+> This document supersedes the earlier elaborate registry proposal. The design is intentionally minimal and portability-first. The registry migration was applied to the development-stage ClearFlow Platform project on 2026-10-20 after explicit user approval.
 
 ## Purpose
 
