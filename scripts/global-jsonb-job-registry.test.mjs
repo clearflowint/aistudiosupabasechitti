@@ -208,23 +208,15 @@ test("portability-first architecture is documented and notification subsystem st
 });
 
 
-test("PWA can enqueue only tenant-owned manual CFCF campaign requests", () => {
-  assert.ok(campaignMigration.includes("grant insert ("));
-  assert.ok(campaignMigration.includes("for insert to authenticated"));
-  assert.ok(campaignMigration.includes("public.is_active_tenant_owner(product_id, tenant_id)"));
-  assert.ok(campaignMigration.includes("source_type = 'pwa'"));
-  assert.ok(campaignMigration.includes("'pending_reminder_campaign', 'share_report_campaign'"));
-  assert.ok(campaignMigration.includes("status = 'queued'"));
-  assert.ok(campaignMigration.includes("scheduled_at is null"));
-  assert.ok(campaignMigration.includes("job_data ->> 'execution_mode' = 'manual_send'"));
-  assert.ok(campaignScopeMigration.includes("from public.cfcf_funds as fund"));
-  assert.ok(campaignScopeMigration.includes("fund.tenant_id = public.n8n_global_jobs.tenant_id"));
-  assert.ok(campaignScopeMigration.includes("fund.status = 'active'"));
-  assert.ok(progressService.includes("requestCfcfCampaignJob"));
-  assert.ok(progressService.includes('source_type: "pwa"'));
-  assert.ok(progressService.includes("campaign_kind: campaignKind"));
-  assert.ok(progressService.includes('window.dispatchEvent(new Event("clearflow:cfcf-job-queued"))'));
+test("n8n owns job creation; PWA submits authenticated requests only", () => {
+  assert.ok(n8nOwnershipMigration.includes("drop policy if exists n8n_global_jobs_cfcf_manual_campaign_insert"));
+  assert.ok(n8nOwnershipMigration.includes("revoke insert ("));
+  assert.ok(n8nOwnershipMigration.includes("n8n owns job creation and lifecycle updates"));
+  assert.ok(progressService.includes("VITE_CFCF_N8N_CAMPAIGN_WEBHOOK_URL"));
+  assert.ok(progressService.includes('Authorization: "Bearer " + accessToken'));
+  assert.ok(progressService.includes('method: "POST"'));
+  assert.equal(/from\("n8n_global_jobs"\)[\s\S]*?\.insert\(/.test(progressService), false);
+  assert.ok(progressService.includes("n8n did not confirm the campaign request"));
   assert.ok(workspacePage.includes('queueCampaign("pending_reminder_campaign")'));
   assert.ok(workspacePage.includes('queueCampaign("share_report_campaign")'));
-  assert.ok(workspacePage.includes("delivery remains blocked until the WAHA endpoint, session, and authentication are configured."));
 });
