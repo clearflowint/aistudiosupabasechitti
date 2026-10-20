@@ -93,6 +93,7 @@ export async function createCfcfContactGroup(
 
   if (error) {
     if (error.code === "42501") throw new Error("You do not have permission to create a Contact Group in this workspace.");
+    if (error.code === "23505") throw new Error("A Contact Group with this name already exists in this workspace. Choose a unique name.");
     throw new Error("Unable to create Contact Group: " + error.message);
   }
   return data as CfcfContactGroupRow;
@@ -116,6 +117,7 @@ export async function renameCfcfContactGroup(
     .select(GROUP_FIELDS)
     .single();
 
+  if (error?.code === "23505") throw new Error("A Contact Group with this name already exists in this workspace. Choose a unique name.");
   if (error) throw new Error("Unable to rename Contact Group: " + error.message);
   return data as CfcfContactGroupRow;
 }
