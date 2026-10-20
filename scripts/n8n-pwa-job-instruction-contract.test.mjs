@@ -765,7 +765,7 @@ test("readiness gate: no live integration until authentication and persistence p
 });
 
 test("readiness gate: recurring dates and protected PWA notifications cannot be guessed or changed", () => {
-  assert.ok(contract.includes("recover the approved three monthly pending-reminder dates and two report dates"));
+  assert.ok(contract.includes("three manager-selected recurring reminder slots and two manager-selected recurring report slots per Fund"));
   assert.ok(contract.includes("Do not change PWA notification tables, functions, data, or cron jobs"));
   assert.ok(contract.includes("migration remains unapplied"));
 });
@@ -852,13 +852,21 @@ test("finalization adapter contract: stale counters and lease expiry cannot auth
 test("schedule contract: monthly dates are recovered, not guessed, and schedules remain in n8n", () => {
   for (const phrase of [
     "Monthly occurrence idempotency contract — Batch 36",
-    "must be recovered from the authoritative prior configuration",
-    "no exact dates or schedule nodes may be invented or activated",
+    "not a set of fixed dates",
+    "safe persistence location for these per-Fund slots remains unresolved",
     "Do not add schedule tables, RPCs, new cron jobs in Supabase",
     "does not authorize production writes"
   ]) {
     assert.ok(contract.includes(phrase), "missing schedule safety rule: " + phrase);
   }
+});
+
+test("schedule contract: per-Fund recurring slots and month-end behavior are explicit", () => {
+  assert.ok(contract.includes("up to three manager-selected monthly pending-reminder date/time slots"));
+  assert.ok(contract.includes("two manager-selected monthly report date/time slots"));
+  assert.ok(contract.includes("day 29–31 clamps to the last day of shorter months"));
+  assert.ok(contract.includes("Asia/Kolkata"));
+  assert.ok(contract.includes("do not store settings in unrelated financial JSONB fields"));
 });
 
 test("schedule contract: one durable job per stable occurrence and duplicate occurrence never dispatches twice", () => {
@@ -891,7 +899,7 @@ test("non-production readiness: real sends and production access remain prohibit
   for (const phrase of [
     "Do not use real phone numbers, real WhatsApp sends, production data, production credentials, or production migration paths",
     "actual WAHA-to-n8n authentication is verified from configuration",
-    "approved monthly dates are recovered",
+    "per-Fund slot persistence location is resolved without violating the no-schedule-table constraint",
     "Passing static CI alone does not satisfy any live integration gate"
   ]) {
     assert.ok(contract.includes(phrase), "missing non-production safety boundary: " + phrase);
