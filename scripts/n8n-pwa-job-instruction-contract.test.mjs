@@ -27,7 +27,7 @@ test("authorization trusts the verified Auth identity and enforces active tenant
 
 test("service-role RLS bypass and safer user-scoped reads are explicit", () => {
   assert.ok(contract.includes("Supabase `service_role` credentials bypass Row Level Security."));
-  assert.ok(contract.includes("not restricted by the authenticated tenant-owner SELECT policy"));
+  assert.ok(contract.includes("restricted by the authenticated tenant-owner SELECT policy on `n8n_global_jobs`"));
   assert.ok(contract.includes("Prefer the caller's verified access token for user-authorized reads"));
   assert.ok(contract.includes("project-wide privileged access, not a tenant-scoped credential"));
   assert.ok(contract.includes("verify its target and access through a safe, non-mutating check"));
