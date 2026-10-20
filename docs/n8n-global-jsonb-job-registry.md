@@ -61,6 +61,8 @@ n8n is the only writer for a job's JSONB progress. Keep recipient processing and
 ## Implementation state
 
 - PR #24 contains the additive registry migration as a draft; it has not been merged or applied to production.
+- The registry now has a unique expression index scoped by product/tenant/request ID. n8n must return the existing job on duplicate requests; the index protects against concurrent duplicate inserts.
+- Batch 3 documents the required Supabase Auth token verification, active tenant-owner check, authoritative recipient resolution, 100-recipient cap, and bounded 500-event history. These are specified as rollout requirements, not yet implemented in the preview workflow.
 - The n8n workflow **ClearFlow — JSONB Job Contract Preview (Draft Only)** exists in the personal n8n project, is confirmed inactive, and has three nodes: Webhook → validation-only Code node → JSON response.
 - That workflow performs structural validation only. It does not authenticate a caller, read Supabase, create/update a job, schedule work, call WAHA/provider APIs, or send callbacks. Do not activate it or connect the PWA to it.
 - The workflow passed an n8n Workflow SDK validation and two manual, side-effect-free executions: a valid campaign envelope returned `ok: true`, and 101 explicit unique contact IDs returned `ok: false` with the over-limit error. Group membership resolution and authenticated tenant checks remain outstanding.
