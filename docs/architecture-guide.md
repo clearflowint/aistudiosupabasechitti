@@ -104,7 +104,7 @@ ClearFlow owns product behavior and business rules. Supabase, n8n, WhatsApp/WAHA
 
 ### Current implementation implications
 
-- Treat the draft n8n_global_jobs migration and simple status card as proposals under review, not mandatory architecture. For tasks that need progress, n8n itself inserts and updates the row using its trusted server-side credential; no database function/RPC is needed. Ordinary n8n operations do not create tracked job rows. Do not apply the migration until the simplified working flow and required data fields are agreed.
+- Treat the draft n8n_global_jobs migration and simple status card as proposals under review, not mandatory architecture. All sources enter a central n8n engine; n8n validates and routes requests, creates records only for tracked/deferred tasks, and executes them. Supabase stores the record; no database function/RPC is needed. A single n8n dispatcher handles optional `scheduled_at` times. Ordinary n8n operations do not create tracked job rows. Do not apply the migration until the simplified working flow and required data fields are agreed.
 - Keep the CFCF progress card feature flag disabled until its data source is settled and tested.
 - Keep draft n8n ingress/worker workflows inactive until the smallest working request-to-result path is validated in a controlled non-production environment.
 - Do not change existing PWA notification tables, functions, data, or cron jobs as part of this review.
