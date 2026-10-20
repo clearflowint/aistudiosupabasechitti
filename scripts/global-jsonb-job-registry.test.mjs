@@ -20,6 +20,11 @@ test("job IDs start at 100 and jobs are tenant/product scoped", () => {
   assert.ok(migration.includes("for select\n  to authenticated"));
 });
 
+test("tenant foreign key matches the composite tenant/product unique key", () => {
+  assert.ok(migration.includes("foreign key (tenant_id, product_id)"));
+  assert.ok(migration.includes("references public.tenants (tenant_id, product_id)"));
+});
+
 test("request IDs are unique per product and tenant to prevent duplicate jobs", () => {
   assert.ok(migration.includes("n8n_global_jobs_request_id_unique_idx"));
   assert.ok(migration.includes("(product_id, tenant_id, (job_data ->> 'request_id'))"));
