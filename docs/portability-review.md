@@ -61,8 +61,8 @@ This is a practical inventory, not a rewrite mandate. It identifies where the cu
 1. Keep the minimal job schema and focused contract tests.
 2. Build the smallest CFCF request-to-result n8n flow in draft mode using a mock provider and synthetic records.
 3. Verify the actual WAHA-to-n8n auth configuration before touching inbound workflows.
-4. Resolve where the manager-selected monthly schedule slots are stored without changing protected notification infrastructure.
-5. Test against an explicitly approved non-production environment before applying the draft migration there.
+4. Keep automatic monthly reminders and automatic scheduled reports out of CFCF scope. Do not add per-Fund schedule-slot persistence or connect the monthly evaluator to CFCF.
+5. Test against an explicitly approved non-production environment before applying any remaining draft migration there.
 6. Only when a real alternative database/provider is selected, replace the relevant storage adapter and re-run the existing product tests.
 
 
@@ -80,3 +80,8 @@ The next real integration blockers remain unchanged: verify the actual WAHA-to-n
 ### Inbound draft smoke checks — 2026-10-20
 
 Mock executions `35` (shared agency number) and `36` (tenant-owned number) both completed successfully using synthetic webhook payloads. These tests confirm only that the draft validation/response paths execute; they do not verify WAHA authentication, tenant resolution against real data, or durable enqueue. The tenant-owned fixture intentionally included an untrusted `tenant_id` field, which the current validator marks as ignored. Both ingress workflows remain inactive and unauthenticated placeholders, return the queue-not-configured response, and must not be activated yet.
+
+
+### Scope decision — 2026-10-20: automatic CFCF schedules removed
+
+The product decision is to remove automatic scheduled pending reminders and automatic scheduled reports from CFCF. Do not implement or persist the previously discussed three reminder slots and two report slots per Fund. Manual reminder/report operations remain available wherever already implemented. The product-neutral global job registry and orchestration direction remain separate and may support other products or explicitly requested workflows later. The existing `CFCF — Monthly Schedule Evaluator (Setup Required)` remains inactive with zero triggers and is retired from the CFCF implementation path; do not activate or wire it to CFCF. No PWA notification tables, functions, data, or cron jobs are to be changed.
