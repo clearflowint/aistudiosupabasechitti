@@ -104,7 +104,7 @@ test("n8n owns CFCF job creation through one product-wide authenticated ingress"
   assert.ok(campaignScopeMigration.includes("fund.tenant_id = public.n8n_global_jobs.tenant_id"));
   assert.ok(n8nOwnershipMigration.includes("drop policy if exists n8n_global_jobs_cfcf_manual_campaign_insert"));
   assert.ok(n8nOwnershipMigration.includes("revoke insert ("));
-  assert.ok(n8nOwnershipMigration.includes("trusted n8n/server-side integrations own job creation"));
+  assert.ok(n8nOwnershipMigration.includes("Trusted n8n/server-side integrations own job creation"));
   assert.ok(progressService.includes("VITE_CFCF_N8N_WEBHOOK_URL"));
   assert.equal(progressService.includes("VITE_CFCF_N8N_CAMPAIGN_WEBHOOK_URL"), false);
   assert.ok(progressService.includes("requestCfcfAutomationJob"));
