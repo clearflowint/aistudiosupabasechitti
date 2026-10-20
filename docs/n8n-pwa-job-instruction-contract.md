@@ -321,3 +321,7 @@ Fail-closed requirements:
 - Keep both inbound workflows inactive until authentication, routing, durable enqueue, duplicate handling, acknowledgement suppression, and fail-closed tests are implemented and verified.
 
 Current blocker: the actual WAHA-to-n8n authentication configuration has not been verified in the available workflow configuration. Therefore this batch documents and tests the required gate; it does not claim the webhook is secured or ready to activate.
+
+### Batch 22 validation note — mock gate, not deployed authentication
+
+The repository test `modelInboundGate` exercises the required stage ordering with synthetic states: unverified authentication stops before tenant lookup; malformed events and ambiguous routes stop before enqueue; a successful transport 2xx is modeled only for durable storage or recognized duplicate events. These are contract tests only. They do not validate a real Authorization header, signature, reverse-proxy rule, WAHA delivery configuration, or n8n credential. No production ingress security change has been made because the actual WAHA-to-n8n authentication configuration remains unverified.
