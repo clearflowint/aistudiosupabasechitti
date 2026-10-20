@@ -432,7 +432,7 @@ test("enqueue model: unknown persistence failure never returns a success receipt
 test("enqueue contract separates durable receipt from worker dispatch and forbids blind resend", () => {
   assert.ok(contract.includes("n8n creates the job row and uses its returned database `job_id` as the canonical job ID"));
   assert.ok(contract.includes("on conflict, fetch and return the existing job and do not dispatch again"));
-  assert.ok(contract.includes("If insert fails for any reason other than a confirmed duplicate, return retryable non-2xx"));
+  assert.ok(contract.includes("If persistence fails, return retryable non-2xx."));
   assert.ok(contract.includes("no automatic resend"));
   assert.ok(contract.includes("The migration remains draft-only and has not been applied to any database.") || contract.includes("Do not point production UI at the draft webhook yet."));
 });
