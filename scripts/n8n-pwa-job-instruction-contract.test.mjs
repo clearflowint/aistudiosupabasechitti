@@ -61,13 +61,13 @@ test("safety and existing architecture constraints are explicit", () => {
 test("multi-trigger design distinguishes PWA, WhatsApp, and schedule authentication", () => {
   for (const phrase of [
     "PWA-originated manager actions",
-    "Inbound WhatsApp-originated actions",
+    "Inbound WhatsApp-originated actions — simplified phone-based routing",
     "Scheduled n8n-originated work",
     "validates the access token with Supabase Auth",
     "WAHA server and n8n webhook",
     "there is no inbound HTTP request and no external app to hold a secret",
     "shared authorization gate",
-    "unknown, shared, inactive, or belongs to a different tenant"
+    "unknown inbound senders may be handled as unverified inquiries"
   ]) {
     assert.ok(contract.includes(phrase), `missing multi-trigger security rule: ${phrase}`);
   }
@@ -78,4 +78,19 @@ test("scheduled and inbound events require idempotency and current tenant author
   assert.ok(contract.includes("Deduplicate using the provider event/message ID"));
   assert.ok(contract.includes("check that the target tenant is still active and eligible"));
   assert.ok(contract.includes("Source identity and action permissions are not interchangeable"));
+});
+
+test("WhatsApp routing uses sender/receiver numbers and does not treat session name as a secret", () => {
+  for (const phrase of [
+    "Do **not** treat a WAHA session name as a secret",
+    "Shared agency number/session:",
+    "sender's normalized phone number as the primary lookup to identify the tenant",
+    "Tenant-owned WhatsApp number/session:",
+    "receiver/business number to identify which tenant owns that WhatsApp number",
+    "sender's normalized number to look up the person within that tenant",
+    "session name is routing metadata, not a credential",
+    "ambiguous mappings ask for clarification or go to manual review"
+  ]) {
+    assert.ok(contract.includes(phrase), `missing WhatsApp routing rule: ${phrase}`);
+  }
 });
