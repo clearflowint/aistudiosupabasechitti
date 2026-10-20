@@ -257,3 +257,75 @@ test("human WhatsApp receipt is conditional on long-running work, transport ack 
   assert.ok(contract.includes("not_required, pending, provider_accepted, failed, uncertain"));
   assert.ok(contract.includes("Never send a quick-operation success message before the operation succeeds."));
 });
+
+
+function modelInboundAcknowledgement({ durableEnqueue, duplicateEvent = false, operationDuration }) {
+  if (durableEnqueue !== true && duplicateEvent !== true) {
+    return {
+      transportStatus: 503,
+      transportAccepted: false,
+      humanAcknowledgement: "not_sent",
+      reason: "durable_enqueue_failed"
+    };
+  }
+  const humanAcknowledgement = duplicateEvent
+    ? "suppressed_duplicate"
+    : operationDuration === "long_running"
+      ? "send_receipt_after_enqueue"
+      : "not_required";
+  return {
+    transportStatus: 200,
+    transportAccepted: true,
+    humanAcknowledgement,
+    duplicateEvent
+  };
+}
+
+test("ack model: quick operation gets transport ack but no queued WhatsApp receipt", () => {
+  assert.deepEqual(modelInboundAcknowledgement({
+    durableEnqueue: true,
+    operationDuration: "quick"
+  }), {
+    transportStatus: 200,
+    transportAccepted: true,
+    humanAcknowledgement: "not_required",
+    duplicateEvent: false
+  });
+});
+
+test("ack model: long-running operation gets receipt decision only after durable enqueue", () => {
+  assert.deepEqual(modelInboundAcknowledgement({
+    durableEnqueue: true,
+    operationDuration: "long_running"
+  }), {
+    transportStatus: 200,
+    transportAccepted: true,
+    humanAcknowledgement: "send_receipt_after_enqueue",
+    duplicateEvent: false
+  });
+});
+
+test("ack model: enqueue failure returns retryable transport failure and never claims queued", () => {
+  assert.deepEqual(modelInboundAcknowledgement({
+    durableEnqueue: false,
+    operationDuration: "long_running"
+  }), {
+    transportStatus: 503,
+    transportAccepted: false,
+    humanAcknowledgement: "not_sent",
+    reason: "durable_enqueue_failed"
+  });
+});
+
+test("ack model: duplicate provider event is transport-accepted but does not trigger another receipt", () => {
+  assert.deepEqual(modelInboundAcknowledgement({
+    durableEnqueue: false,
+    duplicateEvent: true,
+    operationDuration: "long_running"
+  }), {
+    transportStatus: 200,
+    transportAccepted: true,
+    humanAcknowledgement: "suppressed_duplicate",
+    duplicateEvent: true
+  });
+});
