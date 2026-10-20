@@ -11,6 +11,505 @@ create table public.n8n_global_jobs (
     check (status in ('queued', 'processing', 'completed', 'partial', 'failed', 'uncertain', 'cancelled')),
   job_data jsonb not null default '{}'::jsonb
     check (jsonb_typeof(job_data) = 'object'),
+  -- Sanitized manager summary; never grant the PWA direct access to the full job_data document.
+  progress_summary jsonb generated always as (
+    jsonb_build_object(
+      'recipient_count', case when coalesce(job_data #>> '{progress,recipient_count}', '') ~ '^[0-9]{1,9}  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  completed_at timestamptz,
+  constraint n8n_global_jobs_tenant_product_fk
+    foreign key (tenant_id, product_id)
+    references public.tenants (tenant_id, product_id)
+    on delete restrict,
+  constraint n8n_global_jobs_type_nonblank
+    check (length(btrim(job_type)) > 0),
+  constraint n8n_global_jobs_campaign_limit
+    check (
+      job_type not in ('campaign', 'manual_campaign')
+      or not (job_data ? 'recipients')
+      or (
+        jsonb_typeof(job_data -> 'recipients') = 'array'
+        and jsonb_array_length(job_data -> 'recipients') <= 100
+      )
+    )
+);
+
+create index n8n_global_jobs_tenant_recent_idx
+  on public.n8n_global_jobs (product_id, tenant_id, created_at desc);
+
+create index n8n_global_jobs_queue_idx
+  on public.n8n_global_jobs (status, created_at)
+  where status in ('queued', 'processing');
+
+-- The same client instruction must not create two job rows for the same tenant/product.
+-- A duplicate request should resolve to the existing job, never trigger another send.
+create unique index n8n_global_jobs_request_id_unique_idx
+  on public.n8n_global_jobs (product_id, tenant_id, (job_data ->> 'request_id'))
+  where nullif(btrim(job_data ->> 'request_id'), '') is not null;
+
+alter table public.n8n_global_jobs enable row level security;
+
+revoke all on table public.n8n_global_jobs from anon, authenticated;
+-- Column-level read access keeps raw JSONB payloads, recipients, events and errors private.
+grant select (
+  job_id, product_id, tenant_id, job_type, status,
+  created_at, updated_at, completed_at, progress_summary
+) on table public.n8n_global_jobs to authenticated;
+grant all on table public.n8n_global_jobs to service_role;
+
+create policy n8n_global_jobs_tenant_owner_read
+  on public.n8n_global_jobs
+  for select
+  to authenticated
+  using (public.is_active_tenant_owner(product_id, tenant_id));
+
+
+-- PWA-safe read model: only allowlisted metadata and generated counters are exposed.
+-- security_invoker preserves the table's RLS policy and column-level grants.
+create view public.n8n_global_job_progress
+with (security_invoker = true)
+as
+select
+  job_id,
+  product_id,
+  tenant_id,
+  job_type,
+  status,
+  created_at,
+  updated_at as last_safe_update_at,
+  completed_at,
+  progress_summary,
+  (status in ('uncertain', 'partial')) as needs_review
+from public.n8n_global_jobs;
+
+grant select on public.n8n_global_job_progress to authenticated;
+
+comment on table public.n8n_global_jobs is
+  'Global ClearFlow automation job registry. One row per job; recipient statuses, progress and event acknowledgements live in job_data JSONB. Written by n8n using server-side credentials; authenticated tenant owners have read-only access to their own product/tenant jobs.';
+
+comment on column public.n8n_global_jobs.job_data is
+  'Single JSONB document for request details, prepared payload, recipients (maximum 100 for campaigns), per-recipient status, acknowledgement events, progress, errors and result summary. n8n updates this same row as work proceeds.';
+
+-- Transport-level idempotency for authenticated inbound WhatsApp events.
+-- Event identity is scoped to product/tenant, provider, and trusted session.
+-- Only create these fields after ingress authentication and authoritative tenant/session resolution.
+create unique index n8n_global_jobs_inbound_event_unique_idx
+  on public.n8n_global_jobs (
+    product_id,
+    tenant_id,
+    (job_data ->> 'provider_name'),
+    (job_data ->> 'session_name'),
+    (job_data ->> 'provider_event_id')
+  )
+  where job_type = 'whatsapp_inbound'
+    and nullif(btrim(job_data ->> 'provider_name'), '') is not null
+    and nullif(btrim(job_data ->> 'session_name'), '') is not null
+    and nullif(btrim(job_data ->> 'provider_event_id'), '') is not null;
+ then (job_data #>> '{progress,recipient_count}')::integer end,
+      'processed_count', case when coalesce(job_data #>> '{progress,processed_count}', '') ~ '^[0-9]{1,9}  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  completed_at timestamptz,
+  constraint n8n_global_jobs_tenant_product_fk
+    foreign key (tenant_id, product_id)
+    references public.tenants (tenant_id, product_id)
+    on delete restrict,
+  constraint n8n_global_jobs_type_nonblank
+    check (length(btrim(job_type)) > 0),
+  constraint n8n_global_jobs_campaign_limit
+    check (
+      job_type not in ('campaign', 'manual_campaign')
+      or not (job_data ? 'recipients')
+      or (
+        jsonb_typeof(job_data -> 'recipients') = 'array'
+        and jsonb_array_length(job_data -> 'recipients') <= 100
+      )
+    )
+);
+
+create index n8n_global_jobs_tenant_recent_idx
+  on public.n8n_global_jobs (product_id, tenant_id, created_at desc);
+
+create index n8n_global_jobs_queue_idx
+  on public.n8n_global_jobs (status, created_at)
+  where status in ('queued', 'processing');
+
+-- The same client instruction must not create two job rows for the same tenant/product.
+-- A duplicate request should resolve to the existing job, never trigger another send.
+create unique index n8n_global_jobs_request_id_unique_idx
+  on public.n8n_global_jobs (product_id, tenant_id, (job_data ->> 'request_id'))
+  where nullif(btrim(job_data ->> 'request_id'), '') is not null;
+
+alter table public.n8n_global_jobs enable row level security;
+
+revoke all on table public.n8n_global_jobs from anon, authenticated;
+grant select on table public.n8n_global_jobs to authenticated;
+grant all on table public.n8n_global_jobs to service_role;
+
+create policy n8n_global_jobs_tenant_owner_read
+  on public.n8n_global_jobs
+  for select
+  to authenticated
+  using (public.is_active_tenant_owner(product_id, tenant_id));
+
+comment on table public.n8n_global_jobs is
+  'Global ClearFlow automation job registry. One row per job; recipient statuses, progress and event acknowledgements live in job_data JSONB. Written by n8n using server-side credentials; authenticated tenant owners have read-only access to their own product/tenant jobs.';
+
+comment on column public.n8n_global_jobs.job_data is
+  'Single JSONB document for request details, prepared payload, recipients (maximum 100 for campaigns), per-recipient status, acknowledgement events, progress, errors and result summary. n8n updates this same row as work proceeds.';
+
+-- Transport-level idempotency for authenticated inbound WhatsApp events.
+-- Event identity is scoped to product/tenant, provider, and trusted session.
+-- Only create these fields after ingress authentication and authoritative tenant/session resolution.
+create unique index n8n_global_jobs_inbound_event_unique_idx
+  on public.n8n_global_jobs (
+    product_id,
+    tenant_id,
+    (job_data ->> 'provider_name'),
+    (job_data ->> 'session_name'),
+    (job_data ->> 'provider_event_id')
+  )
+  where job_type = 'whatsapp_inbound'
+    and nullif(btrim(job_data ->> 'provider_name'), '') is not null
+    and nullif(btrim(job_data ->> 'session_name'), '') is not null
+    and nullif(btrim(job_data ->> 'provider_event_id'), '') is not null;
+ then (job_data #>> '{progress,processed_count}')::integer end,
+      'accepted_count', case when coalesce(job_data #>> '{progress,accepted_count}', '') ~ '^[0-9]{1,9}  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  completed_at timestamptz,
+  constraint n8n_global_jobs_tenant_product_fk
+    foreign key (tenant_id, product_id)
+    references public.tenants (tenant_id, product_id)
+    on delete restrict,
+  constraint n8n_global_jobs_type_nonblank
+    check (length(btrim(job_type)) > 0),
+  constraint n8n_global_jobs_campaign_limit
+    check (
+      job_type not in ('campaign', 'manual_campaign')
+      or not (job_data ? 'recipients')
+      or (
+        jsonb_typeof(job_data -> 'recipients') = 'array'
+        and jsonb_array_length(job_data -> 'recipients') <= 100
+      )
+    )
+);
+
+create index n8n_global_jobs_tenant_recent_idx
+  on public.n8n_global_jobs (product_id, tenant_id, created_at desc);
+
+create index n8n_global_jobs_queue_idx
+  on public.n8n_global_jobs (status, created_at)
+  where status in ('queued', 'processing');
+
+-- The same client instruction must not create two job rows for the same tenant/product.
+-- A duplicate request should resolve to the existing job, never trigger another send.
+create unique index n8n_global_jobs_request_id_unique_idx
+  on public.n8n_global_jobs (product_id, tenant_id, (job_data ->> 'request_id'))
+  where nullif(btrim(job_data ->> 'request_id'), '') is not null;
+
+alter table public.n8n_global_jobs enable row level security;
+
+revoke all on table public.n8n_global_jobs from anon, authenticated;
+grant select on table public.n8n_global_jobs to authenticated;
+grant all on table public.n8n_global_jobs to service_role;
+
+create policy n8n_global_jobs_tenant_owner_read
+  on public.n8n_global_jobs
+  for select
+  to authenticated
+  using (public.is_active_tenant_owner(product_id, tenant_id));
+
+comment on table public.n8n_global_jobs is
+  'Global ClearFlow automation job registry. One row per job; recipient statuses, progress and event acknowledgements live in job_data JSONB. Written by n8n using server-side credentials; authenticated tenant owners have read-only access to their own product/tenant jobs.';
+
+comment on column public.n8n_global_jobs.job_data is
+  'Single JSONB document for request details, prepared payload, recipients (maximum 100 for campaigns), per-recipient status, acknowledgement events, progress, errors and result summary. n8n updates this same row as work proceeds.';
+
+-- Transport-level idempotency for authenticated inbound WhatsApp events.
+-- Event identity is scoped to product/tenant, provider, and trusted session.
+-- Only create these fields after ingress authentication and authoritative tenant/session resolution.
+create unique index n8n_global_jobs_inbound_event_unique_idx
+  on public.n8n_global_jobs (
+    product_id,
+    tenant_id,
+    (job_data ->> 'provider_name'),
+    (job_data ->> 'session_name'),
+    (job_data ->> 'provider_event_id')
+  )
+  where job_type = 'whatsapp_inbound'
+    and nullif(btrim(job_data ->> 'provider_name'), '') is not null
+    and nullif(btrim(job_data ->> 'session_name'), '') is not null
+    and nullif(btrim(job_data ->> 'provider_event_id'), '') is not null;
+ then (job_data #>> '{progress,accepted_count}')::integer end,
+      'failed_count', case when coalesce(job_data #>> '{progress,failed_count}', '') ~ '^[0-9]{1,9}  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  completed_at timestamptz,
+  constraint n8n_global_jobs_tenant_product_fk
+    foreign key (tenant_id, product_id)
+    references public.tenants (tenant_id, product_id)
+    on delete restrict,
+  constraint n8n_global_jobs_type_nonblank
+    check (length(btrim(job_type)) > 0),
+  constraint n8n_global_jobs_campaign_limit
+    check (
+      job_type not in ('campaign', 'manual_campaign')
+      or not (job_data ? 'recipients')
+      or (
+        jsonb_typeof(job_data -> 'recipients') = 'array'
+        and jsonb_array_length(job_data -> 'recipients') <= 100
+      )
+    )
+);
+
+create index n8n_global_jobs_tenant_recent_idx
+  on public.n8n_global_jobs (product_id, tenant_id, created_at desc);
+
+create index n8n_global_jobs_queue_idx
+  on public.n8n_global_jobs (status, created_at)
+  where status in ('queued', 'processing');
+
+-- The same client instruction must not create two job rows for the same tenant/product.
+-- A duplicate request should resolve to the existing job, never trigger another send.
+create unique index n8n_global_jobs_request_id_unique_idx
+  on public.n8n_global_jobs (product_id, tenant_id, (job_data ->> 'request_id'))
+  where nullif(btrim(job_data ->> 'request_id'), '') is not null;
+
+alter table public.n8n_global_jobs enable row level security;
+
+revoke all on table public.n8n_global_jobs from anon, authenticated;
+grant select on table public.n8n_global_jobs to authenticated;
+grant all on table public.n8n_global_jobs to service_role;
+
+create policy n8n_global_jobs_tenant_owner_read
+  on public.n8n_global_jobs
+  for select
+  to authenticated
+  using (public.is_active_tenant_owner(product_id, tenant_id));
+
+comment on table public.n8n_global_jobs is
+  'Global ClearFlow automation job registry. One row per job; recipient statuses, progress and event acknowledgements live in job_data JSONB. Written by n8n using server-side credentials; authenticated tenant owners have read-only access to their own product/tenant jobs.';
+
+comment on column public.n8n_global_jobs.job_data is
+  'Single JSONB document for request details, prepared payload, recipients (maximum 100 for campaigns), per-recipient status, acknowledgement events, progress, errors and result summary. n8n updates this same row as work proceeds.';
+
+-- Transport-level idempotency for authenticated inbound WhatsApp events.
+-- Event identity is scoped to product/tenant, provider, and trusted session.
+-- Only create these fields after ingress authentication and authoritative tenant/session resolution.
+create unique index n8n_global_jobs_inbound_event_unique_idx
+  on public.n8n_global_jobs (
+    product_id,
+    tenant_id,
+    (job_data ->> 'provider_name'),
+    (job_data ->> 'session_name'),
+    (job_data ->> 'provider_event_id')
+  )
+  where job_type = 'whatsapp_inbound'
+    and nullif(btrim(job_data ->> 'provider_name'), '') is not null
+    and nullif(btrim(job_data ->> 'session_name'), '') is not null
+    and nullif(btrim(job_data ->> 'provider_event_id'), '') is not null;
+ then (job_data #>> '{progress,failed_count}')::integer end,
+      'uncertain_count', case when coalesce(job_data #>> '{progress,uncertain_count}', '') ~ '^[0-9]{1,9}  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  completed_at timestamptz,
+  constraint n8n_global_jobs_tenant_product_fk
+    foreign key (tenant_id, product_id)
+    references public.tenants (tenant_id, product_id)
+    on delete restrict,
+  constraint n8n_global_jobs_type_nonblank
+    check (length(btrim(job_type)) > 0),
+  constraint n8n_global_jobs_campaign_limit
+    check (
+      job_type not in ('campaign', 'manual_campaign')
+      or not (job_data ? 'recipients')
+      or (
+        jsonb_typeof(job_data -> 'recipients') = 'array'
+        and jsonb_array_length(job_data -> 'recipients') <= 100
+      )
+    )
+);
+
+create index n8n_global_jobs_tenant_recent_idx
+  on public.n8n_global_jobs (product_id, tenant_id, created_at desc);
+
+create index n8n_global_jobs_queue_idx
+  on public.n8n_global_jobs (status, created_at)
+  where status in ('queued', 'processing');
+
+-- The same client instruction must not create two job rows for the same tenant/product.
+-- A duplicate request should resolve to the existing job, never trigger another send.
+create unique index n8n_global_jobs_request_id_unique_idx
+  on public.n8n_global_jobs (product_id, tenant_id, (job_data ->> 'request_id'))
+  where nullif(btrim(job_data ->> 'request_id'), '') is not null;
+
+alter table public.n8n_global_jobs enable row level security;
+
+revoke all on table public.n8n_global_jobs from anon, authenticated;
+grant select on table public.n8n_global_jobs to authenticated;
+grant all on table public.n8n_global_jobs to service_role;
+
+create policy n8n_global_jobs_tenant_owner_read
+  on public.n8n_global_jobs
+  for select
+  to authenticated
+  using (public.is_active_tenant_owner(product_id, tenant_id));
+
+comment on table public.n8n_global_jobs is
+  'Global ClearFlow automation job registry. One row per job; recipient statuses, progress and event acknowledgements live in job_data JSONB. Written by n8n using server-side credentials; authenticated tenant owners have read-only access to their own product/tenant jobs.';
+
+comment on column public.n8n_global_jobs.job_data is
+  'Single JSONB document for request details, prepared payload, recipients (maximum 100 for campaigns), per-recipient status, acknowledgement events, progress, errors and result summary. n8n updates this same row as work proceeds.';
+
+-- Transport-level idempotency for authenticated inbound WhatsApp events.
+-- Event identity is scoped to product/tenant, provider, and trusted session.
+-- Only create these fields after ingress authentication and authoritative tenant/session resolution.
+create unique index n8n_global_jobs_inbound_event_unique_idx
+  on public.n8n_global_jobs (
+    product_id,
+    tenant_id,
+    (job_data ->> 'provider_name'),
+    (job_data ->> 'session_name'),
+    (job_data ->> 'provider_event_id')
+  )
+  where job_type = 'whatsapp_inbound'
+    and nullif(btrim(job_data ->> 'provider_name'), '') is not null
+    and nullif(btrim(job_data ->> 'session_name'), '') is not null
+    and nullif(btrim(job_data ->> 'provider_event_id'), '') is not null;
+ then (job_data #>> '{progress,uncertain_count}')::integer end,
+      'skipped_count', case when coalesce(job_data #>> '{progress,skipped_count}', '') ~ '^[0-9]{1,9}  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  completed_at timestamptz,
+  constraint n8n_global_jobs_tenant_product_fk
+    foreign key (tenant_id, product_id)
+    references public.tenants (tenant_id, product_id)
+    on delete restrict,
+  constraint n8n_global_jobs_type_nonblank
+    check (length(btrim(job_type)) > 0),
+  constraint n8n_global_jobs_campaign_limit
+    check (
+      job_type not in ('campaign', 'manual_campaign')
+      or not (job_data ? 'recipients')
+      or (
+        jsonb_typeof(job_data -> 'recipients') = 'array'
+        and jsonb_array_length(job_data -> 'recipients') <= 100
+      )
+    )
+);
+
+create index n8n_global_jobs_tenant_recent_idx
+  on public.n8n_global_jobs (product_id, tenant_id, created_at desc);
+
+create index n8n_global_jobs_queue_idx
+  on public.n8n_global_jobs (status, created_at)
+  where status in ('queued', 'processing');
+
+-- The same client instruction must not create two job rows for the same tenant/product.
+-- A duplicate request should resolve to the existing job, never trigger another send.
+create unique index n8n_global_jobs_request_id_unique_idx
+  on public.n8n_global_jobs (product_id, tenant_id, (job_data ->> 'request_id'))
+  where nullif(btrim(job_data ->> 'request_id'), '') is not null;
+
+alter table public.n8n_global_jobs enable row level security;
+
+revoke all on table public.n8n_global_jobs from anon, authenticated;
+grant select on table public.n8n_global_jobs to authenticated;
+grant all on table public.n8n_global_jobs to service_role;
+
+create policy n8n_global_jobs_tenant_owner_read
+  on public.n8n_global_jobs
+  for select
+  to authenticated
+  using (public.is_active_tenant_owner(product_id, tenant_id));
+
+comment on table public.n8n_global_jobs is
+  'Global ClearFlow automation job registry. One row per job; recipient statuses, progress and event acknowledgements live in job_data JSONB. Written by n8n using server-side credentials; authenticated tenant owners have read-only access to their own product/tenant jobs.';
+
+comment on column public.n8n_global_jobs.job_data is
+  'Single JSONB document for request details, prepared payload, recipients (maximum 100 for campaigns), per-recipient status, acknowledgement events, progress, errors and result summary. n8n updates this same row as work proceeds.';
+
+-- Transport-level idempotency for authenticated inbound WhatsApp events.
+-- Event identity is scoped to product/tenant, provider, and trusted session.
+-- Only create these fields after ingress authentication and authoritative tenant/session resolution.
+create unique index n8n_global_jobs_inbound_event_unique_idx
+  on public.n8n_global_jobs (
+    product_id,
+    tenant_id,
+    (job_data ->> 'provider_name'),
+    (job_data ->> 'session_name'),
+    (job_data ->> 'provider_event_id')
+  )
+  where job_type = 'whatsapp_inbound'
+    and nullif(btrim(job_data ->> 'provider_name'), '') is not null
+    and nullif(btrim(job_data ->> 'session_name'), '') is not null
+    and nullif(btrim(job_data ->> 'provider_event_id'), '') is not null;
+ then (job_data #>> '{progress,skipped_count}')::integer end,
+      'pending_count', case when coalesce(job_data #>> '{progress,pending_count}', '') ~ '^[0-9]{1,9}  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  completed_at timestamptz,
+  constraint n8n_global_jobs_tenant_product_fk
+    foreign key (tenant_id, product_id)
+    references public.tenants (tenant_id, product_id)
+    on delete restrict,
+  constraint n8n_global_jobs_type_nonblank
+    check (length(btrim(job_type)) > 0),
+  constraint n8n_global_jobs_campaign_limit
+    check (
+      job_type not in ('campaign', 'manual_campaign')
+      or not (job_data ? 'recipients')
+      or (
+        jsonb_typeof(job_data -> 'recipients') = 'array'
+        and jsonb_array_length(job_data -> 'recipients') <= 100
+      )
+    )
+);
+
+create index n8n_global_jobs_tenant_recent_idx
+  on public.n8n_global_jobs (product_id, tenant_id, created_at desc);
+
+create index n8n_global_jobs_queue_idx
+  on public.n8n_global_jobs (status, created_at)
+  where status in ('queued', 'processing');
+
+-- The same client instruction must not create two job rows for the same tenant/product.
+-- A duplicate request should resolve to the existing job, never trigger another send.
+create unique index n8n_global_jobs_request_id_unique_idx
+  on public.n8n_global_jobs (product_id, tenant_id, (job_data ->> 'request_id'))
+  where nullif(btrim(job_data ->> 'request_id'), '') is not null;
+
+alter table public.n8n_global_jobs enable row level security;
+
+revoke all on table public.n8n_global_jobs from anon, authenticated;
+grant select on table public.n8n_global_jobs to authenticated;
+grant all on table public.n8n_global_jobs to service_role;
+
+create policy n8n_global_jobs_tenant_owner_read
+  on public.n8n_global_jobs
+  for select
+  to authenticated
+  using (public.is_active_tenant_owner(product_id, tenant_id));
+
+comment on table public.n8n_global_jobs is
+  'Global ClearFlow automation job registry. One row per job; recipient statuses, progress and event acknowledgements live in job_data JSONB. Written by n8n using server-side credentials; authenticated tenant owners have read-only access to their own product/tenant jobs.';
+
+comment on column public.n8n_global_jobs.job_data is
+  'Single JSONB document for request details, prepared payload, recipients (maximum 100 for campaigns), per-recipient status, acknowledgement events, progress, errors and result summary. n8n updates this same row as work proceeds.';
+
+-- Transport-level idempotency for authenticated inbound WhatsApp events.
+-- Event identity is scoped to product/tenant, provider, and trusted session.
+-- Only create these fields after ingress authentication and authoritative tenant/session resolution.
+create unique index n8n_global_jobs_inbound_event_unique_idx
+  on public.n8n_global_jobs (
+    product_id,
+    tenant_id,
+    (job_data ->> 'provider_name'),
+    (job_data ->> 'session_name'),
+    (job_data ->> 'provider_event_id')
+  )
+  where job_type = 'whatsapp_inbound'
+    and nullif(btrim(job_data ->> 'provider_name'), '') is not null
+    and nullif(btrim(job_data ->> 'session_name'), '') is not null
+    and nullif(btrim(job_data ->> 'provider_event_id'), '') is not null;
+ then (job_data #>> '{progress,pending_count}')::integer end
+    )
+  ) stored,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   completed_at timestamptz,
