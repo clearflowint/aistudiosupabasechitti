@@ -16,6 +16,9 @@ test("job storage stays a simple table with a JSON payload", () => {
   assert.ok(migration.includes("product_id text not null"));
   assert.ok(migration.includes("tenant_id text not null"));
   assert.ok(migration.includes("request_id text"));
+  assert.ok(migration.includes("source_type text not null default 'system'"));
+  assert.ok(migration.includes("scheduled_at timestamptz"));
+  assert.ok(migration.includes("n8n_global_jobs_due_idx"));
   assert.ok(migration.includes("created_at timestamptz not null default now()"));
   assert.ok(migration.includes("updated_at timestamptz not null default now()"));
   assert.equal(migration.includes("create or replace function"), false);
@@ -40,14 +43,18 @@ test("draft schema avoids workflow-engine machinery and duplicate indexes", () =
   assert.equal(migration.includes("campaign_limit"), false);
   assert.equal(migration.includes("n8n_global_job_progress"), false);
   assert.equal(migration.includes("create or replace function"), false);
+  assert.ok(contract.includes("Supabase is the durable record store; n8n is the request router, job creator, scheduler/dispatcher, and execution engine."));
   assert.ok(contract.includes("The table is storage, not a workflow engine."));
   assert.ok(contract.includes("best-effort"));
+  assert.ok(contract.includes("One shared n8n dispatcher checks queued rows"));
+  assert.ok(contract.includes("ordinary fetch/insert/update operation can run without a job row"));
 });
 
 test("browser can read safe status fields but not private JSON payload", () => {
   assert.ok(migration.includes("revoke all on table public.n8n_global_jobs from public, anon, authenticated"));
   assert.ok(migration.includes("grant select ("));
-  assert.ok(migration.includes("job_id, product_id, tenant_id, job_type, status, request_id"));
+  assert.ok(migration.includes("job_id, product_id, tenant_id, source_type, job_type, status, request_id"));
+  assert.ok(migration.includes("scheduled_at, created_at, updated_at, completed_at"));
   assert.ok(migration.includes("grant all on table public.n8n_global_jobs to service_role"));
   assert.ok(progressService.includes('from("n8n_global_jobs")'));
   assert.ok(progressService.includes('.eq("product_id", cfcfConfig.productId)'));
