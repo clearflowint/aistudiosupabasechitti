@@ -452,3 +452,23 @@ The current inactive worker and the proposed global registry do not yet share a 
 - The draft worker's legacy CFCF RPC paths, legacy communication/delivery table placeholders, and WAHA session inventory node remain disabled. The global-registry claim/read/write/finalization placeholders remain disabled. Do not re-enable these old paths or attach credentials as a shortcut.
 - Before implementation, add a single-winner atomic claim against `n8n_global_jobs`, durable sequential JSONB updates, and a finalization adapter that maps recipient evidence to job status. A pure model or a mock execution does not prove these database guarantees.
 - Keep the existing worker inactive and mock-only until the adapter passes static tests and approved non-production tests. No migration or workflow activation is authorized by this contract.
+
+
+## Finalization adapter truth table — Batch 35
+
+The future registry adapter must derive final job status from the persisted recipient statuses, not from a stale counter or a workflow's optimistic branch result:
+
+| Persisted recipient evidence | Job status | Dispatch/review rule |
+|---|---|---|
+| At least one recipient is `uncertain` | `uncertain` | Manual reconciliation; never auto-resend |
+| Any recipient remains `pending` or `submitting` | `processing` | Not final; do not mark complete |
+| All recipients are `provider_accepted` | `completed` | Means provider accepted all requests, not delivery/read |
+| A terminal mix of `provider_accepted` and `failed` or `skipped` | `partial` | Preserve each recipient outcome |
+| Non-empty recipient list with no accepted recipients and only terminal failures/skips | `failed` | No blind retry |
+| Empty or missing recipient list for a sendable job | `failed` | Invalid job; do not call provider |
+
+- A `provider_accepted` recipient is terminal for dispatch only. Do not treat it as delivered or read.
+- Counters are projections derived from the saved recipient array. If saved counters disagree, repair/recompute from recipient states before exposing progress; never let a stale counter authorize dispatch.
+- Persist recipient transition evidence before advancing the loop. Within a job, updates must be sequential and based on the latest saved JSONB row so one recipient result cannot overwrite another.
+- A worker crash after provider submission but before a durable result must be represented as `uncertain` if submission may have occurred. Lease expiry alone is not permission to reclaim and resend.
+- This is a contract and test target, not proof that live atomic claims or JSONB writes exist. Do not activate workflows or apply the draft migration based on this batch.
