@@ -352,3 +352,15 @@ Recipient dispatch state is a safety boundary, not a generic retry loop:
 - State transitions must be persisted before a worker proceeds to the next recipient, with sequential updates to the same job JSONB row and bounded event history (maximum 500). Do not add per-recipient tables, RPCs, or schedule tables.
 
 Batch 27 validation is repository-only. Its pure model tests state-decision rules and does not prove a real worker lease, durable update, or provider outcome. The worker remains mock-only and inactive; the migration remains unapplied; no live provider call, retry, requeue, PWA notification change, or deployment was performed.
+
+
+## Job claiming and finalization — Batch 28
+
+- A worker may dispatch only after it wins an atomic claim from the durable store. A worker that loses the claim must stop without processing recipients.
+- A lease-expired job may be reclaimed for dispatch only when durable recipient/job state proves no provider submission was attempted and no recipient is uncertain. If submission may have started, stop dispatch and preserve the unresolved state for review; never infer that lease expiry means “not sent.”
+- Persist claim/lease changes and progress updates to the same job JSONB row in serialized order. This contract does not yet implement or prove an atomic database claim; it is a requirement for the future adapter, not a claim that current n8n workflows are concurrency-safe.
+- Finalization is derived from recipient outcomes: any unresolved **uncertain** recipient makes the job **uncertain** and reviewable; active/nonterminal recipients keep it **processing**; terminal successful/skipped recipients produce **completed**; a mix of accepted and failed recipients produces **partial**; all failed recipients produce **failed**.
+- An empty recipient set must not be reported as a successful campaign; the model marks it **failed** with reason **no_recipients**. Rejecting empty jobs at ingress is still preferred.
+- Finalization must not overwrite recipient-level evidence or turn **uncertain** into **failed/completed** merely to close the job. Keep the latest 500 events and do not add per-recipient tables, RPCs, or schedule tables.
+
+Batch 28 is repository-only contract testing. It does not verify a database compare-and-set, lease clock, concurrent n8n executions, or real provider states. All related workflows remain inactive/mock-only, the migration remains unapplied, and no live sends, retries, PWA notification changes, or deployments were made.
