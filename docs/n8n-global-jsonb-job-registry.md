@@ -12,24 +12,27 @@ One row per job in `public.n8n_global_jobs`:
 
 - `job_id`: generated numeric reference.
 - `product_id` and `tenant_id`: scope the record to the owning product and tenant.
+- `source_type`: open-ended request channel such as `pwa`, `whatsapp`, `ai`, `api`, or `system`.
 - `job_type`: product-owned action name.
 - `status`: simple lifecycle status.
 - `request_id`: optional correlation value supplied by the caller.
+- `scheduled_at`: optional requested execution instant; null means execute as soon as accepted.
 - `job_data`: JSONB for request/result details that need to be saved.
 - timestamps: created, updated, and completed.
 
-The draft migration deliberately does not add generated progress columns, a manager progress view, event-history machinery, recipient-count constraints, queue indexes, leases, stored procedures, RPCs, or schedule tables. It does not alter existing PWA notification tables, functions, data, or cron jobs. No database function is needed to create jobs.
+The draft migration deliberately does not add generated progress columns, a manager progress view, event-history machinery, recipient-count constraints, leases, stored procedures, RPCs, or separate schedule tables. It uses one partial index to let a shared n8n dispatcher find due jobs. It does not alter existing PWA notification tables, functions, data, or cron jobs. No database function is needed to create jobs.
 
 The manager UI reads only safe status columns, never the private `job_data` payload. Row-level security limits reads to the active tenant owner. The service role is used only by trusted n8n/server-side integration.
 
 ## Request handling
 
-1. A request that genuinely needs visible progress is sent to its n8n workflow (for example, through an authenticated webhook).
-2. n8n validates the inbound request and authorization context. It creates a row in `n8n_global_jobs` using its trusted server-side Supabase credential, then executes the requested work and updates that row's status/result.
-3. The PWA reads safe status metadata and shows the saved state.
-4. Ordinary n8n operations that merely fetch, insert, or update business records do not create job rows. A workflow execution is not automatically a tracked job.
+1. Every source—PWA, WhatsApp, AI agent, API, or future product—enters through an authenticated n8n ingress/adapter.
+2. n8n validates the source, resolves product/tenant authorization, and classifies the request. A report request or other task needing lifecycle tracking becomes a job; an ordinary fetch/insert/update operation can run without a job row.
+3. For a tracked task, n8n creates the row using its trusted server-side Supabase credential. It executes immediately when `scheduled_at` is null or leaves it queued until the requested instant.
+4. One shared n8n dispatcher checks queued rows with `scheduled_at <= now()` and routes due work to the appropriate product workflow. It is a single central mechanism, not one scheduler per job or a CFCF-specific recurring schedule system.
+5. n8n updates the row as the task progresses and completes. The PWA or any other authorized source may read the appropriate safe status through its own interface.
 
-The database is the record store, not the job creator or workflow coordinator. A database function/RPC is not required for this flow. Keep the service-role credential only in trusted n8n/server-side configuration, never in the browser.
+Supabase is the durable record store; n8n is the request router, job creator, scheduler/dispatcher, and execution engine. No database function/RPC is required. Keep service-role credentials only in trusted n8n/server-side configuration, never in a browser.
 
 For the first working version, duplicate suppression at the PWA and n8n entry points is intentionally simple and best-effort. Do not claim exactly-once processing. If testing demonstrates that a particular external action needs restart-safe duplicate protection, add the smallest targeted persistence mechanism for that action rather than expanding the general job table into a queue framework.
 
