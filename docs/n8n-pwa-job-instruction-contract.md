@@ -83,9 +83,9 @@ Allowed statuses for the first version: `queued`, `processing`, `completed`, `fa
 
 ## Current status and restrictions
 
-- The JSONB registry and the tenant-owner-only manual campaign insert policy are applied to the development-stage Supabase project.
+- The JSONB registry is applied to the development-stage Supabase project. A temporary direct-PWA insert policy was revoked; only n8n creates job rows.
 - PWA progress UI is enabled by default and reads only safe status metadata.
 - Shared-number and tenant-owned inbound WhatsApp ingress remain inactive. Automatic CFCF recurring reminders/reports remain out of scope; the one-minute n8n poll is only a central queue dispatcher.
 - WAHA-to-n8n authentication remains unresolved. CFCF automatic scheduled reminders and reports are out of scope.
-- Development-stage database migrations were approved and applied. Cloudflare deployment and authenticated browser/cache testing are still pending. No live WhatsApp send or credential change has been performed.
+- Development-stage database migrations were approved and applied. Cloudflare deployment and authenticated browser/cache testing are still pending. PWA requires `VITE_CFCF_N8N_CAMPAIGN_WEBHOOK_URL` to target the n8n production webhook. No live WhatsApp send or credential change has been performed.
 - Use synthetic data and mock provider actions for the first controlled test after the non-production environment is explicitly approved.
