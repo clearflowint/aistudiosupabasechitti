@@ -26,8 +26,8 @@ The manager UI reads only safe status columns, never the private `job_data` payl
 
 ## Request handling
 
-1. Every source—PWA, WhatsApp, AI agent, API, or future product—enters through an authenticated n8n ingress/adapter.
-2. n8n validates the source, resolves product/tenant authorization, and classifies the request. A report request or other task needing lifecycle tracking becomes a job; an ordinary fetch/insert/update operation can run without a job row.
+1. Every source—PWA, WhatsApp, AI agent, API, or future product—enters through its appropriate n8n ingress/adapter. The PWA sends product, tenant, and person IDs plus the requested action; it does not need a separate tenant-session or authentication key in the request. Other sources may use source-specific input mappings.
+2. n8n resolves the product/tenant/person context and classifies the requested action using the fields supplied by the source. A report request or other task needing lifecycle tracking becomes a job; an ordinary fetch/insert/update operation can run without a job row.
 3. For a tracked task, n8n creates the row using its trusted server-side Supabase credential. It executes immediately when `scheduled_at` is null or leaves it queued until the requested instant.
 4. One shared n8n dispatcher checks queued rows with `scheduled_at <= now()` and routes due work to the appropriate product workflow. It is a single central mechanism, not one scheduler per job or a CFCF-specific recurring schedule system.
 5. n8n updates the row as the task progresses and completes. The PWA or any other authorized source may read the appropriate safe status through its own interface.
