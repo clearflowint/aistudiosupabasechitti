@@ -655,3 +655,35 @@ test("progress model: progress counters and bounded events are separate from del
   assert.equal(result.counts.failed, 1);
   assert.equal(result.countsConsistent, true);
 });
+
+
+// Batch 30 — manager PWA job progress presentation contract.
+test("manager PWA progress contract is read-only and exposes actionable safe status", () => {
+  for (const phrase of [
+    "Manager PWA job-progress presentation — Batch 30",
+    "read-only consumer",
+    "job reference",
+    "current status",
+    "processed and total recipients",
+    "pending",
+    "submitting",
+    "provider_accepted",
+    "failed",
+    "uncertain",
+    "last safe update",
+    "manual review",
+    "must not write to the job registry"
+  ]) {
+    assert.ok(contract.includes(phrase), `missing manager progress presentation rule: ${phrase}`);
+  }
+});
+
+test("manager PWA progress presentation does not alter protected notification infrastructure", () => {
+  for (const phrase of [
+    "Do not change PWA notification tables, functions, data, or cron jobs",
+    "PWA is read-only for job progress",
+    "Do not create new notification tables"
+  ]) {
+    assert.ok(contract.includes(phrase), `missing protected notification rule: ${phrase}`);
+  }
+});
