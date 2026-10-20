@@ -153,11 +153,19 @@ Use the established names and ownership boundaries. Do not route CFCF business l
 ### Existing n8n workflow inventory
 
 - **ClearFlow — JSONB Job Contract Preview (Draft Only)** — global contract preview for the PWA-to-n8n instruction envelope. It is not a CFCF WhatsApp entry workflow and remains inactive.
-- **CFCF Automation Worker — Draft** — CFCF-specific worker skeleton. It is not a global worker. Its current draft is inactive and its processing path is incomplete; do not treat it as a working WhatsApp entry point.
-- **CFCF — Monthly Schedule Evaluator (Setup Required)** — CFCF-specific schedule evaluator. It is inactive and is not a global scheduler for other products.
+- **CFCF Automation Worker — Draft** — CFCF-specific worker skeleton. It is inactive and its processing path is incomplete. Legacy `cfcf_*` RPC nodes, old `n8n_whatsapp_*` placeholder nodes, and the read-only WAHA session inventory node have now been disabled to prevent accidental use of paths that do not match the approved registry. Do not treat it as a working WhatsApp entry point.
+- **CFCF — Monthly Schedule Evaluator (Setup Required)** — CFCF-specific schedule evaluator. It is inactive; the HTTP nodes for the rolled-back schedule/job RPCs have now been disabled. It must be redesigned against approved n8n schedule configuration and the global JSONB registry before activation.
 - **CFCF — Shared Error Handler** — shared only across the CFCF evaluator/worker. It is not a cross-product global error handler. Keep its failure output sanitized.
 
 The existing **ClearFlow MCP Connection Test** is a connection-test utility only; it is not a business workflow.
+
+### Safety preflight — legacy workflow nodes quarantined
+
+On 2026-10-20, the existing inactive `CFCF Automation Worker — Draft` was updated to disable the legacy `cfcf_fail_exhausted_automation_jobs`, `cfcf_claim_automation_jobs`, and scoped-share HTTP nodes, along with disconnected placeholder nodes that refer to the unapproved `n8n_whatsapp_communications`/`n8n_whatsapp_deliveries` model and placeholder RPCs. Its WAHA session-inventory HTTP node was also disabled. The existing safety gate remains `liveCallsEnabled = false`; the workflow was not activated.
+
+The inactive `CFCF — Monthly Schedule Evaluator (Setup Required)` now has its old `cfcf_claim_due_automation_schedules`, `cfcf_initialize_automation_schedule`, and `n8n_register_scheduled_cfcf_job` HTTP nodes disabled because the corresponding prototype schedule/job model was rolled back. The evaluator was not activated. These nodes must not be re-enabled as a shortcut; rebuild the evaluator around approved n8n schedule configuration and `public.n8n_global_jobs` only after the registry migration and worker design are separately approved.
+
+A side-effect-free mock execution of `CFCF Automation Worker — Draft` succeeded and followed the `liveCallsEnabled = false` branch to `Dry Run — no database changes`. Execution output explicitly stated that no Supabase request was made. This validates only the safety gate; it does not test live routing, database access, or WhatsApp delivery.
 
 ### WhatsApp entry-point design
 
