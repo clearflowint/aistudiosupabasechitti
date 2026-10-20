@@ -1,508 +1,76 @@
-> **Portability-first review notice (2026-10-20):** This file contains historical, more elaborate design contracts and test fixtures. For the first working CFCF path, the simplified design in [n8n-global-jsonb-job-registry.md](./n8n-global-jsonb-job-registry.md) takes precedence: simple status record, product-owned workflow logic, no generic lease/state-machine/retry framework, and no database-generated progress view. Treat the older batch details below as deferred proposals unless a concrete requirement is re-approved. Keep all workflows inactive and the migration unapplied until the user explicitly approves the named non-production environment and necessary auth setup.
+# PWA to n8n contract — minimal first working version
 
-# PWA → n8n Job Instruction Contract — Batch 2
-
-## Purpose
-
-Define one product-neutral instruction envelope for the future PWA-to-n8n handoff. This contract is a design artifact; the PWA still uses its current campaign dispatch path. Do not point production UI at the draft webhook yet.
+> This replaces the previous elaborate contract. The goal is a small, testable request-to-result flow. Product behavior belongs in the PWA and CFCF-owned n8n workflows; Supabase stores records. Older state-machine, lease, atomic-claim, generated-counter, and generic retry proposals are deferred unless a real test demonstrates the need.
 
 ## Request envelope
 
+The PWA sends only IDs and manager-entered options. Example:
+
 ```json
 {
-  "schema_version": 1,
   "request_id": "client-generated-uuid",
   "product_id": "CFCF",
-  "tenant_id": "tenant-id-from-authorized-workspace",
-  "action": "campaign",
+  "tenant_id": "authorized-tenant-id",
+  "person_id": "authorized-person-id",
+  "action": "report",
   "selected": {
-    "group_ids": ["group-id-1"],
-    "contact_ids": []
+    "fund_id": "fund-id"
   },
-  "payload": {
-    "channels": ["whatsapp"],
-    "message": "Message text"
-  }
+  "options": {}
 }
 ```
 
-Rules:
+- Use `product_id`, `tenant_id`, and `person_id` on every handover.
+- Derive tenant/person context from the authenticated workspace; do not treat body IDs as proof of authorization.
+- Do not send authoritative phone numbers, recipient records, or computed results from the PWA when n8n can read the source records.
+- Do not send credentials or secrets in the request.
+- Keep product-specific rules in CFCF workflows. The shared contract contains only common identity, action, and correlation fields.
 
-- PWA sends only the active product/tenant context, action, selected IDs, and manager-entered options. It must not send authoritative recipient names/phone numbers or pre-computed campaign results.
-- `request_id` is an idempotency/correlation value for this instruction, not the database job ID. n8n creates the job row and uses its returned database `job_id` as the canonical job ID.
-- n8n validates the authenticated user's identity and confirms active owner access for the exact `product_id + tenant_id` before reading private data or writing a job.
-- n8n fetches authoritative contacts and group memberships from Supabase, deduplicates recipients, and resolves the actual recipient count before creating/sending the campaign.
-- A campaign resolves to 1–100 unique contacts. If more than 100 resolve, reject the entire job before any provider call. Do not split automatically.
-- No payload should include provider credentials, service-role keys, or any secret.
-- Allowed actions are `campaign`, `pending_reminder`, and `report`. Product-specific workflow paths handle their own data and provider rules.
+## Simple duplicate handling
 
-## Draft preview response envelope
+1. In the PWA, disable Submit while the request is in progress, show a loading state, and prevent ordinary double taps. A short cooldown can help with accidental repeated taps, but must not block legitimate future work.
+2. At n8n ingress, validate the request and check a request/event ID before starting the action. Do not deduplicate unrelated requests solely because their message text matches.
+3. For the first working version, duplicate suppression is best-effort and happens at entry points. Do not add unique-index frameworks, leases, generic queues, or database-side workflow logic by default.
+4. If a real test demonstrates a material duplicate risk across concurrent executions or restarts—especially for an external message send—add the smallest targeted persistent guard for that action. Do not turn the whole database into a workflow engine.
 
-```json
-{
-  "ok": true,
-  "mode": "contract_preview_only",
-  "draft_only": true,
-  "side_effects": false,
-  "request_id": "client-generated-uuid",
-  "product_id": "CFCF",
-  "tenant_id": "tenant-id-from-authorized-workspace",
-  "action": "campaign",
-  "validation": {
-    "valid": true,
-    "errors": [],
-    "selected_contact_id_count": 0,
-    "selected_group_id_count": 1,
-    "resolved_recipient_count": null
-  },
-  "next_step": "Preview only: authentication, authoritative data resolution, JSONB persistence, schedules, callbacks, and provider actions are not connected."
-}
-```
+## Storage record
 
-This is a preview response, not a job receipt. It must not say that a job was created, queued, or sent. No database write, WAHA/provider call, schedule, or callback occurs in the draft workflow.
+Use the minimal `public.n8n_global_jobs` draft table only if needed for the first progress/status view. A record contains a generated reference, product/tenant scope, action type, simple status, optional request ID, JSON request/result data, and timestamps.
 
-## Inactive n8n draft
+Allowed statuses for the first version: `queued`, `processing`, `completed`, `failed`, `cancelled`.
 
-Workflow: **ClearFlow — JSONB Job Contract Preview (Draft Only)**  
-URL: https://clearflow-automation.duckdns.org/workflow/6JI23wsvDmbDEJe0  
-Status verified through n8n: `active = false`. It contains three nodes: POST webhook, validation-only Code node, and JSON response. The webhook requires no credentials, so it must remain inactive until authentication and tenant-owner checks are implemented. The production URL shown in the editor is not live while the workflow is inactive.
+- n8n owns the workflow and updates the status.
+- The PWA reads safe status metadata only.
+- Private request/result JSON is not exposed to browser clients.
+- No generated progress view, recipient-state machine, event-history framework, lease/claim RPC, or generic retry engine is required for the first working flow.
+- The migration is a draft only; do not apply it without explicit approval of a named non-production environment.
 
-The preview validates the envelope shape, allowed actions, required fields, selected IDs, and the explicit contact-ID limit. It does not resolve group membership, so it cannot determine the actual recipient count. The real worker must resolve the complete audience and enforce the 100-contact cap before any provider call.
+## Authentication and tenant boundaries
 
-## Job record contract
+- PWA-originated actions must use the signed-in identity and the authorized workspace. Never trust a body-supplied email, person ID, or owner flag.
+- WAHA-to-n8n ingress authentication must be verified from the actual configuration; do not guess from credential names.
+- For the CFCF shared agency number/session, match the sender to one authoritative CFCF contact/tenant before accessing tenant data.
+- For tenant-owned numbers/sessions, resolve the tenant from the trusted receiver-number mapping, then look up the sender inside that tenant.
+- Unknown or ambiguous mappings stop tenant-specific processing. Never guess a tenant.
+- The current ingress and worker workflows remain inactive drafts until authentication and a controlled test are ready.
 
-After the future production flow is separately approved, n8n creates one `public.n8n_global_jobs` row per instruction:
+## Completion and acknowledgement
 
-- `job_id`: database-generated ID (identity starts at 100); canonical ID returned to the PWA.
-- `product_id`, `tenant_id`, `job_type`, `status`: searchable metadata.
-- `job_data`: one JSONB object holding request metadata, recipient entries, progress counters, acknowledgement events, result summary and errors.
-- All progress updates modify the same job row. No per-recipient database table is needed.
-- PWA is read-only for job progress. n8n is the only writer.
+- Quick operations return their actual result; do not send a separate “queued” message.
+- For work that will take noticeably longer, a single receipt may be sent after the request is accepted for processing.
+- Report success only after the operation succeeds. Show a clear failure when it fails.
+- Do not automatically resend an external message when it is unclear whether the provider accepted the first attempt. Surface that specific case for manual review.
+- Do not build a general retry engine before a demonstrated need.
 
-## Status semantics
+## Monthly schedules
 
-- Job: `queued`, `processing`, `completed`, `partial`, `failed`, `uncertain`, `cancelled`.
-- Recipient: `pending`, `submitting`, `provider_accepted`, `failed`, `uncertain`, `skipped`.
-- `provider_accepted` means the provider accepted the request, not that the recipient received or read it.
-- Any ambiguous send result is `uncertain`; require manual reconciliation before a resend. Do not add automatic retries.
-- n8n should update recipient entries sequentially within each job to prevent concurrent JSONB writes from overwriting one another. Keep the event history bounded and store current per-recipient status as the source for progress counts.
+CFCF needs up to three manager-selected monthly pending-reminder slots and two manager-selected monthly report slots per Fund, using Asia/Kolkata by default and clamping days 29–31 to month-end. The persistence location is not yet agreed. Do not add a schedule table/RPC or change existing PWA notification tables, functions, data, or cron jobs to work around that decision.
 
-## Scheduled reminders and reports
+## Current status and restrictions
 
-Scheduling is not configured in this draft. Each Fund must support up to three manager-selected monthly pending-reminder date/time slots and two manager-selected monthly report date/time slots, recurring every month in `Asia/Kolkata` by default. Day 29–31 runs on the month's last calendar day when that date does not exist. These are configurable slots, not five fixed dates to recover or hard-code. The persistence location for per-Fund slot configuration is still unresolved: do not create a schedule table/RPC or change PWA notification objects, and do not store settings in unrelated financial JSONB fields. Each actual execution creates one job row with schedule identity and occurrence time in `job_data`; identify an already-approved safe configuration location before implementing the manager editor or evaluator.
-
-## Required authorization and idempotency sequence
-
-The future production worker must execute these gates in this order, before creating a job or reading private recipient data:
-
-1. Require a Bearer token in the HTTP Authorization header. Reject a missing token with 401.
-2. Validate the token with the Supabase Auth user endpoint using the public anon key and the supplied Bearer token. Never trust a body-supplied email, person ID, or owner flag. Reject an invalid/expired token with 401.
-3. Normalize the verified Auth user's email, then confirm an active `global_access_list` row matching that email, the exact `product_id + tenant_id`, `access_type = tenantowner`, and `status = active`. Also confirm the tenant itself is active and belongs to that product. Reject mismatches with 403.
-4. Only after authorization, resolve group membership and authoritative contact records from Supabase. Never use phone numbers supplied by the browser.
-5. Enforce the 1–100 unique recipient limit after resolving and deduplicating the complete audience, before creating a sendable job or making any provider call.
-6. Store `request_id` in `job_data`. Look up an existing job by the scoped request ID before insertion. The unique index `n8n_global_jobs_request_id_unique_idx` prevents concurrent duplicate creation; on conflict, fetch and return the existing job and do not dispatch again.
-7. Create the job with the database-generated `job_id`, then update the same row sequentially as recipient status changes. Bound `events` to the latest 500 entries. A failed/ambiguous provider call becomes `uncertain`; no automatic resend.
-8. Return only the canonical job receipt and safe progress summary. The PWA uses its authenticated Supabase client to read jobs through RLS; browser users cannot insert/update/delete jobs.
-
-The service-role credential is held only in n8n and never returned to the PWA. The current inactive preview workflow does **not** implement these checks and must not be treated as secure merely because it validates the request shape.
-
-## Important: service-role credentials and RLS
-
-Supabase `service_role` credentials bypass Row Level Security. Therefore, a query made by n8n using a service-role credential is **not** restricted by the authenticated tenant-owner SELECT policy on `n8n_global_jobs`, and table grants/RLS policies must not be treated as a boundary for those privileged requests. A leaked key or a workflow bug could cross tenant boundaries.
-
-Required controls:
-
-- Never place a service-role key in the PWA, webhook payload, logs, execution output, or response. Keep it only in protected n8n credentials.
-- Verify the caller's Supabase access token server-side. Derive the caller identity from the verified token; ignore body-supplied identity fields.
-- Check active tenant-owner access for the exact product and tenant before any private read or write. Check that each selected contact/person and group membership belongs to that same tenant. Do not rely on an ID supplied by the browser as proof of ownership.
-- Prefer the caller's verified access token for user-authorized reads where RLS can enforce the intended scope. If privileged access is needed for a server-side operation, isolate that operation and enforce explicit tenant/product predicates and authorization checks.
-- Restrict privileged writes to the intended job row and allowed fields. Never accept arbitrary table names, SQL, filters, tenant IDs, or job IDs from the webhook caller.
-- Keep credential scope/permissions least-privileged where the platform permits it. A service-role key is project-wide privileged access, not a tenant-scoped credential.
-- Do not assume the existing n8n credential named `Supabase account` is the production project or has an appropriate permission scope. Credential metadata does not reveal its endpoint, secret, or effective permissions; verify its target and access through a safe, non-mutating check before using it.
-- Test unauthorized tenant, cross-tenant contact, inactive owner, inactive tenant, token expiry, repeated request, and ID-tampering cases without provider calls. Keep the workflow inactive until these gates pass and live use is separately approved.
-
-## Authorization test matrix
-
-Before any live integration, run these cases with no provider calls and no production writes:
-
-- Missing Authorization header → 401; no private database access.
-- Invalid or expired Supabase access token → 401.
-- Valid authenticated user with no active tenant access → 403.
-- Active non-owner or owner for a different tenant/product → 403.
-- Inactive tenant or inactive owner access row → 403.
-- Body-supplied email/person/owner flag conflicts with verified Auth identity → ignore body identity and authorize only from verified identity; reject if owner check fails.
-- Selected person/contact or group belongs to a different tenant → reject before private data is returned or any job/provider action occurs.
-- Duplicate `request_id` for the same product/tenant → return existing job ID and do not queue or dispatch a second time.
-- Same `request_id` in another tenant/product → separate scope; never expose the other tenant's job.
-- Group-resolved audience of 0 → reject without job dispatch; 1–100 unique → proceed to the next approved stage; 101+ unique → reject the whole request before provider calls.
-- Provider outcome timeout/ambiguous → mark `uncertain`, stop automatic retries, and require manual reconciliation.
-
-## Security and rollout gates
-
-Before any webhook activation or PWA integration:
-
-1. Implement and verify each authorization step above, including inactive tenant, non-owner, expired token, cross-tenant person/contact, and tenant-ID tampering cases.
-2. Apply and review the additive registry migration separately; do not run it from the workflow.
-3. Test no-recipient, duplicate-recipient, >100-recipient (including group-resolved), provider timeout/uncertain result, and repeated request cases without provider sends.
-4. Verify PWA SELECT is tenant-owner scoped and INSERT/UPDATE/DELETE remain denied to authenticated browser users. Remember that this RLS policy does not constrain service-role requests.
-5. Confirm the workflow is inactive and preview-only until the owner explicitly authorizes live integration.
-
-
-## Workflow ownership and naming — keep global and CFCF separate
-
-Use the established names and ownership boundaries. Do not route CFCF business logic through a generic/global business workflow, and do not invent extra workflow names when an existing workflow has the required role.
-
-### Existing n8n workflow inventory
-
-- **ClearFlow — JSONB Job Contract Preview (Draft Only)** — global contract preview for the PWA-to-n8n instruction envelope. It is not a CFCF WhatsApp entry workflow and remains inactive.
-- **CFCF Automation Worker — Draft** — CFCF-specific worker skeleton. It is inactive and its processing path is incomplete. Legacy `cfcf_*` RPC nodes, old `n8n_whatsapp_*` placeholder nodes, and the read-only WAHA session inventory node have now been disabled to prevent accidental use of paths that do not match the approved registry. Do not treat it as a working WhatsApp entry point.
-- **CFCF — Monthly Schedule Evaluator (Setup Required)** — CFCF-specific schedule evaluator. It is inactive; the HTTP nodes for the rolled-back schedule/job RPCs have now been disabled. It must be redesigned against approved n8n schedule configuration and the global JSONB registry before activation.
-- **CFCF — Shared Error Handler** — currently active and shared only across the CFCF evaluator/worker. It captures sanitized workflow/execution metadata plus explicit `reviewRequired`, `needs_review`, no-blind-retry, and sender-acknowledgement flags; it does not persist a durable job failure, notify the manager, release a lease, or message the sender. It is not a cross-product global error handler.
-
-- **CFCF — Shared WhatsApp Inbound (Draft)** — CFCF-specific shared-number ingress skeleton; inactive, unprotected webhook, no durable enqueue or sender acknowledgement. Returns retryable queue-not-ready if activated, so it must not be activated as-is.
-- **CFCF — Tenant-Owned WhatsApp Inbound (Draft)** — separate CFCF-specific tenant-owned-number ingress skeleton; inactive, unprotected webhook, ignores payload-supplied tenant IDs, and has no durable enqueue or sender acknowledgement. Must not be activated as-is.
-
-The existing **ClearFlow MCP Connection Test** is a connection-test utility only; it is not a business workflow.
-
-### Safety preflight — legacy workflow nodes quarantined
-
-On 2026-10-20, the existing inactive `CFCF Automation Worker — Draft` was updated to disable the legacy `cfcf_fail_exhausted_automation_jobs`, `cfcf_claim_automation_jobs`, and scoped-share HTTP nodes, along with disconnected placeholder nodes that refer to the unapproved `n8n_whatsapp_communications`/`n8n_whatsapp_deliveries` model and placeholder RPCs. Its WAHA session-inventory HTTP node was also disabled. The existing safety gate remains `liveCallsEnabled = false`; the workflow was not activated.
-
-The inactive `CFCF — Monthly Schedule Evaluator (Setup Required)` now has its old `cfcf_claim_due_automation_schedules`, `cfcf_initialize_automation_schedule`, and `n8n_register_scheduled_cfcf_job` HTTP nodes disabled because the corresponding prototype schedule/job model was rolled back. The evaluator was not activated. These nodes must not be re-enabled as a shortcut; rebuild the evaluator around approved n8n schedule configuration and `public.n8n_global_jobs` only after the registry migration and worker design are separately approved.
-
-A side-effect-free mock execution of `CFCF Automation Worker — Draft` succeeded and followed the `liveCallsEnabled = false` branch to `Dry Run — no database changes`. Execution output explicitly stated that no Supabase request was made. This validates only the safety gate; it does not test live routing, database access, or WhatsApp delivery.
-
-### WhatsApp entry-point design
-
-- For the shared-number model, use a **CFCF-dedicated shared WhatsApp number/session**. Its entry point is CFCF-specific; the product is known from trusted configuration, so the inbound flow does not need a product-selection router.
-- Tenant-owned CFCF WhatsApp numbers/sessions use a separate entry path from the CFCF shared number. Resolve the receiver/business number to the owning CFCF tenant, then check the sender against that tenant's person/contact records and recorded permissions.
-- The CFCF shared-number entry path checks the sender number against authoritative CFCF tenant/contact records before tenant-specific routing. A match must resolve unambiguously to one tenant/contact. If no record matches, apply the CFCF product's unknown-sender policy; if no tenant can be identified, do not guess a tenant to notify.
-- Both entry paths may call existing product-neutral helper logic only where it is genuinely reusable (for example, normalized event handling or safe job-progress formatting). Product-specific decisions, Supabase table access, message content, reminder/report logic, and role rules remain within CFCF-owned workflow paths.
-- Do not broadcast one inbound event to multiple business workflows. One entry path should decide the permitted route; deduplicate provider event IDs before downstream work.
-- Native n8n scheduling for CFCF remains separate from WhatsApp inbound entry. The evaluator does not need a WhatsApp webhook, and WhatsApp entry does not need to invoke the schedule evaluator.
-- Do not create, rename, or activate workflows as part of this documentation update. Reuse the existing names above; add a new named workflow only if a distinct entry/processing responsibility is confirmed and the existing workflows cannot safely perform it.
-
-### Global versus product-specific data
-
-- `public.n8n_global_jobs` is the global job registry only. Each row carries its `product_id`, `tenant_id`, `job_type`, status and JSONB job details.
-- CFCF workflow logic must explicitly validate `product_id = 'CFCF'` and the resolved tenant scope before private reads, job writes or provider actions.
-- The global registry does not make a product's business workflow global. CFCF campaigns, pending reminders, reports and WhatsApp routing remain CFCF-specific.
-- Keep existing PWA notification tables/functions/data/cron jobs untouched. Do not recreate the rolled-back CFCF schedule/job tables or prototype RPCs as part of this design.
-
-## Multi-trigger authentication: PWA, inbound WhatsApp, and schedules
-
-A trigger proves how a workflow started; it does not automatically prove who is authorized to access a tenant. Use a separate source-authentication adapter for each entry point, then pass a normalized, verified identity/context to the shared authorization gate. Never treat `product_id`, `tenant_id`, phone number, person ID, or a claimed role from an incoming payload as proof of authorization.
-
-### PWA-originated manager actions
-
-- The signed-in PWA sends its current Supabase access token in the Authorization Bearer header over HTTPS, along with the requested action, product/tenant context, selected IDs, and manager-entered options.
-- n8n validates the access token with Supabase Auth, obtains the trusted user identity, and checks that identity against the active tenant-owner access record for the exact product and tenant.
-- The browser must not send the service-role key. The access token is short-lived user authorization and is not a database admin credential.
-- Reject missing/invalid/expired tokens before reading private records. Reject an active user who is not an authorized owner of that exact tenant/product.
-
-### Inbound WhatsApp-originated actions — simplified phone-based routing
-
-- The WhatsApp sender does not need a ClearFlow secret, password, or Supabase token. Do **not** treat a WAHA session name as a secret or require it to be cross-verified as an identity credential.
-- Protect the WAHA-to-n8n webhook at the transport/server boundary using the simplest protection supported by the deployment (for example, a private/internal route or reverse-proxy access control; a shared header may be used if readily supported). This is service-to-service protection, not a per-session or per-user login. Do not put secrets in WhatsApp messages or public URLs.
-- **First routing gate — verify a sender record before normal routing:** normalize the actual provider sender number and look for an authoritative match in ClearFlow's tenant/contact/person/access records before allowing the message into a tenant workflow. A phone number by itself is not proof of a role or permission. Apply the configured routing mode to scope the lookup, and do not use a phone number typed in the message body. If there is no matching record, do not continue as a recognized tenant/person: apply that product's unknown-sender policy (block; notify the tenant/manager if the tenant can be safely identified; or send a neutral acknowledgement/clarification if unregistered inquiries are allowed). If no tenant can be identified, do not guess which tenant to notify; route to a neutral agency/manual-review path. Keep the inbound event and any notification free of private tenant or financial data.
-- For a **shared agency number**, the sender-record lookup must resolve to one unambiguous tenant/contact before tenant-specific routing. If no sender record matches, use the unknown-sender policy above. For a **tenant-owned number**, first resolve the receiver/business number to the tenant, then check whether the sender has a person/contact record within that tenant; an unrecognized sender may be reported to that identified tenant only if the product workflow permits it, but must not be treated as a registered person.
-- Route incoming messages using the actual provider event's sender and receiver/business numbers, plus the configured routing mode. Never use a phone number typed into the message body as a verified identity.
-- **Shared agency number/session:** use the sender's normalized phone number as the primary lookup to identify the tenant/tenant contact who is contacting the shared agency. Treat this as a tenant-level inbound conversation initially. If the sender also matches a person record, resolve that person too, but do not assume a staff/customer role unless the tenant's records establish it.
-- **Tenant-owned WhatsApp number/session:** use the receiver/business number to identify which tenant owns that WhatsApp number; then use the sender's normalized number to look up the person within that tenant and classify them using the tenant's records (for example, owner/manager, staff, or customer). Do not treat the session name as a secret or as the sole tenant key.
-- Prefer exact phone-number matches within the resolved routing context. If a number is shared, duplicated, or maps to multiple tenants/people, ask a neutral clarification or route for manual review. Do not disclose private tenant or financial information until the intended tenant/person is clear.
-- Keep permissions proportional to the conversation: normal inbound messages can be acknowledged and routed without owner privileges; staff/customer records can only access the actions and information assigned to their role; owner-only operations require a matching active owner record for the resolved tenant. Unknown senders may be handled as unverified inquiries, but must not receive private records or trigger privileged actions.
-- Deduplicate by provider event/message ID where available. If the provider does not supply a stable ID, use a conservative fingerprint of session/routing context, sender, receiver, timestamp, and message ID/content metadata to reduce accidental duplicate processing; do not blindly repeat any outbound send after an ambiguous result.
-
-### Scheduled n8n-originated work
-
-- If we use n8n's **built-in Schedule Trigger**, there is no inbound HTTP request and no external app to hold a secret. The scheduler starts the workflow inside the protected n8n instance. Do not add a fake token check to a native schedule trigger.
-- Keep schedule configuration and credentials accessible only to authorized n8n operators. Each scheduled workflow must have its product, tenant scope, and allowed action fixed by its trusted configuration—not supplied by a public caller.
-- At run time, check that the target tenant is still active and eligible. Use the n8n-stored server credential only for the necessary operations and explicitly scope every private read/write to that product and tenant.
-- Use a stable occurrence key, such as schedule identity plus the intended run timestamp, so duplicate execution of the same occurrence resolves to the existing job and does not repeat a send.
-- If a separate external scheduler/app calls an n8n webhook instead, **that external app** must store and send a credential (for example, a bearer token or custom header) and n8n must validate it. This is a different setup from n8n's native Schedule Trigger.
-- Record each scheduled execution in the same global JSONB job registry. The manager chooses up to three reminder slots and two report slots per Fund; do not hard-code calendar dates. The schedule-slot persistence contract must be resolved without adding a schedule table/RPC or changing protected PWA notification objects.
-
-### Practical rule — route by numbers, not by session secrets
-
-| Entry point | How we identify the route/actor | What still needs authorization? |
-|---|---|---|
-| PWA manager action | Supabase access token from the signed-in session | Current manager/owner access for the exact product and tenant |
-| Shared agency WhatsApp number | Sender number identifies the tenant/contact for the incoming conversation | Resolve ambiguity; privileged actions still require the relevant owner permission |
-| Tenant-owned WhatsApp number | Receiver/business number identifies the tenant; sender number identifies the person within that tenant | Apply that person's recorded role and permissions |
-| n8n native schedule | Protected n8n workflow configuration; no incoming token | Fixed tenant/action scope, current tenant eligibility, and duplicate-occurrence protection |
-| External scheduling app | Credential held by that app and validated by n8n | The app's permitted product/tenant/actions and duplicate-event protection |
-
-This intentionally avoids a separate secret per WhatsApp session. Basic protection of the WAHA-to-n8n delivery endpoint remains sensible, but the session name is routing metadata, not a credential. Phone numbers help resolve tenant/person identity; the matching ClearFlow records determine role and data access.
-
-### Shared authorization envelope
-
-After source authentication, each adapter should create an internal normalized context containing only verified fields, such as:
-
-- `source_type`: `pwa`, `whatsapp`, or `schedule`
-- `verified_actor_id`: Supabase Auth user ID for PWA; resolved authoritative person/manager ID for WhatsApp; controlled service/schedule identity for scheduled work
-- `product_id` and `tenant_id`: values verified against current authorization records
-- `action`: allowlisted action, not arbitrary SQL or a caller-selected workflow
-- `request_id`: stable idempotency key appropriate to the source
-- `authorization_basis`: the verified role/access check or controlled schedule permission
-
-The shared gate must authorize the exact action for the exact product and tenant before private data access. Source identity and action permissions are not interchangeable: a valid WhatsApp webhook signature authenticates the provider delivery, not the person; a known phone number does not prove tenant ownership; and a schedule trigger proves workflow initiation, not that a tenant remains active.
-
-### Multi-trigger security tests
-
-Before connecting any live trigger, verify without provider sends or production writes:
-
-- PWA missing, invalid, or expired Bearer token → reject.
-- PWA user is valid but has no active owner access for the exact product/tenant → reject.
-- Shared agency number: sender phone resolves to the expected tenant/contact; ambiguous mappings ask for clarification or go to manual review.
-- Tenant-owned number: receiver number resolves the tenant, and sender number resolves the person/role within that tenant.
-- Session name is not treated as a secret or the sole tenant identity key.
-- Unknown inbound senders may receive a neutral acknowledgement, but no private data or privileged action.
-- Known tenant contact attempts an owner-only action without owner permissions → reject.
-- Webhook transport protection fails, or the same provider event is replayed → reject or deduplicate as appropriate.
-- Scheduled execution targets an inactive tenant or disabled schedule → skip safely and record a non-sensitive reason.
-- Repeated PWA request, WhatsApp event ID, or scheduled occurrence → no duplicate job or repeated provider send.
-- All three sources attempt cross-tenant person/contact IDs → reject before private data is returned.
-
-
-## Queueing, acknowledgements, and failure review — required before activation
-
-### Queue the inbound request, not the webhook itself
-
-- Both CFCF inbound paths need a durable, idempotent enqueue step. A webhook execution or an in-memory loop is not a durable queue.
-- Shared-number path: validate the provider event and session, normalize the sender, resolve exactly one tenant/contact from authoritative CFCF records, and only then create the tenant-scoped job. Unknown or ambiguous sender matches must not be assigned to a guessed tenant.
-- Tenant-owned path: resolve the tenant from an authoritative receiver/session-to-tenant mapping. Ignore any payload-supplied `tenant_id`. Then validate the sender/person/role within that tenant before performing private actions.
-- The approved `public.n8n_global_jobs` registry requires a tenant ID. Therefore, an unknown shared-number sender cannot be inserted as a normal tenant job. It receives only a neutral, rate-limited acknowledgement/handling path; do not create a fake tenant to force it into the registry.
-- The JSONB registry migration is still a draft. Until durable persistence and auth are available, both inbound drafts intentionally return `503 DURABLE_QUEUE_NOT_CONFIGURED`; they must stay inactive. A success response must never be sent before the durable queue write commits.
-
-### Two different acknowledgements
-
-1. **Transport acknowledgement to WAHA/provider:** return a 2xx only after the inbound event is durably stored or confirmed as an already-stored duplicate. This tells the webhook delivery mechanism it can stop retrying that event. If durable enqueue fails, return a retryable non-2xx response; the idempotent provider event ID/request key must prevent duplicate jobs if the provider retries.
-2. **WhatsApp acknowledgement to the human sender:** send an immediate receipt only for work that will take longer than a normal interactive response or must continue asynchronously (for example, reports, scheduled reminders, multi-recipient campaigns, or a job that is queued behind other work). After durable enqueue, send one short receipt with a non-sensitive reference, for example: “Received your request (Ref {reference}). It’s queued for processing. Please don’t resend it; we’ll update you when there is a result.” The actual outbound WhatsApp send is not implemented in the drafts. Do not claim queued/accepted until persistence succeeds.
-
-- **Quick operations:** if the request can be safely completed within the normal interactive response window, do not send a separate “queued” receipt. Return the actual result once the operation completes. If the operation crosses into asynchronous/queued work, send the one-time receipt after persistence. Never send a quick-operation success message before the operation succeeds.
-- This rule changes only the human WhatsApp acknowledgement, not the provider transport response. Always respond to the webhook promptly: return HTTP 2xx only after the inbound event is durably stored or recognized as an already-stored duplicate. Do not wait for long business processing in the webhook.
-- Keep these acknowledgements separate: an HTTP response to WAHA does not send a WhatsApp message to the sender.
-- Store acknowledgement policy/state in the same job JSONB document when a job exists (e.g. not_required, pending, provider_accepted, failed, uncertain) and suppress duplicate acknowledgement sends for duplicate provider event IDs. Provider acceptance is not proof the sender received/read the message.
-- Unknown/unauthorized/ambiguous senders get no tenant data or tenant-specific status. If a neutral acknowledgement is sent, it must not reveal whether a particular tenant/contact exists. Apply a bounded per-session/sender rate limit to prevent acknowledgement loops.
-- Do not deduplicate distinct inbound requests by message text alone; different messages may represent distinct instructions. Use the provider event ID for transport deduplication and a scoped request ID for job idempotency.
-
-### Failure outcomes and manager review
-
-- **Failure before durable enqueue:** do not send a human “queued” acknowledgement. Return retryable transport failure; record only sanitized diagnostics where available.
-- **Failure after enqueue but before any provider submission:** retain the job and its reference. It can be safely re-claimed only after the worker/lease state proves no provider submission was attempted. Do not create a second job.
-- **Definitive provider rejection:** mark that recipient/job failed with a safe error category; do not retry unless the failure is explicitly classified as transient and the operation is proven idempotent.
-- **Timeout or lost provider response after submission:** mark `uncertain`, stop automatic resend, and flag for manager review. Never infer “not sent” from a timeout.
-- **Sender-acknowledgement send failure:** keep the business job state separate from the acknowledgement state. If provider acceptance is ambiguous, mark the acknowledgement `uncertain`; do not blindly send it again.
-- **Workflow execution failure:** the current `CFCF — Shared Error Handler` captures sanitized execution metadata only. It is not yet a durable alert/recovery system. Once the registry is approved, store a bounded error event and `needs_review`/failure summary on the same job row; expose the safe status/reference in the manager PWA. Do not store secrets, full message bodies, phone numbers, or provider credentials in error summaries.
-- Keep bounded history (maximum 500 events per job), update the single job JSONB row sequentially, and do not add per-recipient tables. If status cannot be safely resolved, show `uncertain` and request manual review rather than retrying.
-- Avoid retry loops. A retry is allowed only for a classified transient failure before external side effects, or when the provider explicitly confirms rejection and the action is safe. Use finite attempts and a visible terminal outcome; no unbounded retries.
-
-### Queue boundaries and pacing
-
-- Inbound event acceptance should be quick: validate, deduplicate, persist, acknowledge. Do not perform a long recipient loop or send a campaign synchronously inside the inbound webhook.
-- A separate CFCF worker claims a small bounded number of jobs, then loops over recipients serially or with a deliberately small concurrency limit. The current mock worker uses batch size 1 and a hard cap of 100 as a test safety ceiling; these are not evidence that the production dispatcher is ready.
-- Keep independent queues/pacing per assigned WAHA session/manager. Do not fall back to another tenant's or another product's session if the assigned session is unavailable.
-- If a queue is backed up, report queued/waiting state and progress; do not create duplicate jobs or tell the sender to resend.
-- Never activate the new inbound drafts until server-boundary authentication, authoritative tenant resolution, durable idempotent enqueue, sender-ack deduplication, failure review, and mock integration tests all pass.
-
-## Inbound webhook authentication gate — Batch 21
-
-The current CFCF inbound workflow drafts are intentionally inactive and their Webhook nodes use `authentication: none`. This is a known blocking condition, not an acceptable production configuration. They must not be activated or exposed publicly in this state.
-
-Before implementing the live ingress path, inspect the actual WAHA deployment and its reachable network boundary. Select and verify one supported protection method that matches that deployment, such as a configured n8n webhook authentication mechanism or a reverse-proxy rule that permits only the trusted WAHA source and validates a secret/signature. Do not assume that a credential with a generic name is configured for WAHA; do not attach it until its type, expected header/token format, and sender-side configuration are verified. Never put a secret in workflow code, a webhook URL, logs, or repository files.
-
-Fail-closed requirements:
-
-- Missing, malformed, or invalid authentication must stop before tenant/contact lookup, durable enqueue, or any human WhatsApp acknowledgement.
-- Authentication failure must not reveal whether a tenant, phone number, session, or contact exists.
-- Trust the receiver/session mapping only after ingress authentication. Ignore payload-supplied tenant identifiers as an authority.
-- Validate the provider event ID and required sender/receiver/session fields; reject malformed events without creating jobs.
-- Resolve a shared-number sender to exactly one authoritative CFCF contact/tenant; resolve a tenant-owned receiver to exactly one tenant/session mapping and then check sender/role authorization. Ambiguity is a hard stop.
-- Only after the above gates pass may the workflow attempt idempotent durable enqueue. HTTP 2xx is permitted only after enqueue succeeds or the same provider event is confirmed as already stored.
-- A human sender receipt is separate and conditional: only long-running work, after durable enqueue; quick operations get their result after success. Duplicate events do not cause duplicate receipts.
-- Keep both inbound workflows inactive until authentication, routing, durable enqueue, duplicate handling, acknowledgement suppression, and fail-closed tests are implemented and verified.
-
-Current blocker: the actual WAHA-to-n8n authentication configuration has not been verified in the available workflow configuration. Therefore this batch documents and tests the required gate; it does not claim the webhook is secured or ready to activate.
-
-### Batch 22 validation note — mock gate, not deployed authentication
-
-The repository test `modelInboundGate` exercises the required stage ordering with synthetic states: unverified authentication stops before tenant lookup; malformed events and ambiguous routes stop before enqueue; a successful transport 2xx is modeled only for durable storage or recognized duplicate events. These are contract tests only. They do not validate a real Authorization header, signature, reverse-proxy rule, WAHA delivery configuration, or n8n credential. No production ingress security change has been made because the actual WAHA-to-n8n authentication configuration remains unverified.
-
-
-## Durable enqueue and duplicate-conflict model — Batch 25
-
-A repository-only model now covers the intended durable-enqueue decisions: a scoped pre-existing request returns its canonical integer job ID without redispatch; a successful insert returns the database-generated ID; a unique conflict is accepted only after the existing same-scope job is confirmed; and an unclassified persistence error returns retryable non-2xx without a success receipt. The model also asserts that enqueue does not itself perform provider dispatch.
-
-This is a synthetic contract model, not a PostgreSQL or n8n integration test. It does not establish that a database row was created, that the webhook is authenticated, or that a worker is connected. The preview and inbound workflows remain inactive; the draft migration remains unapplied; no provider calls or PWA notification changes were made.
-
-
-## Scoped request deduplication model — Batch 26
-
-The enqueue contract model now checks that an existing request is considered a duplicate only when product ID, tenant ID, and request ID all match. A matching request ID from a different tenant or product must not be returned as the caller's job; it remains a distinct scope. This complements the database's scoped unique index and the separate inbound provider-event identity key.
-
-This is a synthetic test of decision rules, not a live database query or authorization implementation. A real ingress still must authenticate the source, resolve authoritative tenant scope, and confirm a duplicate row within that exact scope before returning success.
-
-
-## Recipient submission transitions — Batch 27
-
-Recipient dispatch state is a safety boundary, not a generic retry loop:
-
-- A recipient may be reclaimed as `pending` only when durable state proves no provider submission was attempted (for example, the worker failed before the external-call boundary).
-- Once submission may have started, a timeout, lost response, connection reset, or otherwise ambiguous provider result must become `uncertain`. Do not automatically submit that recipient again; expose it for manager/manual review.
-- A definitive provider acceptance becomes `provider_accepted` and must not be dispatched again by a later worker run. Provider acceptance does not prove delivery or read status.
-- A definitive provider rejection becomes `failed`. Do not turn it into an automatic retry unless a separately approved rule proves the rejection is transient and the operation safe; this batch does not add such retry behavior.
-- State transitions must be persisted before a worker proceeds to the next recipient, with sequential updates to the same job JSONB row and bounded event history (maximum 500). Do not add per-recipient tables, RPCs, or schedule tables.
-
-Batch 27 validation is repository-only. Its pure model tests state-decision rules and does not prove a real worker lease, durable update, or provider outcome. The worker remains mock-only and inactive; the migration remains unapplied; no live provider call, retry, requeue, PWA notification change, or deployment was performed.
-
-
-## Job claiming and finalization — Batch 28
-
-- A worker may dispatch only after it wins an atomic claim from the durable store. A worker that loses the claim must stop without processing recipients.
-- A lease-expired job may be reclaimed for dispatch only when durable recipient/job state proves no provider submission was attempted and no recipient is uncertain. If submission may have started, stop dispatch and preserve the unresolved state for review; never infer that lease expiry means “not sent.”
-- Persist claim/lease changes and progress updates to the same job JSONB row in serialized order. This contract does not yet implement or prove an atomic database claim; it is a requirement for the future adapter, not a claim that current n8n workflows are concurrency-safe.
-- Finalization is derived from recipient outcomes: any unresolved **uncertain** recipient makes the job **uncertain** and reviewable; active/nonterminal recipients keep it **processing**; only an all-`provider_accepted` recipient set produces **completed**; any accepted recipient mixed with `failed` or `skipped` produces **partial**; a terminal set with no accepted recipients (all failed/skipped, or a mix of those) produces **failed**.
-- An empty recipient set must not be reported as a successful campaign; the model marks it **failed** with reason **no_recipients**. Rejecting empty jobs at ingress is still preferred.
-- Finalization must not overwrite recipient-level evidence or turn **uncertain** into **failed/completed** merely to close the job. Keep the latest 500 events and do not add per-recipient tables, RPCs, or schedule tables.
-
-Batch 28 is repository-only contract testing. It does not verify a database compare-and-set, lease clock, concurrent n8n executions, or real provider states. All related workflows remain inactive/mock-only, the migration remains unapplied, and no live sends, retries, PWA notification changes, or deployments were made.
-
-
-## Progress consistency and bounded event history — Batch 29
-
-- Derive the manager-visible counters from the recipient states in the same job JSONB document. Do not increment a separate processed counter blindly; a repeated event or a later state correction must not inflate progress.
-- Report `total`, `pending`, `submitting`, `provider_accepted`, `failed`, `uncertain`, and `skipped` separately. Treat `submitting` as in progress, not terminally processed. The displayed processed count is the count of recipients in a terminal outcome state, including `uncertain` and `skipped`; label it clearly so it is not mistaken for successful deliveries.
-- `provider_accepted` is only provider acceptance, not confirmed delivery/read. `uncertain` must be visible as needing review and must not be counted as a success.
-- Append state-change events in serialized order and retain only the newest 500 events per job. Event history is diagnostic history, not a substitute for the current recipient states.
-- If stored progress counters disagree with the current recipient states, recompute from the authoritative JSONB recipient array and surface a safe diagnostic; do not change a recipient state just to make counters align.
-- This batch adds a pure repository model only. It does not implement a live database writer, concurrency control, PWA screen, or n8n execution logic. Keep the worker mock-only/inactive, migration unapplied, and existing PWA notification tables/functions/cron jobs untouched.
-
-
-## Manager PWA job-progress presentation — Batch 30
-
-The manager home page should show a compact, mobile-friendly list/card of automation jobs without changing the existing notification infrastructure. This is a presentation contract; actual PWA wiring remains a later integration step.
-
-Each visible job should show:
-- A safe job reference, plain-language job type/status, and current status.
-- Progress as **processed recipients / total recipients**, with pending and currently submitting counts available when useful.
-- Separate accepted, failed, skipped, and uncertain counts; do not label provider acceptance as delivered.
-- Last safe update time and a clear **Needs review** indicator for uncertain outcomes.
-- A final state of completed, partial, failed, uncertain, or cancelled when present. Keep active jobs visibly processing; do not display a success state while recipients remain active.
-- A neutral message when no jobs are available, and a safe error state when progress cannot be fetched.
-
-Security and data boundaries:
-- The PWA is a read-only consumer of the global job registry. It must not create jobs, change job status, dispatch messages, or repair progress counters.
-- Only show jobs authorized for the signed-in manager's active product and tenant. Do not trust tenant IDs supplied by client state without the existing authorization boundary.
-- Keep the layout mobile-first and avoid horizontal scrolling. Show concise progress first, with details available by opening a job card.
-- Do not change PWA notification tables, functions, data, or cron jobs. Do not create new notification tables or reintroduce the rolled-back schedule tables/RPCs.
-- Monthly reminder/report slot execution remains unimplemented. The approved behavior is up to three manager-selected recurring reminder slots and two manager-selected recurring report slots per Fund, defaulting to `Asia/Kolkata`; day 29–31 clamps to month end. The safe persistence location for these per-Fund settings remains unresolved. Do not invent fixed dates, repurpose unrelated financial JSONB, add a schedule table/RPC, or change protected PWA notification objects.
-
-Batch 30 adds contract tests and design documentation only. It does not implement a PWA screen, database access, a schedule, or notification changes.
-
-
-## Tenant-scoped read-only progress retrieval — Batch 31
-
-- Progress reads require a verified manager identity and current active owner authorization for the exact product and tenant. The client must not choose an arbitrary tenant scope and treat that value as authorization.
-- Return only allowlisted fields needed by the manager PWA: job reference, status, product/tenant scope, and safe progress summary. Exclude credentials, provider payloads, raw message bodies, private contact data, and internal error details.
-- A non-owner must receive no job data. Cross-tenant or cross-product lookups must return no job details, whether the job exists or not; do not leak existence through different error messages.
-- Reads must be side-effect-free: no status changes, counter repair, job claims, dispatch, or event writes. The PWA remains read-only.
-- This batch's pure model tests do not implement Supabase authorization, RLS, or a live API endpoint. The migration remains unapplied; use the verified auth context and server-side tenant scoping when implementing the read adapter.
-
-
-## Readiness gates before controlled non-production integration — Batch 32
-
-A controlled non-production end-to-end test may start only after each gate below has evidence, not merely a design note or synthetic model:
-
-Explicit readiness checklist:
-- Gate: WAHA-to-n8n authentication is verified.
-- Gate: durable idempotent enqueue is implemented and tested.
-- Gate: atomic job claim and sequential JSONB updates are implemented.
-- Gate: tenant-scoped read-only progress retrieval is implemented.
-- Gate: uncertain provider outcomes cannot trigger automatic resend.
-- Until these gates pass, both inbound workflows remain inactive, the draft migration has not been applied, and there are no live provider sends.
-
-1. **Ingress authentication:** inspect the actual WAHA deployment and verify the real transport/authentication mechanism end to end. Generic n8n credential names are not proof.
-2. **Durable persistence:** apply the approved migration only to an explicitly approved non-production database, then verify insert, duplicate conflict, exact tenant scope, and safe read behavior. Do not create a billable Supabase branch.
-3. **Worker coordination:** implement and verify atomic job claims, serialized JSONB updates, lease handling, and bounded event history. Repository models alone do not satisfy this gate.
-4. **Provider safety:** use a controlled mock first. Unknown outcomes must become **uncertain**; there must be no blind resend or automatic requeue.
-5. **Manager view:** verify the PWA reads only the authenticated manager's exact product/tenant scope and exposes safe progress without modifying records.
-6. **Schedule readiness:** preserve three manager-selected monthly reminder slots and two manager-selected monthly report slots per Fund, defaulting to `Asia/Kolkata` and clamping day 29–31 to month end. Resolve the approved per-Fund settings persistence location before implementing the editor/evaluator; do not hard-code dates, add a schedule table/RPC, or alter PWA notification infrastructure.
-7. **Protected systems:** verify that existing PWA notification tables, functions, data, and cron jobs remain unchanged.
-
-Until the owner approves the next test environment and the prerequisites are evidenced, both inbound workflows remain inactive, the worker remains mock-only, the draft migration remains unapplied, and there are no live provider sends or deployments. No credential changes or production writes are authorized by this checklist.
-
-
-## Inbound identity and acknowledgement boundary — Batch 33
-
-- Authenticate the provider event before trusting any event identity. Resolve the receiving number/session through trusted server-side configuration and map it to exactly one authorized product and tenant; never use a tenant ID supplied only by the inbound payload as authority.
-- Resolve the sender/contact and permitted role inside that established tenant. Unknown or ambiguous mappings receive no tenant data and no status disclosure.
-- Deduplicate inbound provider events using the scoped provider/session/event identity. A duplicate must return the already-known safe acknowledgement outcome without creating a second job or dispatching work again.
-- HTTP transport acknowledgement is distinct from a WhatsApp human acknowledgement. Return HTTP 2xx only after durable enqueue succeeds or a duplicate is positively confirmed. If persistence outcome is unknown or enqueue fails, return retryable non-2xx and do not claim acceptance.
-- For quick operations, do not send a separate queued/receipt message; send the actual result after completion. For work that genuinely takes longer than a normal interactive response, send at most one human receipt and only after durable enqueue. Receipt delivery uncertainty must not trigger a blind resend.
-- Keep provider message body and sender data out of manager-facing progress summaries and routine logs. Do not include secrets, auth headers, or raw provider payloads in errors.
-- This batch is a static contract only. Both inbound workflows remain inactive and their current 503 placeholder remains; no webhook auth, durable queue, credentials, or live messaging was changed.
-
-
-## Worker-to-registry compatibility boundary — Batch 34
-
-The current inactive worker and the proposed global registry do not yet share a fully implemented live contract. Treat the following as a mandatory adapter contract before wiring any registry I/O:
-
-- Every PWA-to-n8n or n8n-to-product-workflow handover must carry and validate `product_id`, `tenant_id`, and `person_id`. `person_id` must be resolved from trusted authenticated identity/contact data; never trust a body-supplied person ID as proof of authorization.
-- Product-neutral instruction actions remain `campaign`, `pending_reminder`, and `report`. The CFCF reminder worker's internal job type is `pending_due_reminder`; a validated adapter may map `pending_reminder` to `pending_due_reminder` only after confirming the intended fund and schedule occurrence. Preserve the external action and schedule occurrence in job metadata for auditability.
-- Campaign dispatch is not supported by the current reminder/report worker. Route it only to a separately approved CFCF campaign path; do not pass campaign jobs into the reminder worker or silently translate action names.
-- A reminder/report job must include a trusted, tenant-scoped `fund_id` where that job type requires a fund. Validate the fund against the exact product and tenant before reading shares or creating provider payloads.
-- The draft worker's legacy CFCF RPC paths, legacy communication/delivery table placeholders, and WAHA session inventory node remain disabled. The global-registry claim/read/write/finalization placeholders remain disabled. Do not re-enable these old paths or attach credentials as a shortcut.
-- Before implementation, add a single-winner atomic claim against `n8n_global_jobs`, durable sequential JSONB updates, and a finalization adapter that maps recipient evidence to job status. A pure model or a mock execution does not prove these database guarantees.
-- Keep the existing worker inactive and mock-only until the adapter passes static tests and approved non-production tests. No migration or workflow activation is authorized by this contract.
-
-
-## Finalization adapter truth table — Batch 35
-
-The future registry adapter must derive final job status from the persisted recipient statuses, not from a stale counter or a workflow's optimistic branch result:
-
-| Persisted recipient evidence | Job status | Dispatch/review rule |
-|---|---|---|
-| At least one recipient is `uncertain` | `uncertain` | Manual reconciliation; never auto-resend |
-| Any recipient remains `pending` or `submitting` | `processing` | Not final; do not mark complete |
-| All recipients are `provider_accepted` | `completed` | Means provider accepted all requests, not delivery/read |
-| A terminal mix of `provider_accepted` and `failed` or `skipped` | `partial` | Preserve each recipient outcome |
-| Non-empty recipient list with no accepted recipients and only terminal failures/skips | `failed` | No blind retry |
-| Empty or missing recipient list for a sendable job | `failed` | Invalid job; do not call provider |
-
-- A `provider_accepted` recipient is terminal for dispatch only. Do not treat it as delivered or read.
-- Counters are projections derived from the saved recipient array. If saved counters disagree, repair/recompute from recipient states before exposing progress; never let a stale counter authorize dispatch.
-- Persist recipient transition evidence before advancing the loop. Within a job, updates must be sequential and based on the latest saved JSONB row so one recipient result cannot overwrite another.
-- A worker crash after provider submission but before a durable result must be represented as `uncertain` if submission may have occurred. Lease expiry alone is not permission to reclaim and resend.
-- This is a contract and test target, not proof that live atomic claims or JSONB writes exist. Do not activate workflows or apply the draft migration based on this batch.
-
-
-## Monthly occurrence idempotency contract — Batch 36
-
-- The schedule contract is manager-configured, not a set of fixed dates: up to three recurring monthly pending-reminder slots and two recurring monthly report slots per Fund, default timezone `Asia/Kolkata`; day 29–31 clamps to the last day of shorter months. Do not invent default dates. The safe persistence location for these per-Fund slots remains unresolved, so no schedule editor/evaluator can be completed until that is resolved.
-- Each scheduled execution must have a stable occurrence identity based on the configured schedule identity, product, tenant, action/job type, and intended local calendar occurrence. Include `fund_id` when the reminder/report scope is fund-specific. Build the key from an unambiguous canonical tuple; do not concatenate ambiguous user-controlled strings.
-- Store the schedule identity, intended local occurrence, timezone, and resulting UTC execution timestamp in `job_data` so a manager can audit why the job ran. Do not store message text, phone numbers, or secrets in the occurrence key.
-- Derive a stable scoped `request_id` for that occurrence and use the existing unique `(product_id, tenant_id, request_id)` guard. If the occurrence already exists, return its existing job state; never create a second job or dispatch again.
-- A retryable pre-enqueue failure may be retried only when evidence proves no job was durably created and no provider submission occurred. If persistence outcome is ambiguous, stop and reconcile; do not invent a new occurrence key to bypass idempotency.
-- n8n owns schedule evaluation and occurrence identity; the manager-configured slot values must come from an approved, tenant-scoped persistence location. Do not assume global n8n workflow settings can represent per-Fund manager choices. Do not add schedule tables/RPCs, new Supabase cron jobs, or changes to existing PWA notification cron jobs.
-- This contract does not activate or configure any schedule and does not authorize production writes.
-
-
-## Controlled non-production test evidence matrix — Batch 37
-
-This is a go/no-go checklist, not authorization to execute against a database. A controlled test run may begin only after the user explicitly approves a specific non-production Supabase project and confirms it has no billable branch or unexpected billing impact.
-
-| Test | Required evidence | Fail-safe on failure |
-|---|---|---|
-| Auth and ownership | Valid owner token sees only its exact active product/tenant; invalid token is 401; unauthorized or cross-tenant scope is denied without details | Stop before private reads or writes |
-| Durable enqueue/idempotency | First request creates one row; same request and concurrent duplicate return the same canonical job ID | No dispatch until durable result is known |
-| Atomic claim | Two workers competing for one queued job yield one winning claim and at most one dispatch-capable worker | Stop dispatch if claim result is ambiguous |
-| Sequential JSONB updates | Two recipient outcomes persist without lost updates; counters match the saved recipient array | Mark unsafe state for review; do not dispatch further recipients |
-| Provider boundary | Mock success, explicit failure, pre-submission timeout, and timeout after possible submission are distinguished | Possible submission with unknown outcome becomes uncertain; no resend |
-| Inbound event | Authenticated event enqueues once; duplicate is recognized; unauthorized receiver/sender reveals no tenant data | HTTP 2xx only after durable enqueue or confirmed duplicate |
-| Manager read model | Owner sees allowlisted progress only; cross-tenant lookup reveals no job details; read does not mutate | Hide progress and fail closed |
-| PWA regression | Existing notification tables, functions, data, and cron jobs are unchanged | Abort integration |
-| Schedule idempotency | Test-only occurrence produces one stable job; duplicate occurrence creates no second dispatch | Keep all schedules inactive until exact approved dates are recovered |
-
-Capture each test's environment, commit SHA, workflow execution ID, expected result, observed result, and cleanup evidence. Use synthetic contacts and provider mocks only. Do not use real phone numbers, real WhatsApp sends, production data, production credentials, or production migration paths.
-
-The readiness review is blocked until actual WAHA-to-n8n authentication is verified from configuration, the per-Fund slot persistence location is resolved without violating the no-schedule-table constraint, and the user has explicitly approved the target non-production environment. The dates are manager-selected recurring slots, not fixed dates to recover. Passing static CI alone does not satisfy any live integration gate.
+- The JSONB job storage migration remains unapplied.
+- PWA progress UI is feature-flagged off until its data source is approved and verified.
+- Shared-number ingress, tenant-owned ingress, worker, and schedule evaluator remain inactive.
+- WAHA-to-n8n authentication and schedule persistence remain unresolved.
+- No production migration/deployment, credential change, live WhatsApp send, or billable Supabase branch is authorized.
+- Use synthetic data and mock provider actions for the first controlled test after the non-production environment is explicitly approved.
