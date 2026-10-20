@@ -75,3 +75,8 @@ The remaining workflow exercises only the synthetic in-memory path: manual start
 A pinned-node preparation check completed, and manual test executions `31`, `32`, `33`, and `34` returned success; execution `34` followed the final cleanup to six nodes. The unused safety-gate/stop/dry-run branch was removed so the mock harness is one clear connected path. These are mock-only workflow tests, not live integration tests. The workflow remains inactive. Repository CI #850 passed TypeScript validation, CFCF financial tests, both focused contract suites, and the production build at commit `b0abb583fcd40dc7e7bc1fdbcbfefd98a3036adc`.
 
 The next real integration blockers remain unchanged: verify the actual WAHA-to-n8n authentication scheme, agree the per-Fund schedule-slot persistence location, and obtain explicit approval of a named non-production Supabase project. No production deployment or migration was performed.
+
+
+### Inbound draft smoke checks — 2026-10-20
+
+Mock executions `35` (shared agency number) and `36` (tenant-owned number) both completed successfully using synthetic webhook payloads. These tests confirm only that the draft validation/response paths execute; they do not verify WAHA authentication, tenant resolution against real data, or durable enqueue. The tenant-owned fixture intentionally included an untrusted `tenant_id` field, which the current validator marks as ignored. Both ingress workflows remain inactive and unauthenticated placeholders, return the queue-not-configured response, and must not be activated yet.
