@@ -73,7 +73,7 @@ create unique index n8n_global_jobs_inbound_event_unique_idx
     and nullif(btrim(job_data ->> 'provider_event_id'), '') is not null;
 
 alter table public.n8n_global_jobs enable row level security;
-revoke all on table public.n8n_global_jobs from anon, authenticated;
+revoke all on table public.n8n_global_jobs from public, anon, authenticated;
 grant select (
   job_id, product_id, tenant_id, job_type, status,
   created_at, updated_at, completed_at, progress_summary
@@ -95,6 +95,7 @@ select
   (status in ('uncertain', 'partial')) as needs_review
 from public.n8n_global_jobs;
 
+revoke all on public.n8n_global_job_progress from public, anon, authenticated;
 grant select on public.n8n_global_job_progress to authenticated;
 
 comment on table public.n8n_global_jobs is
