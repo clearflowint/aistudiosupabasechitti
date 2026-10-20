@@ -1,6 +1,6 @@
 # ClearFlow source-to-engine contract — minimal first working version
 
-> This contract is source-independent. PWA is only one request source; WhatsApp, AI agents, APIs, and future products use the same central n8n ingress/execution architecture. Product behavior belongs in product-owned workflows; Supabase stores job records. Older state-machine, lease, atomic-claim, generated-counter, and generic retry proposals remain deferred unless a real test demonstrates the need.
+> This contract is source-independent. Request sources include PWA, WhatsApp, AI agents, APIs, and future products, all using the same central n8n ingress/execution architecture. Product behavior belongs in product-owned workflows; Supabase stores job records. Older state-machine, lease, atomic-claim, generated-counter, and generic retry proposals remain deferred unless a real test demonstrates the need.
 
 ## Request envelope
 
