@@ -8,7 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
-    "test:financial": "node --experimental-strip-types --test src/features/cfcf/services/financial-calculations.test.ts"
+    "test:financial": "node --experimental-strip-types --test src/features/cfcf/services/financial-calculations.test.ts",
+    "test:job-registry": "node --test scripts/global-jsonb-job-registry.test.mjs",
+    "test:n8n-contract": "node --test scripts/n8n-pwa-job-instruction-contract.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.3",

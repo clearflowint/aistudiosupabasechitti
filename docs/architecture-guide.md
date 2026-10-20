@@ -29,7 +29,7 @@ Markers describe ownership, not merely the technology used. A TypeScript interfa
 | `src/core/workspace/workspace.types.ts` | SKELETON | Product-neutral authorized tenant identity |
 | `src/products/productRegistry.ts` | MIX | Registers products and chooses the active product |
 | `src/components/workspace/WorkspaceLayout.tsx` | SKELETON + MIX | Shared header, top navigation, notification entry point, content frame |
-| `src/components/workspace/WorkspaceHomePage.tsx` | SKELETON + MIX | Basic tenant home and product-provided entry points only |
+| `src/components/workspace/WorkspaceHomePage.tsx` | SKELETON + MIX | Basic tenant home, shared entry points, and optional product-owned home widgets |
 | `src/components/ui/` | SKELETON | Reusable presentational primitives; no product business rules |
 | `src/features/cfcf/product.tsx` | CFCF PRODUCT + MIX | CFCF product contract, navigation, resolver, and page dispatch |
 | `src/features/cfcf/pages/WorkspacePage.tsx` | CFCF PRODUCT | Entire CFCF operational workspace UI |
@@ -81,3 +81,42 @@ Do not move fund selectors, cycle cards, share cards, CFCF tab state, or CFCF da
 - Campaign composition selects one or more groups, resolves distinct Contact IDs, and builds a payload containing `product_id`, `tenant_id`, `group_ids`, `contact_ids`, `recipients`, `channels`, and `message`.
 - Large membership reads are paginated. Email campaigns warn about Contacts without email addresses; recipient records retain phone/email values for the future automation workflow.
 - The current Launch Campaign action only prepares and previews the request. It does not send messages. A future MIX integration may dispatch to the configured n8n webhook and must report success only after n8n acknowledges acceptance.
+
+- CFCF manager home automation progress is a product-owned widget: `src/features/cfcf/components/AutomationJobProgressCard.tsx` reads only safe status columns from `public.n8n_global_jobs` through `src/features/cfcf/services/automation-jobs.service.ts`. It is disabled by default and requires `VITE_CFCF_JOB_PROGRESS_ENABLED=true` only after the draft registry table is approved, applied in the target environment, and verified. It does not read raw `job_data`, send messages, mutate job state, or poll automatically.
+
+
+## Portability-first architecture — approved direction
+
+ClearFlow owns product behavior and business rules. Supabase, n8n, WhatsApp/WAHA, AI providers, and hosting platforms are replaceable tools, not the source of truth for ClearFlow architecture.
+
+### Rules
+
+1. Prefer ordinary HTTP APIs, straightforward queries, and small application/workflow modules over vendor-specific features when both meet the requirement.
+2. Keep product rules in the product application or product-owned n8n workflow. Do not move routine workflow decisions into database triggers, stored procedures, or RPCs merely for convenience.
+3. Keep storage access behind small product-owned functions/modules. Provider-specific query syntax belongs at the storage boundary; business logic should consume plain records and results.
+4. Use standard columns and JSON only where it simplifies the actual data shape. Add constraints for essential data validity, not speculative workflow orchestration.
+5. Do not create a generic queue, state machine, lease system, event framework, or retry engine unless a demonstrated workflow requirement needs it.
+6. Prevent common duplicate submissions at the entry point (disable PWA submit while pending; add a short UI cooldown) and at n8n ingress (validate event/request identity). Add durable idempotency storage only where a real duplicate risk justifies it, especially across restarts or external side effects.
+7. Keep essential authentication, tenant separation, and honest success/failure reporting. Portability is not permission to expose another tenant's data or claim an unsaved write succeeded.
+8. Prefer provider adapters and simple data-access interfaces that allow replacing a vendor without rewriting product behavior. Do not build abstraction layers that have no second implementation or current need; document the replacement seam instead.
+9. Every new table, RPC, trigger, workflow, index, or background worker must state the concrete problem it solves and why a simpler option is insufficient.
+10. Before adopting a new tool, compare its current benefit, operating cost, lock-in, migration effort, and exit path. Keep the choice reversible where practical.
+
+### Current implementation implications
+
+- Treat the draft n8n_global_jobs migration and simple status card as proposals under review, not mandatory architecture. All sources enter a central n8n engine; n8n validates and routes requests, creates records only for tracked/deferred tasks, and executes them. Supabase stores the record; no database function/RPC is needed. A single n8n dispatcher handles optional `scheduled_at` times. Ordinary n8n operations do not create tracked job rows. Do not apply the migration until the simplified working flow and required data fields are agreed.
+- Keep the CFCF progress card feature flag disabled until its data source is settled and tested.
+- Keep draft n8n ingress/worker workflows inactive until the smallest working request-to-result path is validated in a controlled non-production environment.
+- Do not change existing PWA notification tables, functions, data, or cron jobs as part of this review.
+- No billable Supabase branch, production migration, production deployment, credential change, or live WhatsApp send is authorized by this architecture decision.
+
+### Implementation sequence
+
+1. Inventory vendor-specific dependencies and classify them as essential, replaceable adapter code, or unnecessary complexity.
+2. Define the smallest useful job record and status contract needed for the first working CFCF flow.
+3. Simplify or remove speculative database machinery and update its contract tests accordingly.
+4. Complete a controlled non-production end-to-end flow using synthetic data and mock provider actions.
+5. Add protections only for observed or clearly material failure modes, without changing the portability rule.
+
+
+See [portability-review.md](./portability-review.md) for the current Supabase dependency inventory and the recommended incremental replacement path.

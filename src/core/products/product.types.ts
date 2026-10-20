@@ -21,6 +21,8 @@ export interface ProductDefinition {
     navigationItem: WorkspaceNavigationItem,
     workspace: AuthorizedWorkspace,
   ) => ReactNode;
+  // MIX: Optional product-owned widgets shown on the shared manager home page.
+  renderHomeContent?: (workspace: AuthorizedWorkspace) => ReactNode;
   // MIX: Optional product-owned notification content mounted inside the neutral notification frame.
   renderNotifications?: (workspace: AuthorizedWorkspace, onNavigate: (pageId: string) => void, onCountChange?: (count: number) => void) => ReactNode;
 }

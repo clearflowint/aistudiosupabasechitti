@@ -162,6 +162,8 @@ export function WorkspaceHomePage({ product, workspace, onNavigate }: WorkspaceH
         )}
       </section>
 
+      {product.renderHomeContent?.(workspace)}
+
       <Modal isOpen={quickPaymentOpen} title="Record Payment (Quick)" description="Contact first → Fund → Share → amount. Payments remain independent of Cycle billing and payouts." onClose={closeQuickPayment}>
         <form onSubmit={(event) => void handleQuickPaymentSubmit(event)} className="space-y-3">
           {quickReview && <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3"><p className="font-semibold text-amber-900">Second confirmation required</p><p className="mt-1 text-sm text-amber-800">{quickEntryType === "credit" ? "Credit payment" : "Debit correction"} · {selectedContact?.name} · {selectedFund?.fund_name} (ID {selectedFund?.fund_id}) · Share {selectedShare?.share_id} · {"₹" + Number(quickAmount).toLocaleString("en-IN")} · {quickMode}. Date is automatic. This entry is not linked to a Cycle or payout.</p><button type="button" onClick={() => { setQuickReview(false); quickPaymentRequestRef.current = null; }} className="mt-2 min-h-9 text-sm font-semibold underline">Back to edit</button></div>}

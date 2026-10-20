@@ -8,6 +8,7 @@ import { WorkspacePage } from "./pages/WorkspacePage";
 import { NotificationsPanel } from "./pages/NotificationsPanel";
 import { ActivityLogPage } from "./pages/ActivityLogPage";
 import { resolveCfcfWorkspace } from "./services/access.service";
+import { AutomationJobProgressCard } from "./components/AutomationJobProgressCard";
 
 export const cfcfProduct: ProductDefinition = {
   id: "CFCF",
@@ -35,6 +36,7 @@ export const cfcfProduct: ProductDefinition = {
     },
   ],
   resolveWorkspace: resolveCfcfWorkspace,
+  renderHomeContent: (workspace) => <AutomationJobProgressCard workspace={workspace} />,
   renderNotifications: (workspace, onNavigate, onCountChange) => <NotificationsPanel workspace={workspace} onNavigate={onNavigate} onCountChange={onCountChange} />,
   // MIX: Only the product adapter maps neutral navigation IDs to product screens.
   renderPage: (navigationItem, workspace) => {

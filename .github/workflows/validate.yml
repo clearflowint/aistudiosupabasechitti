@@ -21,5 +21,9 @@ jobs:
         run: npm run lint
       - name: CFCF financial calculation tests
         run: npm run test:financial
+      - name: Global JSONB job registry contract tests
+        run: npm run test:job-registry
+      - name: PWA-to-n8n instruction contract tests
+        run: npm run test:n8n-contract
       - name: Production build
         run: npm run build
