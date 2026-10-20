@@ -12,6 +12,8 @@ const workspace = read("../src/features/cfcf/services/workspace-automation.servi
 const campaignUi = read("../src/features/cfcf/pages/ContactGroupsPanel.tsx");
 const workspaceUi = read("../src/features/cfcf/pages/WorkspacePage.tsx");
 const managerHome = read("../src/components/workspace/WorkspaceHomePage.tsx");
+const scheduleUi = read("../src/features/cfcf/pages/WorkspacePage.tsx");
+const scheduleService = read("../src/features/cfcf/services/automation-schedules.service.ts");
 
 test("registry uses sequential integer identity primary keys", () => {
   for (const column of [
@@ -396,4 +398,21 @@ test("synthetic finalization rejects incomplete, queued, duplicate, or cross-ten
   assert.throws(() => validateSyntheticFinalization({ ...base, deliveries: [...base.deliveries, { n8n_whatsapp_delivery_id: 102, product_id: "CFCF", tenant_id: "tenant-a", status: "queued" }], expectedDeliveryCount: 3 }), /not terminal/);
   assert.throws(() => validateSyntheticFinalization({ ...base, deliveries: [base.deliveries[0], { ...base.deliveries[1], n8n_whatsapp_delivery_id: 100 }] }), /unique/);
   assert.throws(() => validateSyntheticFinalization({ ...base, deliveries: [base.deliveries[0], { ...base.deliveries[1], tenant_id: "tenant-b" }] }), /scope mismatch/);
+});
+
+
+test("CFCF workspace exposes five monthly schedule slots with India timezone and independent enable controls", () => {
+  assert.match(scheduleUi, /Configure monthly Pending \/ Report schedules/);
+  assert.match(scheduleUi, /Up to 3 recurring slots per Fund/);
+  assert.match(scheduleUi, /Up to 2 recurring slots per Fund/);
+  assert.match(scheduleUi, /Day of month/);
+  assert.match(scheduleUi, /Time \(India\)/);
+  assert.match(scheduleUi, /month’s final calendar day/);
+  assert.match(scheduleUi, /slot\.isEnabled/);
+  assert.match(scheduleService, /cfcf_list_automation_schedules/);
+  assert.match(scheduleService, /cfcf_save_automation_schedule/);
+  assert.match(scheduleService, /p_timezone: "Asia\/Kolkata"/);
+  assert.match(schema, /day_of_month smallint not null check \(day_of_month between 1 and 31\)/);
+  assert.match(schema, /slot_number between 1 and 3/);
+  assert.match(schema, /slot_number between 1 and 2/);
 });
