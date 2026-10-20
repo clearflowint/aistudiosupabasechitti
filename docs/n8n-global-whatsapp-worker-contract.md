@@ -447,3 +447,5 @@ A repository contract test asserts the mapping guard. This remains static/source
 - The RPC returns the exact count and rows together, so no page boundary or REST response cap can silently make the finalization count look complete. The worker path remains disconnected from triggers; sender and result writes remain blocked.
 - Added static regression assertions for the scoped snapshot RPC, service-role-only execution, complete count contract and workflow validator.
 - **Validation status:** waiting for GitHub Actions on this commit. SQL runtime validation still requires a non-billable disposable Supabase environment. No migration deployed, no live messages, no billable branch, no PWA notification changes, and no retries/requeue/blind resend.
+
+The scoped delivery snapshot returns the exact expected count and complete marker alongside the rows. A partial response must never be treated as complete and must not silently make the finalization count look complete.
