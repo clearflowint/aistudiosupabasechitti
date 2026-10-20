@@ -224,7 +224,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     try {
       const job = await requestCfcfCampaignJob(workspace.tenantId, selectedFund.fund_id, campaignKind);
       const campaignName = campaignKind === "pending_reminder_campaign" ? "Pending reminder" : "Share report";
-      showDatabaseResult(campaignName + " campaign queued as Job #" + job.job_id + ". The request is saved and visible in Automation progress. WhatsApp delivery will only occur when the authenticated n8n delivery worker and WAHA session are configured; this queue action itself did not send messages.");
+      showDatabaseResult(campaignName + " campaign queued as Job #" + job.job_id + ". The request is saved and visible in Automation progress. The n8n queue gate is active, but WhatsApp delivery is blocked until the WAHA endpoint, session, and authentication are verified; this queue action itself did not send messages.");
     } catch (error) {
       showDatabaseResult(error instanceof Error ? error.message : "Unable to queue campaign request.", "error");
     } finally {

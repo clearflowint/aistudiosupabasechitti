@@ -77,6 +77,15 @@ export function AutomationJobProgressCard({ workspace }: AutomationJobProgressCa
     return () => window.removeEventListener("clearflow:cfcf-job-queued", handleQueuedJob);
   }, [refresh]);
 
+  useEffect(() => {
+    // Poll status while the workspace is open so n8n's asynchronous outcome appears
+    // without requiring a manual refresh. Skip network work while the tab is hidden.
+    const interval = window.setInterval(() => {
+      if (enabled && document.visibilityState === "visible") void refresh();
+    }, 30_000);
+    return () => window.clearInterval(interval);
+  }, [refresh]);
+
   return (
     <section aria-label="Automation progress" className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
       <div className="flex min-w-0 items-start gap-3">
