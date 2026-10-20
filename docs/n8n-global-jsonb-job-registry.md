@@ -177,3 +177,10 @@ The draft migration now separates manager progress visibility from the private J
 - The card shows safe job reference, job type, status, processed/total counts, separate accepted/failed/skipped/uncertain/pending/submitting counters, last safe update time, and a manual-review warning. It never displays message bodies, phone numbers, recipient arrays, raw errors, or provider payloads; it never mutates jobs or resends.
 - The widget is disabled by default. `VITE_CFCF_JOB_PROGRESS_ENABLED=true` must not be set until the draft migration is approved and applied in the intended environment and view grants/RLS/cross-tenant behavior have been verified. When disabled, the card makes no registry request and clearly says setup is pending.
 - CI validates TypeScript, financial tests, registry and PWA/n8n contracts, and the production build. The UI has not been authenticated against a live registry view; Cloudflare environment configuration and mobile device validation remain outstanding.
+
+## Batch 41 — Recipient outcome counters in manager progress
+
+- Added `submitting_count` to the generated, numeric-validated `progress_summary` allowlist so the manager can distinguish active submissions from pending recipients.
+- The CFCF home card now presents accepted, failed, skipped, uncertain, pending, and submitting counts separately, alongside processed/total and job status.
+- `provider_accepted` is labelled Accepted, never Delivered. Any uncertain recipient produces a review warning; the card tells managers not to resend automatically.
+- This is presentation-only. The card cannot mutate job state or authorize dispatch; n8n must continue deriving and saving counts from recipient states. The feature flag remains off until the safe view is validated in the approved environment.
