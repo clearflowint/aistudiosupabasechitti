@@ -248,3 +248,12 @@ test("mock routing: unmapped or duplicate tenant-owned receiver is not guessed",
   assert.equal(routeInboundMock({ ...base, tenantOwnedNumbers: [] }).outcome, "unrecognized_or_ambiguous_receiver");
   assert.equal(routeInboundMock({ ...base, tenantOwnedNumbers: [{ tenantId: "tenant-a", number: "+919000000010" }, { tenantId: "tenant-b", number: "+919000000010" }] }).outcome, "unrecognized_or_ambiguous_receiver");
 });
+
+test("human WhatsApp receipt is conditional on long-running work, transport ack is always required", () => {
+  assert.ok(contract.includes("send an immediate receipt only for work that will take longer than a normal interactive response"));
+  assert.ok(contract.includes("Quick operations"));
+  assert.ok(contract.includes("do not send a separate “queued” receipt"));
+  assert.ok(contract.includes("return HTTP 2xx only after the inbound event is durably stored"));
+  assert.ok(contract.includes("not_required, pending, provider_accepted, failed, uncertain"));
+  assert.ok(contract.includes("Never send a quick-operation success message before the operation succeeds."));
+});
