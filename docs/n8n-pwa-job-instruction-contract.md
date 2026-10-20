@@ -55,6 +55,13 @@ Allowed statuses for the first version: `queued`, `processing`, `completed`, `fa
 
 ## Authentication and tenant boundaries
 
+### Existing PWA non-regression requirements
+
+- RLS changes must not alter the current PWA's Supabase query shapes, workspace refresh flow, cache hydration, or Fund/Share/Cycle/payment/archived-Fund presentation unless a separate, explicitly approved change requires it.
+- Keep tenant-scoped reads and writes consistent with the existing product services. Do not make a policy broader in a way that returns cross-tenant rows, or narrower in a way that silently hides valid records from the current manager.
+- Preserve IndexedDB/offline cache isolation across tenant changes and logout. Never show records cached for a previously active tenant in the next tenant's workspace.
+- Before accepting an RLS change, test two synthetic tenants with distinct Funds and records: initial load, refresh, repeated refresh, navigation between Funds, logout/login or tenant switch, and cache rehydration. Verify correct records and amounts, no duplicates, no missing authorized records, and no cross-tenant leakage.
+- Treat these as regression gates; a passing TypeScript build alone does not prove PWA data correctness.
 - RLS baseline: enforce strict `product_id` + `tenant_id` boundaries for tenant-owned records. Do not impose staff-to-staff or row-owner isolation as a global default. Add staff isolation only for products whose documented roles and workflows require it; keep those restrictions product-specific.
 - Apply the least restrictive policy that still preserves the product's actual tenant boundary and data permissions. Do not add blanket restrictions just because a table is shared across products.
 - The draft job table exposes safe status metadata only and remains tenant-scoped. CFCF's current manager-only access is a CFCF product rule, not a universal staff-isolation rule for every ClearFlow product.
