@@ -417,3 +417,13 @@ A repository contract test asserts the mapping guard. This remains static/source
 - Message fixtures verify saved Contact name, Fund, cycle progress, Share ID, stored pending/advance amounts and sender signature. Provider timeout maps to `uncertain`; no retry status is accepted.
 - These tests use in-memory fixtures only. They do not execute the actual n8n workflow, make HTTP calls, contact WAHA, execute SQL, or validate PostgreSQL runtime behavior. The actual n8n pagination response shape still needs synthetic execution in the disconnected draft before lifecycle nodes are connected.
 - No production migration, billable branch, workflow activation, sender enablement, PWA notification-object change, or UI gate change occurred.
+
+
+## Batch 48 — Monthly schedule configuration UI
+
+- Added a mobile-friendly **Configure monthly Pending / Report schedules** action to the selected Fund's Workspace area.
+- The modal exposes three independent Pending reminder slots and two independent Report slots. Each slot has a day-of-month field, India-local time field, enabled/disabled control, Save action, and saved next/last run timestamps when available.
+- Schedule configuration uses the existing owner-checked `cfcf_list_automation_schedules` and `cfcf_save_automation_schedule` RPCs. No new migration or direct browser table access was added. The existing database rule for days 1–31 remains authoritative.
+- The UI explains monthly recurrence, `Asia/Kolkata`, and last-calendar-day behavior for days 29–31. Saving a schedule stores configuration only; it does not send a WhatsApp message.
+- **Integration blocker discovered:** the older schedule evaluator design enqueues into `cfcf_automation_jobs`, while the current global worker and Manager Home progress view use `n8n_global_jobs` and `n8n_whatsapp_deliveries`. These are two different queues. Do not activate either worker or present scheduled runs as processed until the scheduler-to-global-registry handoff is reconciled. Next implementation batch should bridge due schedule occurrences into the global registry with stable schedule-occurrence idempotency, then test against synthetic fixtures.
+- The worker remains inactive; no sender call, production migration, billable branch, PWA notification-object change, or UI-gate change occurred.
