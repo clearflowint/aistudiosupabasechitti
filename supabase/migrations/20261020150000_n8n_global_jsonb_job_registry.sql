@@ -1,6 +1,6 @@
--- Draft-only minimal job storage for ClearFlow automation.
+-- Minimal job storage for ClearFlow automation.
+-- Applied to the development-stage ClearFlow Platform project on 2026-10-20 after explicit user approval.
 -- Keep workflow decisions in n8n and product code; this table stores job data/status.
--- Do not apply until an approved non-production test is explicitly authorized.
 -- Existing PWA notification tables, functions, data, and cron jobs are untouched.
 
 create table public.n8n_global_jobs (
