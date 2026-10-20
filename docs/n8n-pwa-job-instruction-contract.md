@@ -159,21 +159,32 @@ A trigger proves how a workflow started; it does not automatically prove who is 
 
 ### Inbound WhatsApp-originated actions
 
-- A WhatsApp message does not carry a Supabase manager access token. Authenticate the webhook sender using the provider/transport's supported webhook signature or a strong shared secret, with replay protection where supported. Do not rely on a secret URL or sender-supplied phone number alone.
-- Treat the inbound phone number as an untrusted identity claim until matched to a verified, active ClearFlow person/manager record. Normalize the number and resolve it from authoritative records; do not trust names or tenant IDs included in message text.
-- Apply an explicit permission rule for the requested action. Being a known contact does not automatically make someone a tenant owner or authorize campaign sends, reports, or access to another person's financial details.
-- For manager-only actions, verify that the matched sender is an active manager/owner for the exact tenant/product. If the number is unlinked, ambiguous, shared, or lacks the required role, refuse private data/actions or request a secure PWA sign-in/approval flow.
-- For ordinary inbound customer messages, use a narrowly defined inbound-message workflow with only the permissions needed to process that conversation. Do not elevate the sender to manager access.
-- Validate provider event IDs/timestamps and deduplicate inbound webhook events so repeated provider callbacks do not repeat a command or create duplicate jobs.
+- The person sending a WhatsApp message does **not** need a secret, password, or Supabase token. They send an ordinary message.
+- The authentication is between the **WAHA server and n8n webhook**, not inside the WhatsApp message. Configure a strong random header secret on the WAHA webhook delivery (where supported) and require the same value at the receiving n8n webhook; alternatively, restrict the webhook at the reverse proxy/network boundary. Store the secret in server configuration/credentials, never in the chat or URL. Use HTTPS.
+- If the chosen WAHA setup cannot attach a protected header or provide a verifiable signature, do not expose an unauthenticated production webhook publicly; protect it at the reverse proxy or use a supported authenticated ingress.
+- After verifying the delivery source, use the provider event's sender number to look up the authoritative ClearFlow person/manager record. The number is an identifier to resolve, not proof of tenant ownership. Do not trust tenant IDs, roles, or phone numbers typed into message text.
+- Ordinary customer messages get only conversation-processing permissions. For manager-only commands, require an explicit active manager/owner mapping for the exact tenant/product; unknown, shared, ambiguous, or unauthorized numbers cannot access private data or launch campaigns. Sensitive actions may require confirmation in the signed-in PWA.
+- Deduplicate using the provider event/message ID where available. This stops duplicate webhook deliveries from repeating a command.
 
 ### Scheduled n8n-originated work
 
-- A schedule trigger has no end-user access token, because it is started by n8n's trusted scheduler rather than by a signed-in manager. Authenticate the workflow execution as an internal service action, using n8n's protected credentials and access controls.
-- The schedule must be configured by an authorized operator and bound to an explicit product, tenant, action, and schedule identity. Do not let a public webhook caller choose arbitrary tenant IDs or schedule identities.
-- At execution time, re-check that the tenant and schedule are still active and that the schedule is authorized for the intended product/tenant. A schedule is not a permanent bypass for a tenant that has been disabled or lost eligibility.
-- Use server-side credentials only for the specific required operations; enforce explicit tenant/product predicates for every private read and write. Never expose service credentials to the PWA or inbound WhatsApp sender.
-- Use a stable occurrence key such as schedule identity plus the scheduled occurrence timestamp as the idempotency key. A repeated scheduler invocation must resolve to the existing job rather than create a second run or repeat a send.
-- Record scheduled work in the same global JSONB job registry. The three monthly pending-reminder dates and two report dates must be recovered from the approved configuration before the scheduling batch; do not guess dates.
+- If we use n8n's **built-in Schedule Trigger**, there is no inbound HTTP request and no external app to hold a secret. The scheduler starts the workflow inside the protected n8n instance. Do not add a fake token check to a native schedule trigger.
+- Keep schedule configuration and credentials accessible only to authorized n8n operators. Each scheduled workflow must have its product, tenant scope, and allowed action fixed by its trusted configuration—not supplied by a public caller.
+- At run time, check that the target tenant is still active and eligible. Use the n8n-stored server credential only for the necessary operations and explicitly scope every private read/write to that product and tenant.
+- Use a stable occurrence key, such as schedule identity plus the intended run timestamp, so duplicate execution of the same occurrence resolves to the existing job and does not repeat a send.
+- If a separate external scheduler/app calls an n8n webhook instead, **that external app** must store and send a credential (for example, a bearer token or custom header) and n8n must validate it. This is a different setup from n8n's native Schedule Trigger.
+- Record scheduled work in the same global JSONB job registry. Recover the approved three monthly pending-reminder dates and two report dates before implementing schedules; do not guess them.
+
+### Practical rule — no secret in the message or timer
+
+| Entry point | What authenticates the request? | What still needs authorization? |
+|---|---|---|
+| PWA manager action | Supabase access token from the signed-in session | Current manager/owner access for the exact product and tenant |
+| WhatsApp inbound | WAHA-to-n8n webhook protection; the chat message itself has no secret | Sender lookup and action-specific permission; owner-only actions require an active owner mapping |
+| n8n native schedule | Protected n8n workflow/scheduler configuration; no inbound token | Fixed tenant/action scope, current tenant eligibility, and duplicate-occurrence protection |
+| External scheduling app | Credential held by that app and validated by n8n | The app's permitted product/tenant/actions and duplicate-event protection |
+
+This is not a requirement to invent more tokens everywhere. Authenticate each external boundary once, then apply the smallest relevant permission check. Do not confuse authentication of a webhook transport with authorization of the person who sent the WhatsApp message.
 
 ### Shared authorization envelope
 
