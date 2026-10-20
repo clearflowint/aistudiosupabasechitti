@@ -1,6 +1,6 @@
 # CFCF Automation Redesign — Decision Boundary
 
-Status: rollback requested. The scheduled/manual automation prototype is being removed through a guarded rollback migration; this does not redesign or alter the protected PWA notification system.
+Status: scheduled/manual automation prototype rollback completed in production and merged to main. The broader n8n-first automation architecture remains to be designed separately; the protected PWA notification system is unchanged.
 
 ## Required architecture
 
@@ -29,7 +29,7 @@ WAHA is the WhatsApp transport. A provider acceptance response must not be descr
 
 ## Scope and safeguards
 
-- The inactive prototype workflow `n8n/cfcf-monthly-schedule-evaluator.workflow.json` has been removed from the proposed repository state pending redesign.
+- The inactive prototype workflow `n8n/cfcf-monthly-schedule-evaluator.workflow.json` has been removed from `main` pending redesign.
 - Historical recurring-automation migrations remain in Git for auditability. A new forward rollback migration removes the prototype schema and its RPCs from the live database; never delete migration history or assume a Git revert changes the live schema.
 - The rollback migration is guarded to abort if either prototype table contains rows. It does not touch PWA notification tables/functions/triggers/cron/data, secrets, n8n workflows, or Cloudflare deployment.
 - Do not create, alter, drop, or backfill PWA notification tables, functions, triggers, cron jobs, or data as part of this redesign. Preserve the existing PWA daily manager alert summary.
@@ -39,10 +39,10 @@ WAHA is the WhatsApp transport. A provider acceptance response must not be descr
 
 ## Rollback validation
 
-1. The production `cfcf_automation_schedules` and `cfcf_automation_jobs` tables were read-only checked and both contain zero rows.
+1. Before rollback, the production `cfcf_automation_schedules` and `cfcf_automation_jobs` tables were read-only checked and both contained zero rows.
 2. The rollback migration drops only the ten prototype RPCs and those two tables, using `RESTRICT`; unexpected dependencies cause it to fail rather than cascade.
 3. Historical migration files remain intact.
-4. Verify after rollback that all ten prototype RPCs and both tables are absent, while the three existing PWA notification cron jobs and all PWA notification objects remain unchanged.
+4. Post-rollback read-only checks confirmed all ten prototype RPCs and both tables are absent, while the three existing PWA notification cron jobs remain active and unchanged.
 5. Keep PR #22 unmerged; it is a separate proposal and is not part of this rollback.
 
 ## Acceptance criteria
