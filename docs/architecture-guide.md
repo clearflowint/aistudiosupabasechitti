@@ -117,3 +117,6 @@ ClearFlow owns product behavior and business rules. Supabase, n8n, WhatsApp/WAHA
 3. Simplify or remove speculative database machinery and update its contract tests accordingly.
 4. Complete a controlled non-production end-to-end flow using synthetic data and mock provider actions.
 5. Add protections only for observed or clearly material failure modes, without changing the portability rule.
+
+
+See [portability-review.md](./portability-review.md) for the current Supabase dependency inventory and the recommended incremental replacement path.
