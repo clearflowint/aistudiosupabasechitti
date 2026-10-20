@@ -146,6 +146,36 @@ Before any webhook activation or PWA integration:
 5. Confirm the workflow is inactive and preview-only until the owner explicitly authorizes live integration.
 
 
+## Workflow ownership and naming — keep global and CFCF separate
+
+Use the established names and ownership boundaries. Do not route CFCF business logic through a generic/global business workflow, and do not invent extra workflow names when an existing workflow has the required role.
+
+### Existing n8n workflow inventory
+
+- **ClearFlow — JSONB Job Contract Preview (Draft Only)** — global contract preview for the PWA-to-n8n instruction envelope. It is not a CFCF WhatsApp entry workflow and remains inactive.
+- **CFCF Automation Worker — Draft** — CFCF-specific worker skeleton. It is not a global worker. Its current draft is inactive and its processing path is incomplete; do not treat it as a working WhatsApp entry point.
+- **CFCF — Monthly Schedule Evaluator (Setup Required)** — CFCF-specific schedule evaluator. It is inactive and is not a global scheduler for other products.
+- **CFCF — Shared Error Handler** — shared only across the CFCF evaluator/worker. It is not a cross-product global error handler. Keep its failure output sanitized.
+
+The existing **ClearFlow MCP Connection Test** is a connection-test utility only; it is not a business workflow.
+
+### WhatsApp entry-point design
+
+- For the shared-number model, use a **CFCF-dedicated shared WhatsApp number/session**. Its entry point is CFCF-specific; the product is known from trusted configuration, so the inbound flow does not need a product-selection router.
+- Tenant-owned CFCF WhatsApp numbers/sessions use a separate entry path from the CFCF shared number. Resolve the receiver/business number to the owning CFCF tenant, then check the sender against that tenant's person/contact records and recorded permissions.
+- The CFCF shared-number entry path checks the sender number against authoritative CFCF tenant/contact records before tenant-specific routing. A match must resolve unambiguously to one tenant/contact. If no record matches, apply the CFCF product's unknown-sender policy; if no tenant can be identified, do not guess a tenant to notify.
+- Both entry paths may call existing product-neutral helper logic only where it is genuinely reusable (for example, normalized event handling or safe job-progress formatting). Product-specific decisions, Supabase table access, message content, reminder/report logic, and role rules remain within CFCF-owned workflow paths.
+- Do not broadcast one inbound event to multiple business workflows. One entry path should decide the permitted route; deduplicate provider event IDs before downstream work.
+- Native n8n scheduling for CFCF remains separate from WhatsApp inbound entry. The evaluator does not need a WhatsApp webhook, and WhatsApp entry does not need to invoke the schedule evaluator.
+- Do not create, rename, or activate workflows as part of this documentation update. Reuse the existing names above; add a new named workflow only if a distinct entry/processing responsibility is confirmed and the existing workflows cannot safely perform it.
+
+### Global versus product-specific data
+
+- `public.n8n_global_jobs` is the global job registry only. Each row carries its `product_id`, `tenant_id`, `job_type`, status and JSONB job details.
+- CFCF workflow logic must explicitly validate `product_id = 'CFCF'` and the resolved tenant scope before private reads, job writes or provider actions.
+- The global registry does not make a product's business workflow global. CFCF campaigns, pending reminders, reports and WhatsApp routing remain CFCF-specific.
+- Keep existing PWA notification tables/functions/data/cron jobs untouched. Do not recreate the rolled-back CFCF schedule/job tables or prototype RPCs as part of this design.
+
 ## Multi-trigger authentication: PWA, inbound WhatsApp, and schedules
 
 A trigger proves how a workflow started; it does not automatically prove who is authorized to access a tenant. Use a separate source-authentication adapter for each entry point, then pass a normalized, verified identity/context to the shared authorization gate. Never treat `product_id`, `tenant_id`, phone number, person ID, or a claimed role from an incoming payload as proof of authorization.
