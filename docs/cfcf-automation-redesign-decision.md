@@ -1,6 +1,6 @@
 # CFCF Automation Redesign — Decision Boundary
 
-Status: redesign direction agreed; implementation and production cleanup are not authorized by this document.
+Status: rollback requested. The scheduled/manual automation prototype is being removed through a guarded rollback migration; this does not redesign or alter the protected PWA notification system.
 
 ## Required architecture
 
@@ -30,21 +30,20 @@ WAHA is the WhatsApp transport. A provider acceptance response must not be descr
 ## Scope and safeguards
 
 - The inactive prototype workflow `n8n/cfcf-monthly-schedule-evaluator.workflow.json` has been removed from the proposed repository state pending redesign.
-- Existing recurring-automation migrations and design documents are retained as historical records for now. Migration version `20261018191014` was reported as applied to production; deleting its file or assuming a Git revert undoes the live schema would be unsafe.
-- No production Supabase schema, rows, functions, secrets, n8n workflows, or Cloudflare deployment are changed by this decision.
+- Historical recurring-automation migrations remain in Git for auditability. A new forward rollback migration removes the prototype schema and its RPCs from the live database; never delete migration history or assume a Git revert changes the live schema.
+- The rollback migration is guarded to abort if either prototype table contains rows. It does not touch PWA notification tables/functions/triggers/cron/data, secrets, n8n workflows, or Cloudflare deployment.
 - Do not create, alter, drop, or backfill PWA notification tables, functions, triggers, cron jobs, or data as part of this redesign. Preserve the existing PWA daily manager alert summary.
 - Do not activate any automation or enable provider delivery until the redesigned workflow contract and tests are reviewed.
 - Avoid retries, recovery loops, automatic requeues, or blind resends unless a specific failure mode justifies them and the behavior is explicitly agreed and tested.
 - PR #22 (global n8n WhatsApp registry) remains unmerged pending redesign review.
 
-## Required next steps before database cleanup
+## Rollback validation
 
-1. Inventory production Edge Functions, RPCs, triggers, and cron jobs; classify each as PWA-specific, genuine database integrity/access, or general automation/communication.
-2. Verify the schedule/job tables contain no records and that no deployed workflow/function uses them; do not infer this from repository contents alone.
-3. Design the shared n8n request and execution contract for PWA manual triggers, inbound WhatsApp commands, schedules, and other approved integrations.
-4. Identify the minimum atomic database operations required for concurrency, authorization, and durable confirmation. Remove forwarding/formatting wrappers only after replacement paths are verified.
-5. Propose any database cleanup as a separate reviewed migration. Do not execute it automatically as part of a repository revert.
-6. Validate the preserved PWA daily summary independently.
+1. The production `cfcf_automation_schedules` and `cfcf_automation_jobs` tables were read-only checked and both contain zero rows.
+2. The rollback migration drops only the ten prototype RPCs and those two tables, using `RESTRICT`; unexpected dependencies cause it to fail rather than cascade.
+3. Historical migration files remain intact.
+4. Verify after rollback that all ten prototype RPCs and both tables are absent, while the three existing PWA notification cron jobs and all PWA notification objects remain unchanged.
+5. Keep PR #22 unmerged; it is a separate proposal and is not part of this rollback.
 
 ## Acceptance criteria
 
