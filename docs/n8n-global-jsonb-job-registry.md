@@ -44,7 +44,7 @@ A manual, side-effect-free test of `CFCF Automation Worker — Draft` completed 
 
 ## Campaign batch limit
 
-A campaign batch contains 1–100 unique resolved contacts. n8n must reject a larger batch before any provider call. The database constraint also rejects any campaign job document that contains a `recipients` array longer than 100. Do not silently split a batch into multiple jobs.
+A campaign batch contains 1–100 unique resolved contacts. n8n must resolve and deduplicate contacts and reject invalid batches before any provider call. The database constraint requires a recipients JSON array containing 1–100 entries for campaign and manual_campaign jobs, and rejects malformed, missing, empty, or over-limit arrays. Uniqueness of resolved contacts remains an n8n validation responsibility. Do not silently split a batch into multiple jobs.
 
 ## Example `job_data`
 
@@ -160,3 +160,12 @@ The draft migration now separates manager progress visibility from the private J
 - The view exposes job reference, product/tenant scope, type/status, timestamps, progress summary and a review flag. It does not expose raw `job_data`, recipient arrays, provider payloads, message text, phone numbers, event history or raw errors.
 - The n8n service role remains the intended writer. PWA remains read-only.
 - This is a draft migration and static contract only. It has not been applied or tested against a live database. Before any approval, verify the deployed PostgreSQL version supports the view option, confirm grants and RLS behavior in an approved non-production project, and test cross-tenant reads.
+
+
+## Batch 39 — Database-enforced bounded JSONB collections
+
+- The campaign constraint now requires an actual JSON array with between 1 and 100 entries for campaign and manual_campaign jobs. Missing, null, non-array, empty, and over-limit recipient collections are rejected at the database boundary.
+- A separate n8n_global_jobs_event_history_limit constraint caps the optional events array at 500 entries and rejects malformed non-array values when the field is present.
+- Both constraints use a guarded CASE so jsonb_array_length is evaluated only for arrays, avoiding runtime errors from malformed JSON shapes.
+- The database enforces array size and shape; n8n still must resolve/deduplicate recipients, preserve the 500-event cap when appending, and handle constraint failures safely without retrying or resending provider operations.
+- Static contract tests cover the constraints. These are not live PostgreSQL tests; migration remains draft-only and no PWA notification objects or workflows were changed.
