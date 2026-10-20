@@ -515,3 +515,80 @@ test("recipient state model: only proven no-submission state may return to pendi
     providerOutcome: "unknown"
   }).maySubmitAgain, false);
 });
+
+
+// Batch 28 — atomic claim and job finalization contract.
+function modelJobClaim({ jobStatus, atomicClaimWon = false, leaseExpired = false, anySubmissionAttempted = false, hasUncertainRecipient = false }) {
+  if (jobStatus === "queued" && atomicClaimWon) {
+    return { outcome: "claimed", status: "processing", mayDispatch: true };
+  }
+  if (jobStatus === "processing" && leaseExpired && !anySubmissionAttempted && !hasUncertainRecipient && atomicClaimWon) {
+    return { outcome: "reclaimed_pre_submission", status: "processing", mayDispatch: true };
+  }
+  if (jobStatus === "processing" && leaseExpired && (anySubmissionAttempted || hasUncertainRecipient)) {
+    return { outcome: "manual_review", status: hasUncertainRecipient ? "uncertain" : "processing", mayDispatch: false };
+  }
+  return { outcome: "not_claimed", status: jobStatus, mayDispatch: false };
+}
+
+function modelJobFinalization(recipientStates) {
+  if (!Array.isArray(recipientStates) || recipientStates.length === 0) {
+    return { status: "failed", terminal: true, reason: "no_recipients" };
+  }
+  if (recipientStates.includes("uncertain")) {
+    return { status: "uncertain", terminal: true, needsReview: true };
+  }
+  const terminalStates = new Set(["provider_accepted", "failed", "skipped"]);
+  if (!recipientStates.every(state => terminalStates.has(state))) {
+    return { status: "processing", terminal: false };
+  }
+  const accepted = recipientStates.filter(state => state === "provider_accepted").length;
+  const failed = recipientStates.filter(state => state === "failed").length;
+  if (failed === 0) return { status: "completed", terminal: true };
+  if (accepted === 0) return { status: "failed", terminal: true };
+  return { status: "partial", terminal: true };
+}
+
+test("job claim model: queued job is dispatchable only when the atomic claim succeeds", () => {
+  assert.deepEqual(modelJobClaim({ jobStatus: "queued", atomicClaimWon: true }), {
+    outcome: "claimed", status: "processing", mayDispatch: true
+  });
+  assert.deepEqual(modelJobClaim({ jobStatus: "queued", atomicClaimWon: false }), {
+    outcome: "not_claimed", status: "queued", mayDispatch: false
+  });
+});
+
+test("job claim model: expired lease is reclaimable only before any provider submission", () => {
+  assert.deepEqual(modelJobClaim({
+    jobStatus: "processing", leaseExpired: true, atomicClaimWon: true
+  }), { outcome: "reclaimed_pre_submission", status: "processing", mayDispatch: true });
+  assert.deepEqual(modelJobClaim({
+    jobStatus: "processing", leaseExpired: true, anySubmissionAttempted: true, atomicClaimWon: true
+  }), { outcome: "manual_review", status: "processing", mayDispatch: false });
+  assert.deepEqual(modelJobClaim({
+    jobStatus: "processing", leaseExpired: true, hasUncertainRecipient: true, atomicClaimWon: true
+  }), { outcome: "manual_review", status: "uncertain", mayDispatch: false });
+});
+
+test("job claim model: a concurrent worker that loses the claim cannot dispatch", () => {
+  assert.equal(modelJobClaim({ jobStatus: "processing", atomicClaimWon: false }).mayDispatch, false);
+});
+
+test("job finalization model: active recipients keep job processing", () => {
+  assert.deepEqual(modelJobFinalization(["provider_accepted", "pending"]), {
+    status: "processing", terminal: false
+  });
+});
+
+test("job finalization model: uncertain outcome takes precedence and requires review", () => {
+  assert.deepEqual(modelJobFinalization(["provider_accepted", "uncertain"]), {
+    status: "uncertain", terminal: true, needsReview: true
+  });
+});
+
+test("job finalization model: terminal recipients derive completed, partial, or failed consistently", () => {
+  assert.deepEqual(modelJobFinalization(["provider_accepted", "skipped"]), { status: "completed", terminal: true });
+  assert.deepEqual(modelJobFinalization(["provider_accepted", "failed"]), { status: "partial", terminal: true });
+  assert.deepEqual(modelJobFinalization(["failed", "failed"]), { status: "failed", terminal: true });
+  assert.deepEqual(modelJobFinalization([]), { status: "failed", terminal: true, reason: "no_recipients" });
+});
