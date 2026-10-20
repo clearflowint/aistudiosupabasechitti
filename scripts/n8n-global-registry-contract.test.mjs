@@ -6,6 +6,7 @@ const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 const schema = read("../supabase/migrations/20261020120000_n8n_global_whatsapp_registry.sql");
 const schedulesSchema = read("../supabase/migrations/20261018191014_cfcf_automation_schedules_jobs.sql");
 const scheduleBridge = read("../supabase/migrations/20261020140000_n8n_scheduled_cfcf_global_registration.sql");
+const deliverySnapshot = read("../supabase/migrations/20261020143000_n8n_scoped_delivery_snapshot_rpc.sql");
 const scheduleWorkflow = read("../n8n/cfcf-monthly-schedule-evaluator.workflow.json");
 const lifecycle = read("../supabase/migrations/20261020123000_n8n_global_job_registration_rpc.sql");
 const history = read("../supabase/migrations/20261020130000_n8n_cfcf_job_history_rpc.sql");
@@ -434,4 +435,24 @@ test("monthly schedule evaluator registers directly into global registry with a 
   assert.match(scheduleWorkflow, /rpc\/n8n_register_scheduled_cfcf_job/);
   assert.match(scheduleWorkflow, /p_claimed_until: \$json\.claimed_until/);
   assert.doesNotMatch(scheduleWorkflow, /rpc\/cfcf_enqueue_scheduled_automation_job/);
+});
+
+
+test("scoped delivery snapshot proves complete row count before worker processing", () => {
+  assert.match(deliverySnapshot, /n8n_read_scoped_whatsapp_deliveries/);
+  assert.match(deliverySnapshot, /auth\.role\(\).*service_role/s);
+  assert.match(deliverySnapshot, /expectedDeliveryCount/);
+  assert.match(deliverySnapshot, /'complete', true/);
+  assert.match(deliverySnapshot, /d\.n8n_whatsapp_communication_id = p_communication_id/);
+  assert.match(deliverySnapshot, /d\.tenant_id = p_tenant_id/);
+  assert.match(deliverySnapshot, /d\.product_id = p_product_id/);
+  const readNode = JSON.parse(scheduleWorkflow).nodes.find((node) => node.name === "Read Scoped Deliveries — Placeholder Only");
+  assert.equal(readNode.parameters.method, "POST");
+  assert.match(readNode.parameters.url, /rpc\/n8n_read_scoped_whatsapp_deliveries/);
+  assert.equal(readNode.parameters.options.pagination.paginationMode, "off");
+  assert.match(readNode.parameters.jsonBody, /p_communication_id/);
+  const validator = JSON.parse(scheduleWorkflow).nodes.find((node) => node.name === "Validate Queued Delivery — Draft Stop").parameters.jsCode;
+  assert.match(validator, /value\.complete !== true/);
+  assert.match(validator, /value\.deliveries\.length !== value\.expectedDeliveryCount/);
+  assert.match(validator, /completeDeliveryReadVerified: true/);
 });
