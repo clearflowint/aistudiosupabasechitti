@@ -472,3 +472,14 @@ The future registry adapter must derive final job status from the persisted reci
 - Persist recipient transition evidence before advancing the loop. Within a job, updates must be sequential and based on the latest saved JSONB row so one recipient result cannot overwrite another.
 - A worker crash after provider submission but before a durable result must be represented as `uncertain` if submission may have occurred. Lease expiry alone is not permission to reclaim and resend.
 - This is a contract and test target, not proof that live atomic claims or JSONB writes exist. Do not activate workflows or apply the draft migration based on this batch.
+
+
+## Monthly occurrence idempotency contract — Batch 36
+
+- The three approved monthly pending-reminder dates and two approved report dates must be recovered from the authoritative prior configuration before schedule implementation. Until recovered, no exact dates or schedule nodes may be invented or activated.
+- Each scheduled execution must have a stable occurrence identity based on the configured schedule identity, product, tenant, action/job type, and intended local calendar occurrence. Include `fund_id` when the reminder/report scope is fund-specific. Build the key from an unambiguous canonical tuple; do not concatenate ambiguous user-controlled strings.
+- Store the schedule identity, intended local occurrence, timezone, and resulting UTC execution timestamp in `job_data` so a manager can audit why the job ran. Do not store message text, phone numbers, or secrets in the occurrence key.
+- Derive a stable scoped `request_id` for that occurrence and use the existing unique `(product_id, tenant_id, request_id)` guard. If the occurrence already exists, return its existing job state; never create a second job or dispatch again.
+- A retryable pre-enqueue failure may be retried only when evidence proves no job was durably created and no provider submission occurred. If persistence outcome is ambiguous, stop and reconcile; do not invent a new occurrence key to bypass idempotency.
+- Scheduling remains in n8n configuration. Do not add schedule tables, RPCs, new cron jobs in Supabase, or changes to existing PWA notification cron jobs.
+- This contract does not activate or configure any schedule and does not authorize production writes.
