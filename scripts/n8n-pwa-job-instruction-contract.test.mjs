@@ -329,3 +329,21 @@ test("ack model: duplicate provider event is transport-accepted but does not tri
     duplicateEvent: true
   });
 });
+
+test("inbound webhook auth is a hard activation gate", () => {
+  assert.ok(contract.includes("Webhook nodes use `authentication: none`"));
+  assert.ok(contract.includes("must not be activated or exposed publicly in this state"));
+  assert.ok(contract.includes("actual WAHA-to-n8n authentication configuration has not been verified"));
+});
+
+test("inbound authentication fails closed before lookup, enqueue, or sender acknowledgement", () => {
+  assert.ok(contract.includes("Missing, malformed, or invalid authentication must stop before tenant/contact lookup, durable enqueue, or any human WhatsApp acknowledgement."));
+  assert.ok(contract.includes("Authentication failure must not reveal whether a tenant, phone number, session, or contact exists."));
+  assert.ok(contract.includes("Ambiguity is a hard stop."));
+});
+
+test("inbound auth configuration must be verified rather than guessed from credential names", () => {
+  assert.ok(contract.includes("Do not assume that a credential with a generic name is configured for WAHA"));
+  assert.ok(contract.includes("Never put a secret in workflow code, a webhook URL, logs, or repository files."));
+  assert.ok(contract.includes("HTTP 2xx is permitted only after enqueue succeeds or the same provider event is confirmed as already stored."));
+});
