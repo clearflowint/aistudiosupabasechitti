@@ -157,14 +157,16 @@ A trigger proves how a workflow started; it does not automatically prove who is 
 - The browser must not send the service-role key. The access token is short-lived user authorization and is not a database admin credential.
 - Reject missing/invalid/expired tokens before reading private records. Reject an active user who is not an authorized owner of that exact tenant/product.
 
-### Inbound WhatsApp-originated actions
+### Inbound WhatsApp-originated actions — simplified phone-based routing
 
-- The person sending a WhatsApp message does **not** need a secret, password, or Supabase token. They send an ordinary message.
-- The authentication is between the **WAHA server and n8n webhook**, not inside the WhatsApp message. Configure a strong random header secret on the WAHA webhook delivery (where supported) and require the same value at the receiving n8n webhook; alternatively, restrict the webhook at the reverse proxy/network boundary. Store the secret in server configuration/credentials, never in the chat or URL. Use HTTPS.
-- If the chosen WAHA setup cannot attach a protected header or provide a verifiable signature, do not expose an unauthenticated production webhook publicly; protect it at the reverse proxy or use a supported authenticated ingress.
-- After verifying the delivery source, use the provider event's sender number to look up the authoritative ClearFlow person/manager record. The number is an identifier to resolve, not proof of tenant ownership. Do not trust tenant IDs, roles, or phone numbers typed into message text.
-- Ordinary customer messages get only conversation-processing permissions. For manager-only commands, require an explicit active manager/owner mapping for the exact tenant/product; unknown, shared, ambiguous, or unauthorized numbers cannot access private data or launch campaigns. Sensitive actions may require confirmation in the signed-in PWA.
-- Deduplicate using the provider event/message ID where available. This stops duplicate webhook deliveries from repeating a command.
+- The WhatsApp sender does not need a ClearFlow secret, password, or Supabase token. Do **not** treat a WAHA session name as a secret or require it to be cross-verified as an identity credential.
+- Protect the WAHA-to-n8n webhook at the transport/server boundary using the simplest protection supported by the deployment (for example, a private/internal route or reverse-proxy access control; a shared header may be used if readily supported). This is service-to-service protection, not a per-session or per-user login. Do not put secrets in WhatsApp messages or public URLs.
+- Route incoming messages using the actual provider event's sender and receiver/business numbers, plus the configured routing mode. Never use a phone number typed into the message body as a verified identity.
+- **Shared agency number/session:** use the sender's normalized phone number as the primary lookup to identify the tenant/tenant contact who is contacting the shared agency. Treat this as a tenant-level inbound conversation initially. If the sender also matches a person record, resolve that person too, but do not assume a staff/customer role unless the tenant's records establish it.
+- **Tenant-owned WhatsApp number/session:** use the receiver/business number to identify which tenant owns that WhatsApp number; then use the sender's normalized number to look up the person within that tenant and classify them using the tenant's records (for example, owner/manager, staff, or customer). Do not treat the session name as a secret or as the sole tenant key.
+- Prefer exact phone-number matches within the resolved routing context. If a number is shared, duplicated, or maps to multiple tenants/people, ask a neutral clarification or route for manual review. Do not disclose private tenant or financial information until the intended tenant/person is clear.
+- Keep permissions proportional to the conversation: normal inbound messages can be acknowledged and routed without owner privileges; staff/customer records can only access the actions and information assigned to their role; owner-only operations require a matching active owner record for the resolved tenant. Unknown senders may be handled as unverified inquiries, but must not receive private records or trigger privileged actions.
+- Deduplicate by provider event/message ID where available. If the provider does not supply a stable ID, use a conservative fingerprint of session/routing context, sender, receiver, timestamp, and message ID/content metadata to reduce accidental duplicate processing; do not blindly repeat any outbound send after an ambiguous result.
 
 ### Scheduled n8n-originated work
 
@@ -175,16 +177,17 @@ A trigger proves how a workflow started; it does not automatically prove who is 
 - If a separate external scheduler/app calls an n8n webhook instead, **that external app** must store and send a credential (for example, a bearer token or custom header) and n8n must validate it. This is a different setup from n8n's native Schedule Trigger.
 - Record scheduled work in the same global JSONB job registry. Recover the approved three monthly pending-reminder dates and two report dates before implementing schedules; do not guess them.
 
-### Practical rule — no secret in the message or timer
+### Practical rule — route by numbers, not by session secrets
 
-| Entry point | What authenticates the request? | What still needs authorization? |
+| Entry point | How we identify the route/actor | What still needs authorization? |
 |---|---|---|
 | PWA manager action | Supabase access token from the signed-in session | Current manager/owner access for the exact product and tenant |
-| WhatsApp inbound | WAHA-to-n8n webhook protection; the chat message itself has no secret | Sender lookup and action-specific permission; owner-only actions require an active owner mapping |
-| n8n native schedule | Protected n8n workflow/scheduler configuration; no inbound token | Fixed tenant/action scope, current tenant eligibility, and duplicate-occurrence protection |
+| Shared agency WhatsApp number | Sender number identifies the tenant/contact for the incoming conversation | Resolve ambiguity; privileged actions still require the relevant owner permission |
+| Tenant-owned WhatsApp number | Receiver/business number identifies the tenant; sender number identifies the person within that tenant | Apply that person's recorded role and permissions |
+| n8n native schedule | Protected n8n workflow configuration; no incoming token | Fixed tenant/action scope, current tenant eligibility, and duplicate-occurrence protection |
 | External scheduling app | Credential held by that app and validated by n8n | The app's permitted product/tenant/actions and duplicate-event protection |
 
-This is not a requirement to invent more tokens everywhere. Authenticate each external boundary once, then apply the smallest relevant permission check. Do not confuse authentication of a webhook transport with authorization of the person who sent the WhatsApp message.
+This intentionally avoids a separate secret per WhatsApp session. Basic protection of the WAHA-to-n8n delivery endpoint remains sensible, but the session name is routing metadata, not a credential. Phone numbers help resolve tenant/person identity; the matching ClearFlow records determine role and data access.
 
 ### Shared authorization envelope
 
@@ -205,9 +208,12 @@ Before connecting any live trigger, verify without provider sends or production 
 
 - PWA missing, invalid, or expired Bearer token → reject.
 - PWA user is valid but has no active owner access for the exact product/tenant → reject.
-- Inbound WhatsApp invalid webhook authentication or replayed event → reject/deduplicate.
-- Inbound sender phone is unknown, shared, inactive, or belongs to a different tenant → no private data disclosure and no manager action.
+- Shared agency number: sender phone resolves to the expected tenant/contact; ambiguous mappings ask for clarification or go to manual review.
+- Tenant-owned number: receiver number resolves the tenant, and sender number resolves the person/role within that tenant.
+- Session name is not treated as a secret or the sole tenant identity key.
+- Unknown inbound senders may receive a neutral acknowledgement, but no private data or privileged action.
 - Known tenant contact attempts an owner-only action without owner permissions → reject.
+- Webhook transport protection fails, or the same provider event is replayed → reject or deduplicate as appropriate.
 - Scheduled execution targets an inactive tenant or disabled schedule → skip safely and record a non-sensitive reason.
 - Repeated PWA request, WhatsApp event ID, or scheduled occurrence → no duplicate job or repeated provider send.
 - All three sources attempt cross-tenant person/contact IDs → reject before private data is returned.
