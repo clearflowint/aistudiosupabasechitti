@@ -29,7 +29,7 @@ Markers describe ownership, not merely the technology used. A TypeScript interfa
 | `src/core/workspace/workspace.types.ts` | SKELETON | Product-neutral authorized tenant identity |
 | `src/products/productRegistry.ts` | MIX | Registers products and chooses the active product |
 | `src/components/workspace/WorkspaceLayout.tsx` | SKELETON + MIX | Shared header, top navigation, notification entry point, content frame |
-| `src/components/workspace/WorkspaceHomePage.tsx` | SKELETON + MIX | Basic tenant home and product-provided entry points only |
+| `src/components/workspace/WorkspaceHomePage.tsx` | SKELETON + MIX | Basic tenant home, shared entry points, and optional product-owned home widgets |
 | `src/components/ui/` | SKELETON | Reusable presentational primitives; no product business rules |
 | `src/features/cfcf/product.tsx` | CFCF PRODUCT + MIX | CFCF product contract, navigation, resolver, and page dispatch |
 | `src/features/cfcf/pages/WorkspacePage.tsx` | CFCF PRODUCT | Entire CFCF operational workspace UI |
@@ -81,3 +81,5 @@ Do not move fund selectors, cycle cards, share cards, CFCF tab state, or CFCF da
 - Campaign composition selects one or more groups, resolves distinct Contact IDs, and builds a payload containing `product_id`, `tenant_id`, `group_ids`, `contact_ids`, `recipients`, `channels`, and `message`.
 - Large membership reads are paginated. Email campaigns warn about Contacts without email addresses; recipient records retain phone/email values for the future automation workflow.
 - The current Launch Campaign action only prepares and previews the request. It does not send messages. A future MIX integration may dispatch to the configured n8n webhook and must report success only after n8n acknowledges acceptance.
+
+- CFCF manager home automation progress is a product-owned widget: `src/features/cfcf/components/AutomationJobProgressCard.tsx` reads only the safe `n8n_global_job_progress` view through `src/features/cfcf/services/automation-jobs.service.ts`. It is disabled by default and requires `VITE_CFCF_JOB_PROGRESS_ENABLED=true` only after the draft registry view is approved, applied in the target environment, and verified. It does not read raw `job_data`, send messages, mutate job state, or poll automatically.
