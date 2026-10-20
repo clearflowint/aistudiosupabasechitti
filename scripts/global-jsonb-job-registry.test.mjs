@@ -127,6 +127,7 @@ test("manager home progress UI is read-only, tenant-scoped, and safely gated", (
   assert.ok(progressCard.includes('import.meta.env.VITE_CFCF_JOB_PROGRESS_ENABLED === "true"'));
   assert.ok(progressCard.includes("No job data has been requested"));
   assert.ok(progressCard.includes("Do not resend automatically"));
+  for (const label of ["Accepted", "Failed", "Skipped", "Uncertain", "Pending", "Submitting"]) assert.ok(progressCard.includes(label));
   assert.ok(homeShell.includes("{product.renderHomeContent?.(workspace)}"));
 });
 
@@ -138,6 +139,7 @@ test("manager progress view exposes only sanitized summary fields", () => {
   assert.ok(migration.includes("revoke all on table public.n8n_global_jobs from anon, authenticated"));
 
   assert.ok(migration.includes("progress_summary jsonb generated always as"));
+  assert.ok(migration.includes("'submitting_count'"));
   assert.ok(migration.includes("create view public.n8n_global_job_progress"));
   assert.ok(migration.includes("with (security_invoker = true)"));
   assert.ok(migration.includes("grant select on public.n8n_global_job_progress to authenticated"));
