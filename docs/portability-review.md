@@ -64,3 +64,14 @@ This is a practical inventory, not a rewrite mandate. It identifies where the cu
 4. Resolve where the manager-selected monthly schedule slots are stored without changing protected notification infrastructure.
 5. Test against an explicitly approved non-production environment before applying the draft migration there.
 6. Only when a real alternative database/provider is selected, replace the relevant storage adapter and re-run the existing product tests.
+
+
+## Latest implementation checkpoint — 2026-10-20
+
+The n8n workflow formerly named `CFCF Automation Worker — Draft` has been reduced to `CFCF Automation Worker — Minimal Mock Harness (Draft)` and now has 10 nodes. The obsolete disconnected RPC/placeholder paths for legacy queue claiming, delivery reads/writes, WAHA session inventory, pacing, and finalization were removed from this draft. It remains inactive with zero triggers.
+
+The remaining workflow exercises only the synthetic in-memory path: manual start → mock seed → scope validation and event deduplication → one-at-a-time mock processing → aggregate outcome/finalization guard. Every fixture now carries `product_id`, `tenant_id`, and `person_id`; duplicate event identity is scoped by product and tenant. Mock outcomes include provider acceptance, rejection, and ambiguous post-submission timeout. No provider call, database write, automatic retry, or resend is performed.
+
+A pinned-node preparation check completed, and manual test executions `31`, `32`, and `33` returned success; execution `33` followed the node cleanup and identity/deduplication changes. These are mock-only workflow tests, not live integration tests. The workflow remains inactive. The repository's latest CI run before this documentation checkpoint was #849, which passed TypeScript validation, CFCF financial tests, both focused contract suites, and the production build.
+
+The next real integration blockers remain unchanged: verify the actual WAHA-to-n8n authentication scheme, agree the per-Fund schedule-slot persistence location, and obtain explicit approval of a named non-production Supabase project. No production deployment or migration was performed.
