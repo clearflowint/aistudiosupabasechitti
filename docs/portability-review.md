@@ -36,7 +36,7 @@ This is a practical inventory, not a rewrite mandate. It identifies where the cu
 ### 5. New automation job status
 
 - The draft global job table is source-independent: identity, product/tenant scope, open-ended source type, action type, simple status, optional request ID and scheduled time, JSONB request/result, and timestamps.
-- PWA, WhatsApp, AI agents, APIs, and future products enter through authenticated n8n source adapters. n8n creates a row only for work needing tracking or deferred execution; ordinary fetch/insert/update operations are not automatically jobs.
+- PWA, WhatsApp, AI agents, APIs, and future products enter through source-appropriate n8n adapters. PWA requests use product_id, tenant_id, person_id, and action fields without a separate tenant-session or authentication key. n8n creates a row only for work needing tracking or deferred execution; ordinary fetch/insert/update operations are not automatically jobs.
 - A shared n8n dispatcher handles future-dated jobs from `scheduled_at`; the PWA reads safe status columns only and does not read private JSONB.
 - There is no generated progress view, database queue, lease/claim RPC, event-history framework, campaign-size constraint, or unique-index-based deduplication in this draft.
 - PWA double-submit prevention and n8n ingress checks are the first duplicate controls. If a controlled test demonstrates a material concurrent/restart duplicate problem, add a narrow fix for that action rather than a general-purpose database engine.
