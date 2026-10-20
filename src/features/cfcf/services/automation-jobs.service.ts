@@ -43,9 +43,9 @@ export async function requestCfcfCampaignJob(
   if (!tenantId.trim()) throw new Error("Authorized tenant scope is required.");
   if (!fundId.trim()) throw new Error("Select a Fund before starting a campaign.");
 
-  const webhookUrl = import.meta.env.VITE_CFCF_N8N_CAMPAIGN_WEBHOOK_URL as string | undefined;
+  const webhookUrl = import.meta.env.VITE_CFCF_N8N_WEBHOOK_URL as string | undefined;
   if (!webhookUrl) {
-    throw new Error("Campaign request service is not configured yet. No job was created.");
+    throw new Error("CFCF automation service is not configured yet. No job was created.");
   }
 
   // The PWA submits an authenticated request; n8n, not the browser, creates the job row.
@@ -75,7 +75,7 @@ export async function requestCfcfCampaignJob(
     | { job?: CfcfAutomationJobStatus; error?: string }
     | null;
   if (!response.ok || !result?.job) {
-    throw new Error(result?.error || "n8n did not confirm the campaign request. No success was reported.");
+    throw new Error(result?.error || "n8n did not confirm the CFCF automation request. No success was reported.");
   }
 
   if (typeof window !== "undefined") {
