@@ -101,11 +101,11 @@ test("n8n owns job creation; PWA submits authenticated requests only", () => {
   assert.ok(n8nOwnershipMigration.includes("drop policy if exists n8n_global_jobs_cfcf_manual_campaign_insert"));
   assert.ok(n8nOwnershipMigration.includes("revoke insert ("));
   assert.ok(n8nOwnershipMigration.includes("n8n owns job creation and lifecycle updates"));
-  assert.ok(progressService.includes("VITE_CFCF_N8N_CAMPAIGN_WEBHOOK_URL"));
+  assert.ok(progressService.includes("VITE_CFCF_N8N_WEBHOOK_URL"));
   assert.ok(progressService.includes('Authorization: "Bearer " + accessToken'));
   assert.ok(progressService.includes('method: "POST"'));
   assert.equal(progressService.includes('.from("n8n_global_jobs")\n    .insert('), false);
-  assert.ok(progressService.includes("n8n did not confirm the campaign request"));
+  assert.ok(progressService.includes("n8n did not confirm the CFCF automation request"));
   assert.ok(workspacePage.includes('queueCampaign("pending_reminder_campaign")'));
   assert.ok(workspacePage.includes('queueCampaign("share_report_campaign")'));
   assert.ok(workspacePage.includes("delivery remains blocked until the WAHA endpoint, session, and authentication are configured."));
@@ -212,11 +212,11 @@ test("n8n owns job creation; PWA submits authenticated requests only", () => {
   assert.ok(n8nOwnershipMigration.includes("drop policy if exists n8n_global_jobs_cfcf_manual_campaign_insert"));
   assert.ok(n8nOwnershipMigration.includes("revoke insert ("));
   assert.ok(n8nOwnershipMigration.includes("n8n owns job creation and lifecycle updates"));
-  assert.ok(progressService.includes("VITE_CFCF_N8N_CAMPAIGN_WEBHOOK_URL"));
+  assert.ok(progressService.includes("VITE_CFCF_N8N_WEBHOOK_URL"));
   assert.ok(progressService.includes('Authorization: "Bearer " + accessToken'));
   assert.ok(progressService.includes('method: "POST"'));
   assert.equal(/from\("n8n_global_jobs"\)[\s\S]*?\.insert\(/.test(progressService), false);
-  assert.ok(progressService.includes("n8n did not confirm the campaign request"));
+  assert.ok(progressService.includes("n8n did not confirm the CFCF automation request"));
   assert.ok(workspacePage.includes('queueCampaign("pending_reminder_campaign")'));
   assert.ok(workspacePage.includes('queueCampaign("share_report_campaign")'));
 });
