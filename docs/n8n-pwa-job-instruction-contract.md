@@ -364,3 +364,13 @@ Batch 27 validation is repository-only. Its pure model tests state-decision rule
 - Finalization must not overwrite recipient-level evidence or turn **uncertain** into **failed/completed** merely to close the job. Keep the latest 500 events and do not add per-recipient tables, RPCs, or schedule tables.
 
 Batch 28 is repository-only contract testing. It does not verify a database compare-and-set, lease clock, concurrent n8n executions, or real provider states. All related workflows remain inactive/mock-only, the migration remains unapplied, and no live sends, retries, PWA notification changes, or deployments were made.
+
+
+## Progress consistency and bounded event history — Batch 29
+
+- Derive the manager-visible counters from the recipient states in the same job JSONB document. Do not increment a separate processed counter blindly; a repeated event or a later state correction must not inflate progress.
+- Report `total`, `pending`, `submitting`, `provider_accepted`, `failed`, `uncertain`, and `skipped` separately. Treat `submitting` as in progress, not terminally processed. The displayed processed count is the count of recipients in a terminal outcome state, including `uncertain` and `skipped`; label it clearly so it is not mistaken for successful deliveries.
+- `provider_accepted` is only provider acceptance, not confirmed delivery/read. `uncertain` must be visible as needing review and must not be counted as a success.
+- Append state-change events in serialized order and retain only the newest 500 events per job. Event history is diagnostic history, not a substitute for the current recipient states.
+- If stored progress counters disagree with the current recipient states, recompute from the authoritative JSONB recipient array and surface a safe diagnostic; do not change a recipient state just to make counters align.
+- This batch adds a pure repository model only. It does not implement a live database writer, concurrency control, PWA screen, or n8n execution logic. Keep the worker mock-only/inactive, migration unapplied, and existing PWA notification tables/functions/cron jobs untouched.
