@@ -4,6 +4,9 @@ import { readFileSync } from "node:fs";
 
 const migration = readFileSync(new URL("../supabase/migrations/20261020150000_n8n_global_jsonb_job_registry.sql", import.meta.url), "utf8");
 const policyMigration = readFileSync(new URL("../supabase/migrations/20261020164000_n8n_job_registry_product_scoped_read_policy.sql", import.meta.url), "utf8");
+const campaignMigration = readFileSync(new URL("../supabase/migrations/20261020180000_cfcf_manual_campaign_job_requests.sql", import.meta.url), "utf8");
+const campaignScopeMigration = readFileSync(new URL("../supabase/migrations/20261020182000_cfcf_manual_campaign_fund_scope.sql", import.meta.url), "utf8");
+const workspacePage = readFileSync(new URL("../src/features/cfcf/pages/WorkspacePage.tsx", import.meta.url), "utf8");
 const contract = readFileSync(new URL("../docs/n8n-global-jsonb-job-registry.md", import.meta.url), "utf8");
 const architecture = readFileSync(new URL("../docs/architecture-guide.md", import.meta.url), "utf8");
 const progressService = readFileSync(new URL("../src/features/cfcf/services/automation-jobs.service.ts", import.meta.url), "utf8");
@@ -52,7 +55,7 @@ test("draft schema avoids workflow-engine machinery and duplicate indexes", () =
   assert.equal(migration.includes("campaign_limit"), false);
   assert.equal(migration.includes("n8n_global_job_progress"), false);
   assert.equal(migration.includes("create or replace function"), false);
-  assert.ok(contract.includes("Supabase is the durable record store; n8n is the request router, job creator, scheduler/dispatcher, and execution engine."));
+  assert.ok(contract.includes("Supabase is the durable record store; n8n is the validator, router, dispatcher, and execution engine."));
   assert.ok(contract.includes("The table is storage, not a workflow engine."));
   assert.ok(contract.includes("best-effort"));
   assert.ok(contract.includes("One shared n8n dispatcher checks queued rows"));
@@ -90,4 +93,26 @@ test("portability-first architecture is documented and notification subsystem st
     assert.equal(migration.includes(protectedName), false);
   }
   assert.ok(contract.includes("It does not alter existing PWA notification tables, functions, data, or cron jobs."));
+});
+
+
+test("PWA can enqueue only tenant-owned manual CFCF campaign requests", () => {
+  assert.ok(campaignMigration.includes("grant insert ("));
+  assert.ok(campaignMigration.includes("for insert to authenticated"));
+  assert.ok(campaignMigration.includes("public.is_active_tenant_owner(product_id, tenant_id)"));
+  assert.ok(campaignMigration.includes("source_type = 'pwa'"));
+  assert.ok(campaignMigration.includes("'pending_reminder_campaign', 'share_report_campaign'"));
+  assert.ok(campaignMigration.includes("status = 'queued'"));
+  assert.ok(campaignMigration.includes("scheduled_at is null"));
+  assert.ok(campaignMigration.includes("job_data ->> 'execution_mode' = 'manual_send'"));
+  assert.ok(campaignScopeMigration.includes("from public.cfcf_funds as fund"));
+  assert.ok(campaignScopeMigration.includes("fund.tenant_id = public.n8n_global_jobs.tenant_id"));
+  assert.ok(campaignScopeMigration.includes("fund.status = 'active'"));
+  assert.ok(progressService.includes("requestCfcfCampaignJob"));
+  assert.ok(progressService.includes('source_type: "pwa"'));
+  assert.ok(progressService.includes("campaign_kind: campaignKind"));
+  assert.ok(progressService.includes('window.dispatchEvent(new Event("clearflow:cfcf-job-queued"))'));
+  assert.ok(workspacePage.includes('queueCampaign("pending_reminder_campaign")'));
+  assert.ok(workspacePage.includes('queueCampaign("share_report_campaign")'));
+  assert.ok(workspacePage.includes("delivery remains blocked until the WAHA endpoint, session, and authentication are configured."));
 });
