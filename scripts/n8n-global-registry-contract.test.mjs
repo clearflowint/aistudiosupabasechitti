@@ -428,6 +428,8 @@ test("monthly schedule evaluator registers directly into global registry with a 
   assert.match(scheduleBridge, /v_schedule\.claimed_until is distinct from p_claimed_until/);
   assert.match(scheduleBridge, /set last_run_at = p_scheduled_for/);
   assert.match(scheduleBridge, /skipped_no_recipients/);
+  assert.match(scheduleBridge, /No eligible saved Contacts with usable phone numbers; occurrence skipped/);
+  assert.match(scheduleUi, /Last occurrence note: \{slot\.lastError\}/);
   assert.doesNotMatch(scheduleBridge, /insert into public\.cfcf_automation_jobs/i);
   assert.match(scheduleWorkflow, /rpc\/n8n_register_scheduled_cfcf_job/);
   assert.match(scheduleWorkflow, /p_claimed_until: \$json\.claimed_until/);
