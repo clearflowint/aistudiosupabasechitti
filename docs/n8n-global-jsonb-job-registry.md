@@ -1,3 +1,5 @@
+> **Architecture review notice (2026-10-20):** This document records the earlier, more elaborate registry proposal. The portability-first direction in [architecture-guide.md](./architecture-guide.md) supersedes any assumption that this registry, its generated progress view, bounded event history, or database-enforced campaign rules are mandatory. Keep the migration unapplied. The next implementation batch must simplify the first working request/status storage path and update tests before any environment integration. Keep only controls justified by a concrete requirement; do not expand the registry design by default.
+
 # Global JSONB Job Registry — Batch 1
 
 ## Decision
