@@ -169,3 +169,11 @@ The draft migration now separates manager progress visibility from the private J
 - Both constraints use a guarded CASE so jsonb_array_length is evaluated only for arrays, avoiding runtime errors from malformed JSON shapes.
 - The database enforces array size and shape; n8n still must resolve/deduplicate recipients, preserve the 500-event cap when appending, and handle constraint failures safely without retrying or resending provider operations.
 - Static contract tests cover the constraints. These are not live PostgreSQL tests; migration remains draft-only and no PWA notification objects or workflows were changed.
+
+## Batch 40 — Manager home progress widget
+
+- The CFCF manager home now has a product-owned, mobile-first Automation progress card. The universal home shell exposes an optional product widget slot; it does not own CFCF automation business logic.
+- The card reads only `public.n8n_global_job_progress` through `src/features/cfcf/services/automation-jobs.service.ts`, scoped by both `product_id = 'CFCF'` and the authorized `tenant_id`, and requests the latest five rows.
+- The card shows safe job reference, job type, status, processed/total counts, last safe update time, and a manual-review warning. It never displays message bodies, phone numbers, recipient arrays, raw errors, or provider payloads; it never mutates jobs or resends.
+- The widget is disabled by default. `VITE_CFCF_JOB_PROGRESS_ENABLED=true` must not be set until the draft migration is approved and applied in the intended environment and view grants/RLS/cross-tenant behavior have been verified. When disabled, the card makes no registry request and clearly says setup is pending.
+- CI validates TypeScript, financial tests, registry and PWA/n8n contracts, and the production build. The UI has not been authenticated against a live registry view; Cloudflare environment configuration and mobile device validation remain outstanding.
