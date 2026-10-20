@@ -67,7 +67,7 @@ test("multi-trigger design distinguishes PWA, WhatsApp, and schedule authenticat
     "WAHA server and n8n webhook",
     "there is no inbound HTTP request and no external app to hold a secret",
     "shared authorization gate",
-    "unknown inbound senders may be handled as unverified inquiries"
+    "Unknown senders may be handled as unverified inquiries"
   ]) {
     assert.ok(contract.includes(phrase), `missing multi-trigger security rule: ${phrase}`);
   }
@@ -89,7 +89,7 @@ test("WhatsApp routing uses sender/receiver numbers and does not treat session n
     "receiver/business number to identify which tenant owns that WhatsApp number",
     "sender's normalized number to look up the person within that tenant",
     "session name is routing metadata, not a credential",
-    "ambiguous mappings ask for clarification or go to manual review"
+    "ask a neutral clarification or route for manual review"
   ]) {
     assert.ok(contract.includes(phrase), `missing WhatsApp routing rule: ${phrase}`);
   }
