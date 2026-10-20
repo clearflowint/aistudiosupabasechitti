@@ -25,6 +25,12 @@ test("authorization trusts the verified Auth identity and enforces active tenant
   assert.ok(contract.includes("service-role credential is held only in n8n"));
 });
 
+test("security matrix covers unauthorized and ambiguous outcomes", () => {
+  for (const phrase of ["Missing Authorization header → 401", "Invalid or expired Supabase access token → 401", "Active non-owner or owner for a different tenant/product → 403", "101+ unique", "mark `uncertain`"]) {
+    assert.ok(contract.includes(phrase), `missing security matrix case: ${phrase}`);
+  }
+});
+
 test("repeated request IDs must resolve to the same job without dispatching again", () => {
   assert.ok(contract.includes("n8n_global_jobs_request_id_unique_idx"));
   assert.ok(contract.includes("fetch and return the existing job and do not dispatch again"));
