@@ -34,7 +34,7 @@ Rules:
 - No payload should include provider credentials, service-role keys, or any secret.
 - Allowed actions are `campaign`, `pending_reminder`, and `report`. Product-specific workflow paths handle their own data and provider rules.
 
-## Draft response envelope
+## Draft preview response envelope
 
 ```json
 {
@@ -48,15 +48,24 @@ Rules:
   "action": "campaign",
   "validation": {
     "valid": true,
+    "errors": [],
     "selected_contact_id_count": 0,
     "selected_group_id_count": 1,
     "resolved_recipient_count": null
   },
-  "next_step": "Authentication, authoritative data resolution, and JSONB job persistence are not connected in this draft."
+  "next_step": "Preview only: authentication, authoritative data resolution, JSONB persistence, schedules, callbacks, and provider actions are not connected."
 }
 ```
 
 This is a preview response, not a job receipt. It must not say that a job was created, queued, or sent. No database write, WAHA/provider call, schedule, or callback occurs in the draft workflow.
+
+## Inactive n8n draft
+
+Workflow: **ClearFlow — JSONB Job Contract Preview (Draft Only)**  
+URL: https://clearflow-automation.duckdns.org/workflow/6JI23wsvDmbDEJe0  
+Status verified through n8n: `active = false`. It contains three nodes: POST webhook, validation-only Code node, and JSON response. The webhook requires no credentials, so it must remain inactive until authentication and tenant-owner checks are implemented. The production URL shown in the editor is not live while the workflow is inactive.
+
+The preview validates the envelope shape, allowed actions, required fields, selected IDs, and the explicit contact-ID limit. It does not resolve group membership, so it cannot determine the actual recipient count. The real worker must resolve the complete audience and enforce the 100-contact cap before any provider call.
 
 ## Job record contract
 
