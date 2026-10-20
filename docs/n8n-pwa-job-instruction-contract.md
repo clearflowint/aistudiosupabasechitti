@@ -381,7 +381,7 @@ Batch 28 is repository-only contract testing. It does not verify a database comp
 The manager home page should show a compact, mobile-friendly list/card of automation jobs without changing the existing notification infrastructure. This is a presentation contract; actual PWA wiring remains a later integration step.
 
 Each visible job should show:
-- A safe job reference and plain-language job type/status.
+- A safe job reference, plain-language job type/status, and current status.
 - Progress as **processed recipients / total recipients**, with pending and currently submitting counts available when useful.
 - Separate accepted, failed, skipped, and uncertain counts; do not label provider acceptance as delivered.
 - Last safe update time and a clear **Needs review** indicator for uncertain outcomes.
@@ -396,3 +396,12 @@ Security and data boundaries:
 - Monthly reminder/report dates remain unimplemented until the previously approved three reminder dates and two report dates are recovered from an authoritative decision record. Do not guess dates or build a parallel schedule store.
 
 Batch 30 adds contract tests and design documentation only. It does not implement a PWA screen, database access, a schedule, or notification changes.
+
+
+## Tenant-scoped read-only progress retrieval — Batch 31
+
+- Progress reads require a verified manager identity and current active owner authorization for the exact product and tenant. The client must not choose an arbitrary tenant scope and treat that value as authorization.
+- Return only allowlisted fields needed by the manager PWA: job reference, status, product/tenant scope, and safe progress summary. Exclude credentials, provider payloads, raw message bodies, private contact data, and internal error details.
+- A non-owner must receive no job data. Cross-tenant or cross-product lookups must return no job details, whether the job exists or not; do not leak existence through different error messages.
+- Reads must be side-effect-free: no status changes, counter repair, job claims, dispatch, or event writes. The PWA remains read-only.
+- This batch's pure model tests do not implement Supabase authorization, RLS, or a live API endpoint. The migration remains unapplied; use the verified auth context and server-side tenant scoping when implementing the read adapter.
