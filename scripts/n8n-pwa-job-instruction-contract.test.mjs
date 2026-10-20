@@ -107,3 +107,20 @@ test("WhatsApp first gate checks sender records before normal tenant routing", (
     assert.ok(contract.includes(phrase), `missing first-gate sender validation rule: ${phrase}`);
   }
 });
+
+test("global registry and CFCF workflows have separate ownership and established names", () => {
+  for (const phrase of [
+    "Workflow ownership and naming — keep global and CFCF separate",
+    "ClearFlow — JSONB Job Contract Preview (Draft Only)",
+    "CFCF Automation Worker — Draft",
+    "CFCF — Monthly Schedule Evaluator (Setup Required)",
+    "CFCF — Shared Error Handler",
+    "not a cross-product global error handler",
+    "CFCF-dedicated shared WhatsApp number/session",
+    "separate entry path from the CFCF shared number",
+    "Do not broadcast one inbound event to multiple business workflows",
+    "The global registry does not make a product's business workflow global"
+  ]) {
+    assert.ok(contract.includes(phrase), `missing global/product workflow boundary: ${phrase}`);
+  }
+});
