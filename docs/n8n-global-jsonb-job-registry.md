@@ -107,10 +107,12 @@ Queueing is required at two distinct boundaries:
 
 The shared-number path must resolve sender to exactly one authoritative CFCF tenant/contact before creating a tenant-scoped job. The tenant-owned path resolves tenant from trusted receiver/session mapping and ignores any payload-supplied `tenant_id`; then it checks the sender's contact/role. Since the registry requires `tenant_id`, an unknown shared-number sender cannot be inserted as a normal tenant job. Do not invent a tenant or guess a match.
 
-Use two separate acknowledgements:
+Use two separate acknowledgement policies:
 
-- **Transport HTTP acknowledgement:** 2xx only after durable enqueue succeeds or an already-enqueued duplicate is recognized. If persistence fails, return retryable non-2xx. Idempotency must make provider redelivery safe.
-- **Human WhatsApp acknowledgement:** send one receipt after durable enqueue, with a safe reference and clear “please don't resend” wording. HTTP response to WAHA does not itself message the sender. Suppress duplicate receipt sends for the same provider event ID and do not reveal tenant/contact existence to unknown senders.
+- **Transport HTTP acknowledgement (always required):** respond promptly to WAHA/provider; return 2xx only after durable enqueue succeeds or an already-enqueued duplicate is recognized. If persistence fails, return retryable non-2xx. This is transport-level and is not a WhatsApp message to the human sender. Never keep the webhook open while long business processing runs.
+- **Human WhatsApp acknowledgement (conditional):** send one immediate receipt only when the operation will take longer than a normal interactive response or must continue asynchronously (e.g. reports, scheduled reminders, multi-recipient campaigns, or queued work). Send it only after durable enqueue, include a safe reference and clear “please don't resend” wording, and suppress duplicate receipts for the same provider event ID.
+- **Quick operations:** when a request can safely finish within the normal interactive response window, skip the separate “queued” receipt and send the actual result after completion. If it becomes queued/asynchronous, switch to the long-running policy. Never report success before completion.
+- Store acknowledgement policy/state in the job JSONB document when a job exists (e.g. not_required, pending, provider_accepted, failed, uncertain). Provider acceptance is not proof of receipt/read. Do not reveal tenant/contact existence to unknown senders.
 
 Failure outcomes must be reviewable without blind retries:
 
