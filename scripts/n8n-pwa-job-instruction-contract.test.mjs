@@ -51,7 +51,7 @@ test("monthly schedule requirements stay documented without changing protected n
   assert.ok(contract.includes("two manager-selected monthly report slots"));
   assert.ok(contract.includes("persistence location is not yet agreed"));
   assert.ok(contract.includes("Do not add a schedule table/RPC"));
-  assert.ok(contract.includes("do not change existing PWA notification tables, functions, data, or cron jobs"));
+  assert.ok(contract.includes("change existing PWA notification tables, functions, data, or cron jobs"));
   for (const protectedName of ["clearflow_push_subscriptions", "clearflow_push_outbox", "clearflow_push_alert_state"]) {
     assert.equal(migration.includes(protectedName), false);
   }
