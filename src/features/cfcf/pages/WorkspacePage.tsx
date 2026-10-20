@@ -29,6 +29,7 @@ import {
 import type { AuthorizedWorkspace } from "../../../core/workspace/workspace.types";
 import { Modal } from "../../../components/ui/Modal";
 import { createCfcfContact, listCfcfContacts } from "../services/contacts.service";
+import { requestCfcfCampaignJob, type CfcfCampaignKind } from "../services/automation-jobs.service";
 import {
   createCfcfFund,
   createCfcfShare,
@@ -210,10 +211,25 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [fundForm, setFundForm] = useState(emptyFundForm);
   const [fundFormError, setFundFormError] = useState<string | null>(null);
   const [databaseResult, setDatabaseResult] = useState<{ status: "success" | "error"; message: string } | null>(null);
+  const [campaignBusy, setCampaignBusy] = useState(false);
   const [previousBillSuccess, setPreviousBillSuccess] = useState<{ fundId: string; fundName: string; shares: Array<{ share: CfcfShareRow; shareId: string; cycleNumbers: number[] }> } | null>(null);
 
   function showDatabaseResult(message: string, status: "success" | "error" = "success"): void {
     setDatabaseResult({ status, message });
+  }
+
+  async function queueCampaign(campaignKind: CfcfCampaignKind): Promise<void> {
+    if (!selectedFund || campaignBusy) return;
+    setCampaignBusy(true);
+    try {
+      const job = await requestCfcfCampaignJob(workspace.tenantId, selectedFund.fund_id, campaignKind);
+      const campaignName = campaignKind === "pending_reminder_campaign" ? "Pending reminder" : "Share report";
+      showDatabaseResult(campaignName + " campaign queued as Job #" + job.job_id + ". The request is saved and visible in Automation progress. WhatsApp delivery will only occur when the authenticated n8n delivery worker and WAHA session are configured; this queue action itself did not send messages.");
+    } catch (error) {
+      showDatabaseResult(error instanceof Error ? error.message : "Unable to queue campaign request.", "error");
+    } finally {
+      setCampaignBusy(false);
+    }
   }
   const [deleteTarget, setDeleteTarget] = useState<{ kind: "share"; id: string; label: string; fundId?: string } | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -1622,10 +1638,10 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <button type="button" disabled title="Disabled until the n8n reminder workflow is configured." aria-label="Send pending reminder to all shares (disabled)" className="inline-flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-2 py-2 text-center text-xs font-bold leading-4 text-amber-900 opacity-60 cursor-not-allowed"><MessageCircle size={16} className="shrink-0" /><span>Send Pending Reminder to All</span></button>
-              <button type="button" disabled title="Disabled until the n8n report workflow is configured." aria-label="Send report to all shares (disabled)" className="inline-flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-sky-300 bg-sky-50 px-2 py-2 text-center text-xs font-bold leading-4 text-sky-900 opacity-60 cursor-not-allowed"><FileText size={16} className="shrink-0" /><span>Send Report to All</span></button>
+              <button type="button" disabled={campaignBusy || !selectedFund || shares.length === 0} onClick={() => void queueCampaign("pending_reminder_campaign")} aria-label="Queue pending reminder campaign for all shares" className="inline-flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-2 py-2 text-center text-xs font-bold leading-4 text-amber-900 disabled:cursor-not-allowed disabled:opacity-50"><MessageCircle size={16} className="shrink-0" /><span>{campaignBusy ? "Queueing…" : "Send Pending Reminder to All"}</span></button>
+              <button type="button" disabled={campaignBusy || !selectedFund || shares.length === 0} onClick={() => void queueCampaign("share_report_campaign")} aria-label="Queue report campaign for all shares" className="inline-flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-sky-300 bg-sky-50 px-2 py-2 text-center text-xs font-bold leading-4 text-sky-900 disabled:cursor-not-allowed disabled:opacity-50"><FileText size={16} className="shrink-0" /><span>{campaignBusy ? "Queueing…" : "Send Report to All"}</span></button>
             </div>
-            <p className="text-center text-xs text-slate-500">Bulk WhatsApp automation is disabled until the n8n webhook is configured.</p>
+            <p className="text-center text-xs leading-5 text-slate-500">These buttons create tenant-scoped campaign jobs. Check Automation progress for status; delivery remains blocked until the n8n worker and WhatsApp session are configured.</p>
 
             <section className="space-y-3">
               <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
