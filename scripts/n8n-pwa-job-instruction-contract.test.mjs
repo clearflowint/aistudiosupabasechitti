@@ -687,3 +687,61 @@ test("manager PWA progress presentation does not alter protected notification in
     assert.ok(contract.includes(phrase), `missing protected notification rule: ${phrase}`);
   }
 });
+
+
+// Batch 31 — tenant-scoped read-only progress retrieval contract.
+function modelVisibleJobRead({ ownerAuthorized, requestedProductId, requestedTenantId, job }) {
+  if (ownerAuthorized !== true) return { visible: false, reason: "forbidden", job: null };
+  if (!job || job.productId !== requestedProductId || job.tenantId !== requestedTenantId) {
+    return { visible: false, reason: "not_found", job: null };
+  }
+  return {
+    visible: true,
+    reason: "authorized",
+    job: {
+      jobId: job.jobId,
+      status: job.status,
+      productId: job.productId,
+      tenantId: job.tenantId,
+      progress: job.progress
+    }
+  };
+}
+
+test("read-only progress model: only authorized owner sees job in exact product and tenant scope", () => {
+  const job = { jobId: 123, productId: "CFCF", tenantId: "tenant-a", status: "processing", progress: { processed: 2, total: 5 }, secret: "do-not-return" };
+  assert.deepEqual(modelVisibleJobRead({
+    ownerAuthorized: true, requestedProductId: "CFCF", requestedTenantId: "tenant-a", job
+  }), {
+    visible: true, reason: "authorized",
+    job: { jobId: 123, status: "processing", productId: "CFCF", tenantId: "tenant-a", progress: { processed: 2, total: 5 } }
+  });
+});
+
+test("read-only progress model: non-owner receives no job data", () => {
+  const result = modelVisibleJobRead({
+    ownerAuthorized: false, requestedProductId: "CFCF", requestedTenantId: "tenant-a",
+    job: { jobId: 123, productId: "CFCF", tenantId: "tenant-a", status: "processing" }
+  });
+  assert.deepEqual(result, { visible: false, reason: "forbidden", job: null });
+});
+
+test("read-only progress model: cross-tenant and cross-product job lookups reveal no job details", () => {
+  const job = { jobId: 123, productId: "CFCF", tenantId: "tenant-a", status: "processing", progress: { processed: 2, total: 5 } };
+  assert.deepEqual(modelVisibleJobRead({
+    ownerAuthorized: true, requestedProductId: "CFCF", requestedTenantId: "tenant-b", job
+  }), { visible: false, reason: "not_found", job: null });
+  assert.deepEqual(modelVisibleJobRead({
+    ownerAuthorized: true, requestedProductId: "OTHER", requestedTenantId: "tenant-a", job
+  }), { visible: false, reason: "not_found", job: null });
+});
+
+test("read-only progress model: returned fields are allowlisted and never mutate the stored job", () => {
+  const job = { jobId: 123, productId: "CFCF", tenantId: "tenant-a", status: "completed", progress: { processed: 5, total: 5 }, secret: "hidden" };
+  const before = structuredClone(job);
+  const result = modelVisibleJobRead({
+    ownerAuthorized: true, requestedProductId: "CFCF", requestedTenantId: "tenant-a", job
+  });
+  assert.equal(Object.hasOwn(result.job, "secret"), false);
+  assert.deepEqual(job, before);
+});
