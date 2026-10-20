@@ -106,9 +106,9 @@ test("inbound event idempotency is not an authorization shortcut or a live enque
 
 
 test("manager progress view exposes only sanitized summary fields", () => {
-  assert.equal((migration.match(/create table public\\.n8n_global_jobs/g) || []).length, 1);
-  assert.equal((migration.match(/create view public\\.n8n_global_job_progress/g) || []).length, 1);
-  assert.equal((migration.match(/create unique index n8n_global_jobs_request_id_unique_idx/g) || []).length, 1);
+  assert.equal(migration.split("create table public.n8n_global_jobs").length - 1, 1);
+  assert.equal(migration.split("create view public.n8n_global_job_progress").length - 1, 1);
+  assert.equal(migration.split("create unique index n8n_global_jobs_request_id_unique_idx").length - 1, 1);
   assert.equal(migration.includes("grant select on table public.n8n_global_jobs to authenticated"), false);
   assert.ok(migration.includes("revoke all on table public.n8n_global_jobs from anon, authenticated"));
 
