@@ -33,10 +33,11 @@ create table public.n8n_global_jobs (
     check (
       job_type not in ('campaign', 'manual_campaign')
       or not (job_data ? 'recipients')
-      or (
-        jsonb_typeof(job_data -> 'recipients') = 'array'
-        and jsonb_array_length(job_data -> 'recipients') <= 100
-      )
+      or case
+        when jsonb_typeof(job_data -> 'recipients') = 'array'
+          then jsonb_array_length(job_data -> 'recipients') <= 100
+        else false
+      end
     )
 );
 
