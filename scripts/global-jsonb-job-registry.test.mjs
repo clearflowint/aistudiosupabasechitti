@@ -22,7 +22,7 @@ test("job IDs start at 100 and jobs are tenant/product scoped", () => {
 
 test("campaign recipient arrays have a hard 100-contact ceiling", () => {
   assert.ok(migration.includes("jsonb_array_length(job_data -> 'recipients') <= 100"));
-  assert.ok(contract.includes("1–100 unique contacts"));
+  assert.ok(contract.includes("1–100 unique resolved contacts"));
   assert.ok(contract.includes("before any provider call"));
 });
 
@@ -31,5 +31,5 @@ test("schema avoids the protected PWA push subsystem and general automation RPCs
     assert.equal(migration.includes(protectedName), false);
   }
   assert.equal(migration.includes("create or replace function"), false);
-  assert.ok(contract.includes("does not touch the existing PWA push-notification tables"));
+  assert.ok(contract.includes("Existing PWA push tables/functions/data/cron jobs remain untouched."));
 });
