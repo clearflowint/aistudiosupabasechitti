@@ -386,3 +386,53 @@ test("ingress model: transport 2xx follows durable storage or duplicate recognit
   assert.equal(failed.accepted, false);
   assert.equal(failed.senderAcknowledgement, false);
 });
+
+function modelDurableEnqueue({ existingJobId = null, insertOutcome, conflictJobId = null }) {
+  if (Number.isInteger(existingJobId) && existingJobId >= 100) {
+    return { outcome: "duplicate", httpStatus: 200, jobId: existingJobId, dispatch: false };
+  }
+  if (insertOutcome === "inserted" && Number.isInteger(conflictJobId) === false) {
+    return { outcome: "created", httpStatus: 202, jobId: 100, dispatch: false };
+  }
+  if (insertOutcome === "unique_conflict" && Number.isInteger(conflictJobId) && conflictJobId >= 100) {
+    return { outcome: "duplicate", httpStatus: 200, jobId: conflictJobId, dispatch: false };
+  }
+  return { outcome: "persistence_failure", httpStatus: 503, jobId: null, dispatch: false };
+}
+
+test("enqueue model: pre-existing scoped request returns its canonical job without redispatch", () => {
+  assert.deepEqual(modelDurableEnqueue({ existingJobId: 143, insertOutcome: "not_attempted" }), {
+    outcome: "duplicate", httpStatus: 200, jobId: 143, dispatch: false
+  });
+});
+
+test("enqueue model: successful durable insert returns generated integer job ID but does not send inline", () => {
+  assert.deepEqual(modelDurableEnqueue({ insertOutcome: "inserted" }), {
+    outcome: "created", httpStatus: 202, jobId: 100, dispatch: false
+  });
+});
+
+test("enqueue model: unique conflict returns only the confirmed existing job", () => {
+  assert.deepEqual(modelDurableEnqueue({ insertOutcome: "unique_conflict", conflictJobId: 157 }), {
+    outcome: "duplicate", httpStatus: 200, jobId: 157, dispatch: false
+  });
+  assert.deepEqual(modelDurableEnqueue({ insertOutcome: "unique_conflict", conflictJobId: null }), {
+    outcome: "persistence_failure", httpStatus: 503, jobId: null, dispatch: false
+  });
+});
+
+test("enqueue model: unknown persistence failure never returns a success receipt", () => {
+  for (const insertOutcome of ["timeout", "permission_denied", "connection_lost", "unknown_error"]) {
+    assert.deepEqual(modelDurableEnqueue({ insertOutcome }), {
+      outcome: "persistence_failure", httpStatus: 503, jobId: null, dispatch: false
+    });
+  }
+});
+
+test("enqueue contract separates durable receipt from worker dispatch and forbids blind resend", () => {
+  assert.ok(contract.includes("n8n creates the job row and uses its returned database `job_id` as the canonical job ID"));
+  assert.ok(contract.includes("on conflict, fetch and return the existing job and do not dispatch again"));
+  assert.ok(contract.includes("If insert fails for any reason other than a confirmed duplicate, return retryable non-2xx"));
+  assert.ok(contract.includes("no automatic resend"));
+  assert.ok(contract.includes("The migration remains draft-only and has not been applied to any database.") || contract.includes("Do not point production UI at the draft webhook yet."));
+});
