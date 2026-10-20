@@ -17,6 +17,20 @@ test("campaigns reject over 100 unique recipients before any provider call", () 
   assert.ok(contract.includes("Do not split automatically"));
 });
 
+test("authorization trusts the verified Auth identity and enforces active tenant-owner access", () => {
+  assert.ok(contract.includes("Validate the token with the Supabase Auth user endpoint"));
+  assert.ok(contract.includes("Never trust a body-supplied email, person ID, or owner flag."));
+  assert.ok(contract.includes("access_type = tenantowner"));
+  assert.ok(contract.includes("Reject mismatches with 403."));
+  assert.ok(contract.includes("service-role credential is held only in n8n"));
+});
+
+test("repeated request IDs must resolve to the same job without dispatching again", () => {
+  assert.ok(contract.includes("n8n_global_jobs_request_id_unique_idx"));
+  assert.ok(contract.includes("fetch and return the existing job and do not dispatch again"));
+  assert.ok(contract.includes("Bound `events` to the latest 500 entries."));
+});
+
 test("draft preview cannot claim persistence or sending", () => {
   assert.ok(contract.includes('"mode": "contract_preview_only"'));
   assert.ok(contract.includes('"side_effects": false'));
