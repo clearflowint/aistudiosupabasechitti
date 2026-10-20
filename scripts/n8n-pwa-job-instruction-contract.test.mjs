@@ -33,8 +33,9 @@ test("storage remains simple and does not become a workflow engine", () => {
 });
 
 test("tenant boundaries and real ingress authentication remain required", () => {
-  assert.ok(contract.includes("Never trust a body-supplied email, person ID, or owner flag."));
-  assert.ok(contract.includes("WAHA-to-n8n ingress authentication must be verified"));
+  assert.ok(contract.includes("Do not add a separate tenant-session key, API key, or authentication key to the PWA-to-n8n request contract."));
+  assert.ok(contract.includes("The PWA sends `product_id`, `tenant_id`, `person_id`, the requested action"));
+  assert.ok(contract.includes("WAHA-to-n8n ingress configuration is source-specific"));
   assert.ok(contract.includes("resolve the tenant from the trusted receiver-number mapping"));
   assert.ok(contract.includes("Unknown or ambiguous mappings stop tenant-specific processing."));
 });
