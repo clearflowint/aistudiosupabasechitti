@@ -22,7 +22,7 @@ One row per job in `public.n8n_global_jobs`:
 
 The draft migration deliberately does not add generated progress columns, a manager progress view, event-history machinery, recipient-count constraints, leases, stored procedures, RPCs, or separate schedule tables. It uses one partial index to let a shared n8n dispatcher find due jobs. It does not alter existing PWA notification tables, functions, data, or cron jobs. No database function is needed to create jobs.
 
-The manager UI reads only safe status columns, never the private `job_data` payload. Row-level security limits reads to the active tenant owner. The service role is used only by trusted n8n/server-side integration.
+The UI reads only safe status columns, never the private `job_data` payload. Row-level security is product-aware: CFCF status remains manager-only; other products use their own active tenant-access rules. Every read remains scoped by product and tenant. The service role is used only by trusted n8n/server-side integration.
 
 ## Request handling
 
@@ -57,7 +57,8 @@ Use ordinary n8n execution/error handling first. Do not add a general retry engi
 ## Current status
 
 - Draft migration: not applied.
-- PWA status card: reads safe status columns from the table; feature flag remains off until the storage path is approved and verified.
+- PWA status card: enabled by default, reads safe status columns only, and can be disabled with `VITE_CFCF_JOB_PROGRESS_ENABLED=false`.
 - n8n worker and inbound workflows: remain inactive drafts.
-- Authenticated non-production end-to-end testing: not started.
+- Live registry smoke test: passed in n8n; synthetic job #101 moved from `queued` to `completed`.
+- Authenticated PWA two-tenant browser/cache test: still pending.
 - Production migration, deployment, credential changes, live WhatsApp sends, and billable Supabase branch: not authorized.
