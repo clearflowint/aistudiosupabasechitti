@@ -1,3 +1,5 @@
+> **Portability-first review notice (2026-10-20):** This file contains historical, more elaborate design contracts and test fixtures. For the first working CFCF path, the simplified design in [n8n-global-jsonb-job-registry.md](./n8n-global-jsonb-job-registry.md) takes precedence: simple status record, product-owned workflow logic, no generic lease/state-machine/retry framework, and no database-generated progress view. Treat the older batch details below as deferred proposals unless a concrete requirement is re-approved. Keep all workflows inactive and the migration unapplied until the user explicitly approves the named non-production environment and necessary auth setup.
+
 # PWA → n8n Job Instruction Contract — Batch 2
 
 ## Purpose
