@@ -64,7 +64,7 @@ test("multi-trigger design distinguishes PWA, WhatsApp, and schedule authenticat
     "Inbound WhatsApp-originated actions — simplified phone-based routing",
     "Scheduled n8n-originated work",
     "validates the access token with Supabase Auth",
-    "WAHA server and n8n webhook",
+    "Protect the WAHA-to-n8n webhook at the transport/server boundary",
     "there is no inbound HTTP request and no external app to hold a secret",
     "shared authorization gate",
     "Unknown senders may be handled as unverified inquiries"
@@ -75,7 +75,7 @@ test("multi-trigger design distinguishes PWA, WhatsApp, and schedule authenticat
 
 test("scheduled and inbound events require idempotency and current tenant authorization", () => {
   assert.ok(contract.includes("schedule identity plus the intended run timestamp"));
-  assert.ok(contract.includes("Deduplicate using the provider event/message ID"));
+  assert.ok(contract.includes("Deduplicate by provider event/message ID where available"));
   assert.ok(contract.includes("check that the target tenant is still active and eligible"));
   assert.ok(contract.includes("Source identity and action permissions are not interchangeable"));
 });
@@ -92,5 +92,18 @@ test("WhatsApp routing uses sender/receiver numbers and does not treat session n
     "ask a neutral clarification or route for manual review"
   ]) {
     assert.ok(contract.includes(phrase), `missing WhatsApp routing rule: ${phrase}`);
+  }
+});
+
+test("WhatsApp first gate checks sender records before normal tenant routing", () => {
+  for (const phrase of [
+    "First routing gate — verify a sender record before normal routing:",
+    "look for an authoritative match in ClearFlow's tenant/contact/person/access records",
+    "If there is no matching record, do not continue as a recognized tenant/person",
+    "notify the tenant/manager if the tenant can be safely identified",
+    "If no tenant can be identified, do not guess which tenant to notify",
+    "check whether the sender has a person/contact record within that tenant"
+  ]) {
+    assert.ok(contract.includes(phrase), `missing first-gate sender validation rule: ${phrase}`);
   }
 });
