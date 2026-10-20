@@ -428,3 +428,14 @@ Explicit readiness checklist:
 7. **Protected systems:** verify that existing PWA notification tables, functions, data, and cron jobs remain unchanged.
 
 Until the owner approves the next test environment and the prerequisites are evidenced, both inbound workflows remain inactive, the worker remains mock-only, the draft migration remains unapplied, and there are no live provider sends or deployments. No credential changes or production writes are authorized by this checklist.
+
+
+## Inbound identity and acknowledgement boundary — Batch 33
+
+- Authenticate the provider event before trusting any event identity. Resolve the receiving number/session through trusted server-side configuration and map it to exactly one authorized product and tenant; never use a tenant ID supplied only by the inbound payload as authority.
+- Resolve the sender/contact and permitted role inside that established tenant. Unknown or ambiguous mappings receive no tenant data and no status disclosure.
+- Deduplicate inbound provider events using the scoped provider/session/event identity. A duplicate must return the already-known safe acknowledgement outcome without creating a second job or dispatching work again.
+- HTTP transport acknowledgement is distinct from a WhatsApp human acknowledgement. Return HTTP 2xx only after durable enqueue succeeds or a duplicate is positively confirmed. If persistence outcome is unknown or enqueue fails, return retryable non-2xx and do not claim acceptance.
+- For quick operations, do not send a separate queued/receipt message; send the actual result after completion. For work that genuinely takes longer than a normal interactive response, send at most one human receipt and only after durable enqueue. Receipt delivery uncertainty must not trigger a blind resend.
+- Keep provider message body and sender data out of manager-facing progress summaries and routine logs. Do not include secrets, auth headers, or raw provider payloads in errors.
+- This batch is a static contract only. Both inbound workflows remain inactive and their current 503 placeholder remains; no webhook auth, durable queue, credentials, or live messaging was changed.
