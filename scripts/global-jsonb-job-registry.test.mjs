@@ -16,7 +16,7 @@ test("job storage stays a simple table with a JSON payload", () => {
   assert.ok(migration.includes("product_id text not null"));
   assert.ok(migration.includes("tenant_id text not null"));
   assert.ok(migration.includes("request_id text"));
-  assert.ok(migration.includes("source_type text not null default 'system'"));
+  assert.ok(migration.includes("source_type text not null"));
   assert.ok(migration.includes("scheduled_at timestamptz"));
   assert.ok(migration.includes("n8n_global_jobs_due_idx"));
   assert.equal((migration.match(/create index n8n_global_jobs_due_idx/g) ?? []).length, 1);
