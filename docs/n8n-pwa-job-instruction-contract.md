@@ -36,15 +36,15 @@ Each source adapter normalizes a request to a common envelope. The following is 
 
 ## Central engine and storage record
 
-Every source enters through its appropriate n8n ingress. For PWA requests, the caller supplies the product, tenant, and person IDs without a separate tenant-session or authentication key; n8n uses those IDs to resolve the relevant records and route the action. Other sources can use their own source-specific input mapping. Only tasks needing lifecycle visibility or deferred execution create a `public.n8n_global_jobs` row; ordinary fetch/insert/update workflow operations do not automatically create jobs.
+Every source enters through its appropriate adapter. For CFCF manual reminder/report campaigns, the authenticated PWA inserts a narrowly allow-listed request directly into `public.n8n_global_jobs`; RLS requires an active tenant owner, only the two campaign job types are accepted, and the browser cannot read `job_data` or update job status. n8n polls the registry with its trusted server-side credential, validates the request, and owns subsequent status transitions. Other sources use their own source-specific ingress. Ordinary fetch/insert/update workflow operations do not automatically create jobs.
 
-A job record contains a generated reference, product/tenant scope, open-ended `source_type`, action type, status, optional request ID, optional `scheduled_at`, JSON request/result data, and timestamps. n8n creates and updates the record using its trusted server-side Supabase credential. A database function/RPC is not needed.
+A job record contains a generated reference, product/tenant scope, open-ended `source_type`, action type, status, optional request ID, optional `scheduled_at`, JSON request/result data, and timestamps. For the CFCF PWA manual campaign path, the PWA inserts only a validated queued request through RLS; n8n updates lifecycle status using its trusted server-side Supabase credential. Other tracked sources can have n8n create the row. No database function/RPC is needed.
 
 For future-dated tasks, n8n persists the requested instant in `scheduled_at`. One shared n8n dispatcher checks for queued jobs whose time has arrived and routes them for execution. Do not create a separate scheduler per job or a separate CFCF recurring-reminder/report subsystem. Store the instant as `timestamptz` and normalize source time zones before writing it.
 
 Allowed statuses for the first version: `queued`, `processing`, `completed`, `failed`, `cancelled`.
 
-- n8n owns source routing and execution, creates records for tracked/deferred tasks, and updates their status.
+- n8n owns queue polling, validation, routing and execution, and updates status. CFCF's narrowly scoped PWA campaign request is inserted directly through RLS.
 - `source_type` is open-ended so future request channels do not require a schema change.
 - A shared n8n dispatcher handles future-dated jobs using `scheduled_at`.
 - Ordinary n8n executions that only fetch, insert, or update business records do not automatically create job records.
@@ -66,12 +66,12 @@ Allowed statuses for the first version: `queued`, `processing`, `completed`, `fa
 - RLS baseline: enforce strict `product_id` + `tenant_id` boundaries for tenant-owned records. Do not impose staff-to-staff or row-owner isolation as a global default. Add staff isolation only for products whose documented roles and workflows require it; keep those restrictions product-specific.
 - Apply the least restrictive policy that still preserves the product's actual tenant boundary and data permissions. Do not add blanket restrictions just because a table is shared across products.
 - The global job table exposes safe status metadata only and remains product/tenant-scoped. Its RLS is product-aware: CFCF status reads remain manager-only, while other products use their own active tenant-access rules. CFCF's manager-only rule is not a universal staff-isolation rule for every ClearFlow product.
-- PWA-originated actions use the `product_id`, `tenant_id`, and `person_id` supplied by the PWA contract; do not add a separate tenant-session key or authentication key to that request.
+- CFCF campaign requests use the authenticated Supabase session and a narrowly scoped insert policy; tenant ownership is checked by RLS. The browser never receives the service-role credential and cannot update job status.
 - WAHA-to-n8n ingress configuration is source-specific; document the actual configuration rather than imposing a PWA authentication-key pattern on every source.
 - For the CFCF shared agency number/session, match the sender to one authoritative CFCF contact/tenant before accessing tenant data.
 - For tenant-owned numbers/sessions, resolve the tenant from the trusted receiver-number mapping, then look up the sender inside that tenant.
 - Unknown or ambiguous mappings stop tenant-specific processing. Never guess a tenant.
-- The current ingress and worker workflows remain inactive drafts until authentication and a controlled test are ready.
+- The CFCF manual campaign queue gate is active on a one-minute poll, but is intentionally no-send: it records a clear provider-not-configured failure until WAHA endpoint/session/authentication are verified. No real WhatsApp message is sent.
 
 ## Completion and acknowledgement
 
@@ -83,9 +83,9 @@ Allowed statuses for the first version: `queued`, `processing`, `completed`, `fa
 
 ## Current status and restrictions
 
-- The JSONB job storage migration remains unapplied.
-- PWA progress UI is feature-flagged off until its data source is approved and verified.
-- Shared-number ingress, tenant-owned ingress, and worker remain inactive. Automatic CFCF scheduling is out of scope.
+- The JSONB registry and the tenant-owner-only manual campaign insert policy are applied to the development-stage Supabase project.
+- PWA progress UI is enabled by default and reads only safe status metadata.
+- Shared-number and tenant-owned inbound WhatsApp ingress remain inactive. Automatic CFCF recurring reminders/reports remain out of scope; the one-minute n8n poll is only a central queue dispatcher.
 - WAHA-to-n8n authentication remains unresolved. CFCF automatic scheduled reminders and reports are out of scope.
-- No production migration/deployment, credential change, live WhatsApp send, or billable Supabase branch is authorized.
+- Development-stage database migrations were approved and applied. Cloudflare deployment and authenticated browser/cache testing are still pending. No live WhatsApp send or credential change has been performed.
 - Use synthetic data and mock provider actions for the first controlled test after the non-production environment is explicitly approved.
