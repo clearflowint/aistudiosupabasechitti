@@ -4,156 +4,72 @@ import { readFileSync } from "node:fs";
 
 const migration = readFileSync(new URL("../supabase/migrations/20261020150000_n8n_global_jsonb_job_registry.sql", import.meta.url), "utf8");
 const contract = readFileSync(new URL("../docs/n8n-global-jsonb-job-registry.md", import.meta.url), "utf8");
+const architecture = readFileSync(new URL("../docs/architecture-guide.md", import.meta.url), "utf8");
 const progressService = readFileSync(new URL("../src/features/cfcf/services/automation-jobs.service.ts", import.meta.url), "utf8");
 const progressCard = readFileSync(new URL("../src/features/cfcf/components/AutomationJobProgressCard.tsx", import.meta.url), "utf8");
 const homeShell = readFileSync(new URL("../src/components/workspace/WorkspaceHomePage.tsx", import.meta.url), "utf8");
 
-test("one global job table stores status and recipient updates in JSONB", () => {
-  assert.ok(migration.includes("create table public.n8n_global_jobs"));
+test("job storage stays a simple table with a JSON payload", () => {
+  assert.equal(migration.split("create table public.n8n_global_jobs").length - 1, 1);
   assert.ok(migration.includes("job_data jsonb not null default '{}'::jsonb"));
-  assert.equal(migration.includes("create table public.n8n_whatsapp_communications"), false);
-  assert.equal(migration.includes("create table public.n8n_whatsapp_deliveries"), false);
+  assert.ok(migration.includes("job_id bigint generated always as identity"));
+  assert.ok(migration.includes("product_id text not null"));
+  assert.ok(migration.includes("tenant_id text not null"));
+  assert.ok(migration.includes("request_id text"));
+  assert.ok(migration.includes("created_at timestamptz not null default now()"));
+  assert.ok(migration.includes("updated_at timestamptz not null default now()"));
   assert.equal(migration.includes("create or replace function"), false);
+  assert.equal(migration.includes("create view"), false);
+  assert.equal(migration.includes("generated always as (\n    jsonb_build_object"), false);
 });
 
-test("job IDs start at 100 and jobs are tenant/product scoped", () => {
-  assert.ok(migration.includes("identity (start with 100 increment by 1)"));
-  assert.ok(migration.includes("generated always as identity"));
-  assert.ok(migration.includes("foreign key (tenant_id, product_id)"));
-  assert.ok(migration.includes("is_active_tenant_owner(product_id, tenant_id)"));
-  assert.ok(migration.includes("for select to authenticated"));
-});
-
-test("tenant foreign key matches the composite tenant/product unique key", () => {
+test("database contains only the basic lifecycle status and tenant scope", () => {
+  for (const status of ["queued", "processing", "completed", "failed", "cancelled"]) {
+    assert.ok(migration.includes("'" + status + "'"));
+  }
   assert.ok(migration.includes("foreign key (tenant_id, product_id)"));
   assert.ok(migration.includes("references public.tenants (tenant_id, product_id)"));
+  assert.ok(migration.includes("on public.n8n_global_jobs\n  for select to authenticated"));
+  assert.ok(migration.includes("is_active_tenant_owner(product_id, tenant_id)"));
 });
 
-test("request IDs are unique per product and tenant to prevent duplicate jobs", () => {
-  assert.ok(migration.includes("n8n_global_jobs_request_id_unique_idx"));
-  assert.ok(migration.includes("(product_id, tenant_id, (job_data ->> 'request_id'))"));
-  assert.ok(migration.includes("where nullif(btrim(job_data ->> 'request_id'), '') is not null"));
-  assert.ok(contract.includes("return that job receipt and do not dispatch again"));
-});
-
-test("campaign recipient arrays have a hard 100-contact ceiling", () => {
-  assert.ok(migration.includes("jsonb_array_length(job_data -> 'recipients') between 1 and 100"));
-  assert.ok(migration.includes("or case"));
-  assert.ok(migration.includes("when jsonb_typeof(job_data -> 'recipients') = 'array'"));
-  assert.ok(contract.includes("1–100 unique resolved contacts"));
-  assert.ok(contract.includes("before any provider call"));
-});
-
-test("JSONB event history is an array capped at 500 entries", () => {
-  assert.ok(migration.includes("constraint n8n_global_jobs_event_history_limit"));
-  assert.ok(migration.includes("jsonb_array_length(job_data -> 'events') <= 500"));
-  assert.ok(migration.includes("when jsonb_typeof(job_data -> 'events') = 'array'"));
-  assert.ok(contract.includes("500-event history"));
-});
-
-test("schema avoids the protected PWA push subsystem and general automation RPCs", () => {
-  for (const protectedName of ["clearflow_push_subscriptions", "clearflow_push_outbox", "clearflow_push_alert_state"]) {
-    assert.equal(migration.includes(protectedName), false);
-  }
+test("draft schema avoids workflow-engine machinery and duplicate indexes", () => {
+  assert.equal(migration.includes("create unique index"), false);
+  assert.equal(migration.includes("progress_summary"), false);
+  assert.equal(migration.includes("event_history_limit"), false);
+  assert.equal(migration.includes("campaign_limit"), false);
+  assert.equal(migration.includes("n8n_global_job_progress"), false);
   assert.equal(migration.includes("create or replace function"), false);
-  assert.ok(contract.includes("Existing PWA push tables/functions/data/cron jobs remain untouched."));
+  assert.ok(contract.includes("The table is storage, not a workflow engine."));
+  assert.ok(contract.includes("best-effort"));
 });
 
-test("inbound provider events have a scoped uniqueness guard separate from request idempotency", () => {
-  assert.ok(migration.includes("n8n_global_jobs_inbound_event_unique_idx"));
-  assert.ok(migration.includes("where job_type = 'whatsapp_inbound'"));
-  assert.ok(migration.includes("(job_data ->> 'provider_name')"));
-  assert.ok(migration.includes("(job_data ->> 'session_name')"));
-  assert.ok(migration.includes("(job_data ->> 'provider_event_id')"));
-  assert.ok(contract.includes("trusted `session_name`, and `provider_event_id`"));
-  assert.ok(contract.includes("The migration remains draft-only and has not been applied to any database."));
-});
-
-function mockInboundEventKey({ productId, tenantId, providerName, sessionName, providerEventId }) {
-  const fields = [productId, tenantId, providerName, sessionName, providerEventId];
-  if (fields.some(value => typeof value !== "string" || value.trim() === "")) return null;
-  return fields.map(value => value.trim()).join("::");
-}
-
-test("mock inbound event idempotency distinguishes provider, session, tenant, and event", () => {
-  const base = { productId: "CFCF", tenantId: "tenant-a", providerName: "WAHA", sessionName: "Lakki", providerEventId: "evt-123" };
-  assert.equal(mockInboundEventKey(base), mockInboundEventKey({ ...base }));
-  assert.notEqual(mockInboundEventKey(base), mockInboundEventKey({ ...base, providerEventId: "evt-124" }));
-  assert.notEqual(mockInboundEventKey(base), mockInboundEventKey({ ...base, sessionName: "tenant-session-2" }));
-  assert.notEqual(mockInboundEventKey(base), mockInboundEventKey({ ...base, tenantId: "tenant-b" }));
-  assert.notEqual(mockInboundEventKey(base), mockInboundEventKey({ ...base, providerName: "other-provider" }));
-  assert.equal(mockInboundEventKey({ ...base, sessionName: " " }), null);
-  assert.equal(mockInboundEventKey({ ...base, providerEventId: "" }), null);
-});
-
-test("inbound event index is partial, fully scoped, and does not replace request idempotency", () => {
-  const start = migration.indexOf("create unique index n8n_global_jobs_inbound_event_unique_idx");
-  assert.notEqual(start, -1);
-  const block = migration.slice(start, migration.indexOf(";", start) + 1);
-  for (const required of [
-    "product_id",
-    "tenant_id",
-    "job_data ->> 'provider_name'",
-    "job_data ->> 'session_name'",
-    "job_data ->> 'provider_event_id'",
-    "where job_type = 'whatsapp_inbound'",
-    "nullif(btrim(job_data ->> 'provider_name'), '') is not null",
-    "nullif(btrim(job_data ->> 'session_name'), '') is not null",
-    "nullif(btrim(job_data ->> 'provider_event_id'), '') is not null"
-  ]) assert.ok(block.includes(required), `missing inbound index guard: ${required}`);
-  assert.ok(migration.includes("n8n_global_jobs_request_id_unique_idx"));
-  assert.ok(contract.includes("If insertion conflicts, fetch the existing job in the same product/tenant scope"));
-  assert.ok(contract.includes("If insert fails for any reason other than a confirmed duplicate, return retryable non-2xx"));
-  assert.ok(contract.includes("The migration remains draft-only and has not been applied to any database."));
-});
-
-test("inbound event idempotency is not an authorization shortcut or a live enqueue implementation", () => {
-  assert.ok(contract.includes("never accepted as proof of identity from caller-supplied tenant fields"));
-  assert.ok(contract.includes("Authenticate the inbound transport and validate required event fields."));
-  assert.ok(contract.includes("Resolve the trusted receiving session and exactly one authoritative CFCF tenant/contact/role"));
-  assert.equal(migration.includes("create or replace function"), false);
-  assert.equal(migration.includes("create table public.clearflow_push_subscriptions"), false);
-  assert.equal(migration.includes("create table public.clearflow_push_outbox"), false);
-  assert.equal(migration.includes("create table public.clearflow_push_alert_state"), false);
-});
-
-
-test("manager home progress UI is read-only, tenant-scoped, and safely gated", () => {
-  assert.ok(progressService.includes('from("n8n_global_job_progress")'));
+test("browser can read safe status fields but not private JSON payload", () => {
+  assert.ok(migration.includes("revoke all on table public.n8n_global_jobs from public, anon, authenticated"));
+  assert.ok(migration.includes("grant select ("));
+  assert.ok(migration.includes("job_id, product_id, tenant_id, job_type, status, request_id"));
+  assert.ok(migration.includes("grant all on table public.n8n_global_jobs to service_role"));
+  assert.ok(progressService.includes('from("n8n_global_jobs")'));
   assert.ok(progressService.includes('.eq("product_id", cfcfConfig.productId)'));
   assert.ok(progressService.includes('.eq("tenant_id", tenantId)'));
-  assert.ok(progressService.includes(".limit(5)"));
-  assert.ok(progressService.includes("Never select job_data"));
+  assert.ok(progressService.includes('.limit(5)'));
+  assert.ok(progressService.includes("Never selects the private job_data payload"));
   assert.equal(progressService.includes('"job_data"'), false);
+});
+
+test("manager status card is read-only and feature-flagged", () => {
   assert.ok(progressCard.includes('import.meta.env.VITE_CFCF_JOB_PROGRESS_ENABLED === "true"'));
   assert.ok(progressCard.includes("No job data has been requested"));
-  assert.ok(progressCard.includes("Do not resend automatically"));
-  for (const label of ["Accepted", "Failed", "Skipped", "Uncertain", "Pending", "Submitting"]) assert.ok(progressCard.includes(label));
+  assert.ok(progressCard.includes("Read-only status from saved records"));
   assert.ok(homeShell.includes("{product.renderHomeContent?.(workspace)}"));
 });
 
-test("manager progress view exposes only sanitized summary fields", () => {
-  assert.equal(migration.split("create table public.n8n_global_jobs").length - 1, 1);
-  assert.equal(migration.split("create view public.n8n_global_job_progress").length - 1, 1);
-  assert.equal(migration.split("create unique index n8n_global_jobs_request_id_unique_idx").length - 1, 1);
-  assert.equal(migration.includes("grant select on table public.n8n_global_jobs to authenticated"), false);
-  assert.ok(migration.includes("revoke all on table public.n8n_global_jobs from public, anon, authenticated"));
-
-  assert.ok(migration.includes("progress_summary jsonb generated always as"));
-  assert.ok(migration.includes("'submitting_count'"));
-  assert.ok(migration.includes("create view public.n8n_global_job_progress"));
-  assert.ok(migration.includes("with (security_invoker = true)"));
-  assert.ok(migration.includes("revoke all on public.n8n_global_job_progress from public, anon, authenticated"));
-  assert.ok(migration.includes("grant select on public.n8n_global_job_progress to authenticated"));
-  assert.ok(migration.includes("grant select ("));
-  assert.ok(migration.includes("job_id, product_id, tenant_id, job_type, status"));
-  assert.ok(migration.includes("created_at, updated_at as last_safe_update_at, completed_at"));
-  assert.ok(migration.includes("progress_summary,"));
-  assert.ok(migration.includes("(status in ('uncertain', 'partial')) as needs_review"));
-  assert.equal(migration.includes("grant select on table public.n8n_global_jobs to authenticated"), false);
-  const viewStart = migration.indexOf("create view public.n8n_global_job_progress");
-  const viewBlock = migration.slice(viewStart, migration.indexOf(";", viewStart) + 1);
-  assert.equal(viewBlock.includes("job_data"), false);
-  assert.equal(viewBlock.includes("message_text"), false);
-  assert.equal(viewBlock.includes("phone"), false);
+test("portability-first architecture is documented and notification subsystem stays untouched", () => {
+  assert.ok(architecture.includes("Portability-first architecture — approved direction"));
+  assert.ok(architecture.includes("ClearFlow owns product behavior and business rules."));
+  assert.ok(architecture.includes("Every new table, RPC, trigger, workflow, index, or background worker must state the concrete problem it solves"));
+  for (const protectedName of ["clearflow_push_subscriptions", "clearflow_push_outbox", "clearflow_push_alert_state"]) {
+    assert.equal(migration.includes(protectedName), false);
+  }
+  assert.ok(contract.includes("Existing PWA notification tables, functions, data, and cron jobs are untouched."));
 });
