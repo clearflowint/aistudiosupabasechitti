@@ -27,10 +27,13 @@ This is a practical inventory, not a rewrite mandate. It identifies where the cu
 - The campaign launch flag is currently disabled by default, and the documented campaign flow is separate from the new generic job-status draft.
 - Do not silently replace this established campaign path while simplifying job storage. Treat it as an existing provider adapter that can be replaced deliberately when a working alternative is ready.
 
-### 4. Authentication and tenant access
+### 4. Authentication, tenant access, and RLS scope
 
 - Current login/session behavior uses Supabase Auth.
-- Existing tenant access relies on current authorization logic and database RLS/policies.
+- Enforce strict tenant boundaries on tenant-owned data. Do not impose staff-to-staff or row-owner isolation globally by default.
+- Add staff isolation restrictions only for products whose documented roles and workflows require them; keep those rules product-specific rather than forcing them onto every ClearFlow product.
+- Prefer the least restrictive policy that preserves the actual tenant boundary and product permissions. Do not weaken tenant isolation or expose private payloads as part of relaxing unnecessary role restrictions.
+- The draft global job table exposes safe status columns only and is tenant-scoped. CFCF's current manager-only status access remains a CFCF product rule, not a universal ClearFlow rule.
 - Authentication and tenant separation are essential behaviors, not reasons to build a large workflow framework. A future provider change must preserve these behaviors, but the implementation may move to another identity provider or API boundary.
 
 ### 5. New automation job status
