@@ -38,6 +38,13 @@ test("RLS enforces tenant isolation without blanket staff isolation", () => {
   assert.ok(contract.includes("CFCF's current manager-only access is a CFCF product rule"));
 });
 
+test("RLS changes preserve PWA refresh, cache isolation, and record presentation", () => {
+  assert.ok(contract.includes("must not alter the current PWA's Supabase query shapes, workspace refresh flow, cache hydration"));
+  assert.ok(contract.includes("Preserve IndexedDB/offline cache isolation across tenant changes and logout."));
+  assert.ok(contract.includes("two synthetic tenants with distinct Funds and records"));
+  assert.ok(contract.includes("no cross-tenant leakage"));
+});
+
 test("tenant boundaries and real ingress authentication remain required", () => {
   assert.ok(contract.includes("Do not add a separate tenant-session key, API key, or authentication key to the PWA-to-n8n request contract."));
   assert.ok(contract.includes("The PWA sends `product_id`, `tenant_id`, `person_id`, the requested action"));
