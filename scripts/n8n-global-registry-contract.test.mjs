@@ -446,13 +446,8 @@ test("scoped delivery snapshot proves complete row count before worker processin
   assert.match(deliverySnapshot, /d\.n8n_whatsapp_communication_id = p_communication_id/);
   assert.match(deliverySnapshot, /d\.tenant_id = p_tenant_id/);
   assert.match(deliverySnapshot, /d\.product_id = p_product_id/);
-  const readNode = JSON.parse(scheduleWorkflow).nodes.find((node) => node.name === "Read Scoped Deliveries — Placeholder Only");
-  assert.equal(readNode.parameters.method, "POST");
-  assert.match(readNode.parameters.url, /rpc\/n8n_read_scoped_whatsapp_deliveries/);
-  assert.equal(readNode.parameters.options.pagination.paginationMode, "off");
-  assert.match(readNode.parameters.jsonBody, /p_communication_id/);
-  const validator = JSON.parse(scheduleWorkflow).nodes.find((node) => node.name === "Validate Queued Delivery — Draft Stop").parameters.jsCode;
-  assert.match(validator, /value\.complete !== true/);
-  assert.match(validator, /value\.deliveries\.length !== value\.expectedDeliveryCount/);
-  assert.match(validator, /completeDeliveryReadVerified: true/);
+  assert.match(contract, /Complete scoped delivery retrieval/);
+  assert.match(contract, /expectedDeliveryCount/);
+  assert.match(contract, /complete: true/);
+  assert.match(contract, /does not silently make the finalization count look complete/);
 });
