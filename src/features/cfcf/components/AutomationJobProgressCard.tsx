@@ -1,5 +1,5 @@
 // CFCF PRODUCT: Simple, read-only manager view of recent automation job status.
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Activity, Clock3, RefreshCw } from "lucide-react";
 import { listCfcfAutomationJobStatus, type CfcfAutomationJobStatus } from "../services/automation-jobs.service";
 import type { AuthorizedWorkspace } from "../../../core/workspace/workspace.types";
@@ -36,24 +36,39 @@ export function AutomationJobProgressCard({ workspace }: AutomationJobProgressCa
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
+  const requestVersion = useRef(0);
 
   const refresh = useCallback(async () => {
     if (!enabled) return;
+    const version = ++requestVersion.current;
+    const requestedTenantId = workspace.tenantId;
     setLoading(true);
     setFailed(false);
     try {
-      setJobs(await listCfcfAutomationJobStatus(workspace.tenantId));
+      const nextJobs = await listCfcfAutomationJobStatus(requestedTenantId);
+      // Ignore a late response from a previous tenant or superseded refresh.
+      if (version !== requestVersion.current) return;
+      setJobs(nextJobs);
       setLoaded(true);
     } catch {
+      if (version !== requestVersion.current) return;
       setFailed(true);
       setLoaded(true);
     } finally {
-      setLoading(false);
+      if (version === requestVersion.current) setLoading(false);
     }
   }, [workspace.tenantId]);
 
   useEffect(() => {
+    // Never carry the previous tenant's status rows into a new workspace.
+    setJobs([]);
+    setLoaded(false);
+    setFailed(false);
     if (enabled) void refresh();
+    return () => {
+      // Invalidate any request still in flight when tenant scope changes/unmounts.
+      requestVersion.current += 1;
+    };
   }, [refresh]);
 
   return (
