@@ -1,34 +1,32 @@
-// CFCF PRODUCT: Read-only manager progress projection from the global ClearFlow job registry.
+// CFCF PRODUCT: Read-only manager job status from the shared storage table.
 import { supabase } from "../../../core/database/supabaseClient";
 import { cfcfConfig } from "../config/cfcf.config";
 import type { CfcfProductId } from "../types/database.types";
 
-export interface CfcfAutomationJobProgress {
+export interface CfcfAutomationJobStatus {
   job_id: number;
   product_id: CfcfProductId;
   tenant_id: string;
   job_type: string;
-  status: "queued" | "processing" | "completed" | "partial" | "failed" | "uncertain" | "cancelled";
+  status: "queued" | "processing" | "completed" | "failed" | "cancelled";
+  request_id: string | null;
   created_at: string;
-  last_safe_update_at: string;
+  updated_at: string;
   completed_at: string | null;
-  progress_summary: Record<string, number | null> | null;
-  needs_review: boolean;
 }
 
 /**
- * Reads only the safe progress view. Never select job_data, recipient arrays,
- * message bodies, phone numbers, provider payloads, or raw error details.
+ * Reads safe status metadata only. Never selects the private job_data payload.
  */
-export async function listCfcfAutomationJobProgress(tenantId: string): Promise<CfcfAutomationJobProgress[]> {
+export async function listCfcfAutomationJobStatus(tenantId: string): Promise<CfcfAutomationJobStatus[]> {
   if (!tenantId.trim()) throw new Error("Authorized tenant scope is required.");
   const { data, error } = await supabase
-    .from("n8n_global_job_progress")
-    .select("job_id, product_id, tenant_id, job_type, status, created_at, last_safe_update_at, completed_at, progress_summary, needs_review")
+    .from("n8n_global_jobs")
+    .select("job_id, product_id, tenant_id, job_type, status, request_id, created_at, updated_at, completed_at")
     .eq("product_id", cfcfConfig.productId)
     .eq("tenant_id", tenantId)
-    .order("last_safe_update_at", { ascending: false })
+    .order("updated_at", { ascending: false })
     .limit(5);
   if (error) throw error;
-  return (data ?? []) as CfcfAutomationJobProgress[];
+  return (data ?? []) as CfcfAutomationJobStatus[];
 }
