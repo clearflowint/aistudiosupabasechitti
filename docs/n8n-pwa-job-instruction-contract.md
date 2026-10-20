@@ -104,6 +104,21 @@ The future production worker must execute these gates in this order, before crea
 
 The service-role credential is held only in n8n and never returned to the PWA. The current inactive preview workflow does **not** implement these checks and must not be treated as secure merely because it validates the request shape.
 
+## Authorization test matrix
+
+Before any live integration, run these cases with no provider calls and no production writes:
+
+- Missing Authorization header → 401; no database access beyond Auth validation.
+- Invalid or expired Supabase access token → 401.
+- Valid authenticated user with no active tenant access → 403.
+- Active non-owner or owner for a different tenant/product → 403.
+- Inactive tenant or inactive owner access row → 403.
+- Body-supplied email/person/owner flag conflicts with verified Auth identity → ignore body identity and authorize only from verified identity; reject if owner check fails.
+- Duplicate `request_id` for the same product/tenant → return existing job ID and do not queue or dispatch a second time.
+- Same `request_id` in another tenant/product → separate scope; never expose the other tenant's job.
+- Group-resolved audience of 0 → reject without job dispatch; 1–100 unique → proceed to the next approved stage; 101+ unique → reject the whole request before provider calls.
+- Provider outcome timeout/ambiguous → mark `uncertain`, stop automatic retries, and require manual reconciliation.
+
 ## Security and rollout gates
 
 Before any webhook activation or PWA integration:
