@@ -8,7 +8,7 @@ create table public.n8n_global_jobs (
   product_id text not null,
   tenant_id text not null,
   -- Open-ended request channel for PWA, WhatsApp, AI, API, system, or future sources.
-  source_type text not null default 'system',
+  source_type text not null,
   job_type text not null,
   status text not null default 'queued'
     check (status in ('queued', 'processing', 'completed', 'failed', 'cancelled')),
