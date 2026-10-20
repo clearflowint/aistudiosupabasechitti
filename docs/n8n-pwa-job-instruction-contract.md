@@ -52,6 +52,7 @@ Allowed statuses for the first version: `queued`, `processing`, `completed`, `fa
 - Private request/result JSON is not exposed to browser clients.
 - No generated progress view, recipient-state machine, event-history framework, lease/claim RPC, or generic retry engine is required for the first working flow.
 - The registry migration has been applied to the existing development-stage ClearFlow Platform project after explicit user approval.
+- A follow-up migration makes registry read policies product-aware without changing existing CFCF Funds, Shares, Cycles, Payments, archive, or PWA notification policies.
 
 ## Authentication and tenant boundaries
 
@@ -64,7 +65,7 @@ Allowed statuses for the first version: `queued`, `processing`, `completed`, `fa
 - Treat these as regression gates; a passing TypeScript build alone does not prove PWA data correctness.
 - RLS baseline: enforce strict `product_id` + `tenant_id` boundaries for tenant-owned records. Do not impose staff-to-staff or row-owner isolation as a global default. Add staff isolation only for products whose documented roles and workflows require it; keep those restrictions product-specific.
 - Apply the least restrictive policy that still preserves the product's actual tenant boundary and data permissions. Do not add blanket restrictions just because a table is shared across products.
-- The draft job table exposes safe status metadata only and remains tenant-scoped. CFCF's current manager-only access is a CFCF product rule, not a universal staff-isolation rule for every ClearFlow product.
+- The global job table exposes safe status metadata only and remains product/tenant-scoped. Its RLS is product-aware: CFCF status reads remain manager-only, while other products use their own active tenant-access rules. CFCF's manager-only rule is not a universal staff-isolation rule for every ClearFlow product.
 - PWA-originated actions use the `product_id`, `tenant_id`, and `person_id` supplied by the PWA contract; do not add a separate tenant-session key or authentication key to that request.
 - WAHA-to-n8n ingress configuration is source-specific; document the actual configuration rather than imposing a PWA authentication-key pattern on every source.
 - For the CFCF shared agency number/session, match the sender to one authoritative CFCF contact/tenant before accessing tenant data.
