@@ -24,13 +24,13 @@ The global table is not a global business workflow. Keep product-specific execut
 
 For WhatsApp, the selected design is a CFCF-dedicated shared number/session with CFCF-specific routing, plus a separate entry path for tenant-owned CFCF numbers/sessions. Keep inbound product routing out of a global workflow because the dedicated shared number already determines the product. The shared-number entry checks the sender against authoritative CFCF tenant/contact records before tenant-specific routing; the tenant-owned entry resolves the receiver number to a CFCF tenant and then checks the sender within that tenant. Ambiguous or unknown mappings follow the CFCF unknown-sender policy without private-data disclosure.
 
-Do not fan out one inbound event to multiple business workflows. Do not create or activate any new workflow as part of this design note. Reuse the exact existing names above and add a new workflow only when a distinct responsibility is confirmed. The CFCF schedule evaluator remains separate from WhatsApp inbound processing. Existing PWA notification tables/functions/data/cron jobs remain untouched; do not recreate rolled-back CFCF schedule/job tables or prototype RPCs.
+Do not fan out one inbound event to multiple business workflows. Do not activate any workflow from this design note. Reuse exact established names; the two separate CFCF inbound draft workflows are justified because shared-number and tenant-owned receiver resolution are different trust boundaries. The CFCF schedule evaluator remains separate from WhatsApp inbound processing. Existing PWA notification tables/functions/data/cron jobs remain untouched; do not recreate rolled-back CFCF schedule/job tables or prototype RPCs.
 
 ## Safety preflight status — 2026-10-20
 
 The existing inactive `CFCF Automation Worker — Draft` and `CFCF — Monthly Schedule Evaluator (Setup Required)` have been inspected. Their obsolete HTTP paths that depend on rolled-back CFCF schedule/job RPCs or the unapproved per-communication/per-delivery table model are disabled. The worker's WAHA session-inventory request is also disabled. No workflow was activated and no provider call was made.
 
-A manual, side-effect-free test of `CFCF Automation Worker — Draft` completed successfully and followed its false safety-gate branch to `Dry Run — no database changes`; the result states that no Supabase request was made. This confirms only that the safety gate remains closed. The WhatsApp entry workflows and production registry worker are still not implemented.
+A manual, side-effect-free test of `CFCF Automation Worker — Draft` completed successfully and followed its false safety-gate branch to `Dry Run — no database changes`; the result states that no Supabase request was made. This confirms only that the safety gate remains closed. The production registry worker and durable WhatsApp queue are still not implemented. Two inactive CFCF-specific ingress skeletons now exist, one for the shared number and one for tenant-owned numbers; both explicitly return queue-not-ready and must not be activated.
 
 ## Flow
 
@@ -94,3 +94,31 @@ A read-only production schema check confirmed the migration's tenant foreign-key
 - The PWA still uses its existing `campaign-dispatch` path. It has not been changed in this batch.
 - No production migration, deployment, credential changes, workflow activation, or provider sends occurred.
 - Existing PWA push tables/functions/data/cron jobs remain untouched. The rolled-back CFCF schedule/job tables and prototype functions are not recreated here.
+
+
+## Inbound queueing, sender acknowledgement, and failure policy
+
+The separate workflows are **CFCF — Shared WhatsApp Inbound (Draft)** and **CFCF — Tenant-Owned WhatsApp Inbound (Draft)**. Both are inactive skeletons with an unauthenticated webhook placeholder, validation-only Code node, and a 503 `DURABLE_QUEUE_NOT_CONFIGURED` response. They do not persist events, resolve tenant/contact records, or send WhatsApp acknowledgements. Do not activate until ingress authentication, authoritative lookup, durable idempotent enqueue, and acknowledgement controls are implemented and tested.
+
+Queueing is required at two distinct boundaries:
+
+1. **Ingress queue:** validate and deduplicate the inbound provider event, resolve tenant scope, then durably enqueue before returning a successful transport response. Do not run slow business logic or recipient loops inside the webhook request. The provider event ID is the transport idempotency key.
+2. **Business job queue:** the global `public.n8n_global_jobs` row is the durable work item after tenant scope is known. One job row holds request data, acknowledgement state, progress and bounded errors in JSONB. The CFCF worker claims a small bounded batch and processes recipients serially or with intentionally small concurrency. In-memory loops alone are not durable queues.
+
+The shared-number path must resolve sender to exactly one authoritative CFCF tenant/contact before creating a tenant-scoped job. The tenant-owned path resolves tenant from trusted receiver/session mapping and ignores any payload-supplied `tenant_id`; then it checks the sender's contact/role. Since the registry requires `tenant_id`, an unknown shared-number sender cannot be inserted as a normal tenant job. Do not invent a tenant or guess a match.
+
+Use two separate acknowledgements:
+
+- **Transport HTTP acknowledgement:** 2xx only after durable enqueue succeeds or an already-enqueued duplicate is recognized. If persistence fails, return retryable non-2xx. Idempotency must make provider redelivery safe.
+- **Human WhatsApp acknowledgement:** send one receipt after durable enqueue, with a safe reference and clear “please don't resend” wording. HTTP response to WAHA does not itself message the sender. Suppress duplicate receipt sends for the same provider event ID and do not reveal tenant/contact existence to unknown senders.
+
+Failure outcomes must be reviewable without blind retries:
+
+- Before enqueue: no “queued” sender receipt; retryable transport failure.
+- After enqueue but before any provider submission: preserve the same job; re-claim only when state proves no external submission occurred.
+- Definitive provider rejection: record a safe failed status; retry only if the failure is classified transient and the action is known safe.
+- Timeout/lost provider response after submission: mark `uncertain`, stop automatic resend, require manual review.
+- Ambiguous sender-acknowledgement result: mark acknowledgement `uncertain`; do not blindly resend it.
+- Execution failure: current **CFCF — Shared Error Handler** captures sanitized workflow/execution metadata only. It is not a durable alert, job-state update, lease-release mechanism, or sender message. Once the registry is approved, append a bounded error event and a safe review flag to the same job JSONB row; expose status/reference to the manager PWA. Keep event history capped at 500.
+
+Do not deduplicate distinct requests solely by message text. Use provider event IDs for transport deduplication and a scoped request ID for business-job idempotency. Keep queues/pacing independent per assigned WAHA session/manager; no cross-session fallback.
