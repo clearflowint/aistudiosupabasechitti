@@ -794,3 +794,23 @@ test("inbound contract: transport acknowledgement requires durable enqueue or co
     assert.ok(contract.includes(phrase), "missing inbound acknowledgement boundary: " + phrase);
   }
 });
+
+
+// Batch 34 — worker-to-registry compatibility boundary.
+test("worker adapter contract: every handover includes trusted product, tenant, and person identity", () => {
+  assert.ok(contract.includes("Worker-to-registry compatibility boundary — Batch 34"));
+  assert.ok(contract.includes("must carry and validate `product_id`, `tenant_id`, and `person_id`"));
+  assert.ok(contract.includes("never trust a body-supplied person ID as proof of authorization"));
+});
+
+test("worker adapter contract: reminder mapping is explicit and campaign stays out of reminder worker", () => {
+  assert.ok(contract.includes("map `pending_reminder` to `pending_due_reminder`"));
+  assert.ok(contract.includes("Campaign dispatch is not supported by the current reminder/report worker"));
+  assert.ok(contract.includes("Validate the fund against the exact product and tenant"));
+});
+
+test("worker adapter contract: legacy placeholders stay disabled until atomic registry adapter is tested", () => {
+  assert.ok(contract.includes("remain disabled"));
+  assert.ok(contract.includes("single-winner atomic claim against `n8n_global_jobs`"));
+  assert.ok(contract.includes("No migration or workflow activation is authorized by this contract"));
+});
