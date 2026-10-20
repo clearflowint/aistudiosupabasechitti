@@ -1,10 +1,10 @@
-# PWA to n8n contract — minimal first working version
+# ClearFlow source-to-engine contract — minimal first working version
 
-> This replaces the previous elaborate contract. The goal is a small, testable request-to-result flow. Product behavior belongs in the PWA and CFCF-owned n8n workflows; Supabase stores records. Older state-machine, lease, atomic-claim, generated-counter, and generic retry proposals are deferred unless a real test demonstrates the need.
+> This contract is source-independent. PWA is only one request source; WhatsApp, AI agents, APIs, and future products use the same central n8n ingress/execution architecture. Product behavior belongs in product-owned workflows; Supabase stores job records. Older state-machine, lease, atomic-claim, generated-counter, and generic retry proposals remain deferred unless a real test demonstrates the need.
 
 ## Request envelope
 
-The PWA sends only IDs and manager-entered options. Example:
+Each source adapter normalizes a request to a common envelope. The following is an example of a PWA-originated request, not a PWA-only contract:
 
 ```json
 {
@@ -33,15 +33,21 @@ The PWA sends only IDs and manager-entered options. Example:
 3. For the first working version, duplicate suppression is best-effort and happens at entry points. Do not add unique-index frameworks, leases, generic queues, or database-side workflow logic by default.
 4. If a real test demonstrates a material duplicate risk across concurrent executions or restarts—especially for an external message send—add the smallest targeted persistent guard for that action. Do not turn the whole database into a workflow engine.
 
-## Storage record
+## Central engine and storage record
 
-Use the minimal `public.n8n_global_jobs` draft table only for work that genuinely needs a progress/status view. A record contains a generated reference, product/tenant scope, action type, simple status, optional request ID, JSON request/result data, and timestamps. n8n creates and updates this record using its trusted server-side Supabase credential when a tracked task is requested. A database function/RPC is not needed.
+Every source enters n8n through an authenticated adapter. n8n validates identity and tenant/product scope, then routes the request. Only tasks needing lifecycle visibility or deferred execution create a `public.n8n_global_jobs` row; ordinary fetch/insert/update workflow operations do not automatically create jobs.
+
+A job record contains a generated reference, product/tenant scope, open-ended `source_type`, action type, status, optional request ID, optional `scheduled_at`, JSON request/result data, and timestamps. n8n creates and updates the record using its trusted server-side Supabase credential. A database function/RPC is not needed.
+
+For future-dated tasks, n8n persists the requested instant in `scheduled_at`. One shared n8n dispatcher checks for queued jobs whose time has arrived and routes them for execution. Do not create a separate scheduler per job or a separate CFCF recurring-reminder/report subsystem. Store the instant as `timestamptz` and normalize source time zones before writing it.
 
 Allowed statuses for the first version: `queued`, `processing`, `completed`, `failed`, `cancelled`.
 
-- n8n owns the workflow, creates the record for tracked tasks, and updates its status.
+- n8n owns source routing and execution, creates records for tracked/deferred tasks, and updates their status.
+- `source_type` is open-ended so future request channels do not require a schema change.
+- A shared n8n dispatcher handles future-dated jobs using `scheduled_at`.
 - Ordinary n8n executions that only fetch, insert, or update business records do not automatically create job records.
-- The PWA reads safe status metadata only.
+- The PWA reads safe status metadata only; other authorized interfaces can expose status appropriate to their source.
 - Private request/result JSON is not exposed to browser clients.
 - No generated progress view, recipient-state machine, event-history framework, lease/claim RPC, or generic retry engine is required for the first working flow.
 - The migration is a draft only; do not apply it without explicit approval of a named non-production environment.
