@@ -80,6 +80,7 @@ test("manager status card is read-only and enabled by default with an opt-out", 
   assert.ok(progressCard.includes('import.meta.env.VITE_CFCF_JOB_PROGRESS_ENABLED !== "false"'));
   assert.ok(progressCard.includes("No job data has been requested"));
   assert.ok(progressCard.includes("Read-only status from saved records"));
+  assert.ok(progressCard.includes("}, 30_000"));
   assert.ok(progressCard.includes("job.source_type.replaceAll"));
   assert.ok(progressCard.includes("Scheduled for {formatTime(job.scheduled_at)}"));
   assert.ok(homeShell.includes("{product.renderHomeContent?.(workspace)}"));
