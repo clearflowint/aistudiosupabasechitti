@@ -5,6 +5,8 @@ import { readFileSync } from "node:fs";
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 const schema = read("../supabase/migrations/20261020120000_n8n_global_whatsapp_registry.sql");
 const schedulesSchema = read("../supabase/migrations/20261018191014_cfcf_automation_schedules_jobs.sql");
+const scheduleBridge = read("../supabase/migrations/20261020140000_n8n_scheduled_cfcf_global_registration.sql");
+const scheduleWorkflow = read("../n8n/cfcf-monthly-schedule-evaluator.workflow.json");
 const lifecycle = read("../supabase/migrations/20261020123000_n8n_global_job_registration_rpc.sql");
 const history = read("../supabase/migrations/20261020130000_n8n_cfcf_job_history_rpc.sql");
 const contract = read("../docs/n8n-global-whatsapp-worker-contract.md");
@@ -416,4 +418,18 @@ test("CFCF workspace exposes five monthly schedule slots with India timezone and
   assert.match(schedulesSchema, /day_of_month smallint not null check \(day_of_month between 1 and 31\)/);
   assert.match(schedulesSchema, /slot_number between 1 and 3/);
   assert.match(schedulesSchema, /slot_number between 1 and 2/);
+});
+
+
+test("monthly schedule evaluator registers directly into global registry with a lease-safe occurrence", () => {
+  assert.match(scheduleBridge, /n8n_register_scheduled_cfcf_job/);
+  assert.match(scheduleBridge, /public\.n8n_register_whatsapp_job\(/);
+  assert.match(scheduleBridge, /cfcf-schedule:/);
+  assert.match(scheduleBridge, /v_schedule\.claimed_until is distinct from p_claimed_until/);
+  assert.match(scheduleBridge, /set last_run_at = p_scheduled_for/);
+  assert.match(scheduleBridge, /skipped_no_recipients/);
+  assert.doesNotMatch(scheduleBridge, /insert into public\.cfcf_automation_jobs/i);
+  assert.match(scheduleWorkflow, /rpc\/n8n_register_scheduled_cfcf_job/);
+  assert.match(scheduleWorkflow, /p_claimed_until: \$json\.claimed_until/);
+  assert.doesNotMatch(scheduleWorkflow, /rpc\/cfcf_enqueue_scheduled_automation_job/);
 });
