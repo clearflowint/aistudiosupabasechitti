@@ -5,8 +5,8 @@
 - Recurring monthly schedules, in `Asia/Kolkata` by default.
 - Per Fund: up to three pending-reminder slots and two report slots.
 - Day 29–31 schedules run on the month's last calendar day when that day does not exist.
-- n8n owns schedule evaluation, recipient selection, message/report preparation, paced delivery, retry policy, WAHA/provider interaction and progress updates.
-- Supabase stores schedule configuration and durable job history, enforces tenant ownership/deduplication, and provides atomic queue claims.
+- n8n owns schedule evaluation, recipient selection, message/report preparation, paced delivery, WAHA/provider interaction and progress updates. Do not automatically retry/requeue uncertain provider outcomes or blindly resend.
+- Supabase stores recurring schedule configuration. The global `n8n_global_jobs`, `n8n_whatsapp_communications`, and `n8n_whatsapp_deliveries` tables are the source of truth for WhatsApp job history and Manager Home progress.
 - Existing `clearflow_push_outbox` is reused for manager push alerts. Do not add another notification queue.
 - Report output is HTML/CSV or a link to an output artifact; do not reintroduce PDF generation.
 
@@ -37,7 +37,7 @@ One row per run, manual or scheduled:
 - progress: `recipient_count`, `processed_count`, `success_count`, `failed_count`, `skipped_count`, `progress_message`, `error_summary`, `result_summary`, `output_url`
 - timestamps: `created_at`, `accepted_at`, `started_at`, `completed_at`, `updated_at`
 
-The row is the single source of truth for Manager Home and Workspace job history. Composite foreign keys enforce that the job tenant/product pair exists and that any fund target belongs to that same tenant/product. No separate events/history table is planned initially.
+The legacy `cfcf_automation_jobs` row is not the source of truth for the current global WhatsApp worker. New scheduled occurrences are registered in the global WhatsApp registry by `n8n_register_scheduled_cfcf_job`; do not create duplicate history in the legacy queue. Existing legacy tables/functions remain untouched unless a separately approved cleanup is planned.
 
 ## Shared n8n tenant-isolation rule
 
@@ -50,11 +50,10 @@ The central worker may claim jobs for multiple tenants. That is intentional: eac
 ## Atomic claim functions
 
 - `cfcf_claim_due_automation_schedules(p_limit)` claims due schedules for five minutes using `FOR UPDATE SKIP LOCKED`.
-- `cfcf_claim_automation_jobs(p_limit)` claims queued/delayed jobs for five minutes and increments the attempt count.
-- `cfcf_fail_exhausted_automation_jobs(p_limit)` marks jobs failed after eight attempts once any active claim has expired; the worker should call this before claiming work.
+- The legacy `cfcf_claim_automation_jobs` and `cfcf_fail_exhausted_automation_jobs` functions belong to the older queue and are not part of the current global WhatsApp worker. Do not activate them for scheduled WhatsApp delivery.
 - `cfcf_initialize_automation_schedule(schedule_id, next_run_at, claimed_until)` initializes only a an enabled schedule whose `next_run_at` is null and whose current claim lease exactly matches the lease returned to that evaluator; it atomically releases the claim and prevents a stale evaluator from using a newer execution's lease.
 - `cfcf_release_automation_schedule_claim(schedule_id, error)` currently releases an unexpired claim by schedule ID. Do not wire it into recovery yet: a stale error execution could release a newer lease. Lease-safe recovery needs the expected claim timestamp and should only be added if the workflow can reliably pass it.
-- `cfcf_enqueue_scheduled_automation_job(schedule_id, scheduled_for, next_run_at)` creates the scheduled job and advances the recurrence in one transaction. Its idempotency key returns the existing job after an n8n timeout/retry.
+- The legacy `cfcf_enqueue_scheduled_automation_job` writes to the older `cfcf_automation_jobs` queue and must not be used by the global worker. The importable evaluator now calls `n8n_register_scheduled_cfcf_job(schedule_id, scheduled_for, next_run_at, claimed_until)`, which registers the global WhatsApp job/deliveries and advances the recurring schedule in one transaction with a stable occurrence key.
 - Both claim functions are executable only by `service_role`. n8n must use credentials stored in n8n, never browser variables. Manager RPCs are executable by `authenticated` but verify `auth.uid()` and `is_active_tenant_owner('CFCF', tenant_id)` on every call.
 
 The n8n workflow must initialize `next_run_at` for newly enabled schedules without immediately executing them, clear `claimed_until` on successful processing, calculate and store the next monthly run, and record an error/release claim when an execution fails. Claims expire so crashed executions can be recovered. Expired `processing` jobs can be reclaimed; after eight attempts, n8n must surface a final failure rather than loop indefinitely.
@@ -116,12 +115,12 @@ The workflow is deliberately inactive and contains no credentials or real Supaba
 1. Schedule Trigger runs every minute.
 2. Call `POST /rest/v1/rpc/cfcf_fail_exhausted_automation_jobs` first, then call `POST /rest/v1/rpc/cfcf_claim_due_automation_schedules` and `POST /rest/v1/rpc/cfcf_claim_automation_jobs` using stored n8n credentials. Newly created schedules may have `next_run_at = null`; initialize their next future monthly occurrence and release the claim without running a job immediately.
 3. For a claimed schedule with a real due timestamp, compute the next monthly occurrence in n8n and call `cfcf_enqueue_scheduled_automation_job(schedule_id, scheduled_for, next_run_at)`. This transaction creates the job and advances the schedule atomically. If `next_run_at` is null, initialize it to the next future occurrence and release the claim without creating a job.
-4. For each claimed job, validate the job type and ownership, then load only the required fund, share, bill and contact data.
-5. Pending reminders use saved pending/billing values; they must not invent dues or recalculate CFCF financial ledgers. Reports read saved records and render an HTML/CSV artifact. No PDF generation.
-6. Process recipients in n8n with bounded concurrency, provider-specific rate limits and retries only for transient failures. Never put phone numbers, message bodies or secrets into routine execution logs.
-7. Update the same job row with counts, progress, final status and timestamps. Do not create a second job for a retry.
-8. Enqueue manager push notifications through the existing `clearflow_push_outbox` with idempotency keys `automation-job:<job_id>:accepted` and `automation-job:<job_id>:final`. Keep push text generic.
-9. If a workflow crashes, allow the claim to expire and retry idempotently. A job must not be reported `completed` until its provider operations and final state update are done.
+4. The scheduled-registration RPC loads current saved Fund/Share/Contact values at the due time, then creates the global job and delivery rows. The worker validates the job scope before processing.
+5. Pending reminders use stored pending/advance values; do not invent dues or recalculate CFCF financial ledgers. Reports use saved records. Do not add PDF generation.
+6. Process recipients in the shared paced queue using the agreed 15/30/60-second randomized Wait and queue ordering. Do not automatically retry, requeue, or blindly resend when provider outcome is uncertain. Never put phone numbers, message bodies or secrets into routine execution logs.
+7. Update the same global job and delivery rows with actual counts, progress, final status and timestamps.
+8. Where manager push alerts are implemented, reuse the existing `clearflow_push_outbox` with idempotency keys `automation-job:<job_id>:accepted` and `automation-job:<job_id>:final`. Keep push text generic and preserve the two-notification pattern.
+9. If a worker crashes or a provider outcome is uncertain, preserve the known state for manual reconciliation. Do not claim completion while queued delivery rows remain.
 
 ## Still required before production activation
 
@@ -130,3 +129,8 @@ The workflow is deliberately inactive and contains no credentials or real Supaba
 - Finish the workflow's provider nodes and report delivery destination.
 - Verify manual and scheduled paths with a test tenant, including month-end dates, duplicate execution, claim expiry, retries, and manager push notifications.
 - Keep campaign launch disabled until the separate campaign acceptance/callback path has its own end-to-end test.
+
+
+## Batch 49 — Global queue is authoritative
+
+The monthly schedule UI uses the existing owner-checked schedule RPCs, but the old design text referred to a separate `cfcf_automation_jobs` queue. That queue is not compatible with the current global worker. Batch 49 updates the importable schedule evaluator to register due occurrences through the global registry RPC instead. The schedule evaluator and worker remain inactive pending disposable-database validation and workflow configuration. No legacy queue, PWA notification object, or production record was changed.
