@@ -769,3 +769,28 @@ test("readiness gate: recurring dates and protected PWA notifications cannot be 
   assert.ok(contract.includes("Do not change PWA notification tables, functions, data, or cron jobs"));
   assert.ok(contract.includes("migration remains unapplied"));
 });
+
+
+// Batch 33 — inbound identity and acknowledgement boundary.
+test("inbound contract: tenant scope comes from trusted receiver mapping, not payload tenant ID", () => {
+  for (const phrase of [
+    "Inbound identity and acknowledgement boundary — Batch 33",
+    "never use a tenant ID supplied only by the inbound payload as authority",
+    "Unknown or ambiguous mappings receive no tenant data",
+    "Deduplicate inbound provider events using the scoped provider/session/event identity"
+  ]) {
+    assert.ok(contract.includes(phrase), "missing inbound identity boundary: " + phrase);
+  }
+});
+
+test("inbound contract: transport acknowledgement requires durable enqueue or confirmed duplicate", () => {
+  for (const phrase of [
+    "Return HTTP 2xx only after durable enqueue succeeds or a duplicate is positively confirmed",
+    "If persistence outcome is unknown or enqueue fails, return retryable non-2xx",
+    "For quick operations, do not send a separate queued/receipt message",
+    "only after durable enqueue",
+    "Both inbound workflows remain inactive"
+  ]) {
+    assert.ok(contract.includes(phrase), "missing inbound acknowledgement boundary: " + phrase);
+  }
+});
