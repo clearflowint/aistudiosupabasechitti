@@ -124,3 +124,18 @@ Failure outcomes must be reviewable without blind retries:
 - Execution failure: current **CFCF — Shared Error Handler** captures sanitized workflow/execution metadata and explicit review/no-blind-retry flags only. It is not a durable alert, job-state update, lease-release mechanism, or sender message. Once the registry is approved, append a bounded error event and a safe review flag to the same job JSONB row; expose status/reference to the manager PWA. Keep event history capped at 500.
 
 Do not deduplicate distinct requests solely by message text. Use provider event IDs for transport deduplication and a scoped request ID for business-job idempotency. Keep queues/pacing independent per assigned WAHA session/manager; no cross-session fallback.
+
+## Inbound provider-event idempotency — Batch 23
+
+The registry draft now includes a partial unique index named `n8n_global_jobs_inbound_event_unique_idx` for `job_type = 'whatsapp_inbound'`, scoped by `product_id`, `tenant_id`, `provider_name`, trusted `session_name`, and `provider_event_id`. These values must be normalized from the authenticated provider event and authoritative routing context, never accepted as proof of identity from caller-supplied tenant fields.
+
+Enqueue sequence for an inbound event:
+
+1. Authenticate the inbound transport and validate required event fields.
+2. Resolve the trusted receiving session and exactly one authoritative CFCF tenant/contact/role as applicable.
+3. Build the provider event key from provider name, trusted session name, and provider event ID; check for an existing job in that scope.
+4. Insert one `whatsapp_inbound` job with the key and validated event metadata. The unique index is the concurrency guard if two webhook executions race.
+5. If insertion conflicts, fetch the existing job in the same product/tenant scope and return transport success without creating a second job or human sender receipt.
+6. If insert fails for any reason other than a confirmed duplicate, return retryable non-2xx. Never return accepted/queued before the write commits.
+
+The index is additive to the existing scoped `request_id` uniqueness. It does not replace request-level idempotency and does not authorize the sender. The migration remains draft-only and has not been applied to any database. No live enqueue or provider operation is implemented by this schema change.
