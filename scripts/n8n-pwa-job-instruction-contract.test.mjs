@@ -846,3 +846,29 @@ test("finalization adapter contract: stale counters and lease expiry cannot auth
   assert.ok(contract.includes("Lease expiry alone is not permission to reclaim and resend"));
   assert.ok(contract.includes("do not activate workflows or apply the draft migration"));
 });
+
+
+// Batch 36 — monthly occurrence idempotency contract.
+test("schedule contract: monthly dates are recovered, not guessed, and schedules remain in n8n", () => {
+  for (const phrase of [
+    "Monthly occurrence idempotency contract — Batch 36",
+    "must be recovered from the authoritative prior configuration",
+    "no exact dates or schedule nodes may be invented or activated",
+    "Do not add schedule tables, RPCs, new cron jobs in Supabase",
+    "does not authorize production writes"
+  ]) {
+    assert.ok(contract.includes(phrase), "missing schedule safety rule: " + phrase);
+  }
+});
+
+test("schedule contract: one durable job per stable occurrence and duplicate occurrence never dispatches twice", () => {
+  for (const phrase of [
+    "stable occurrence identity based on the configured schedule identity",
+    "Store the schedule identity, intended local occurrence, timezone",
+    "Derive a stable scoped `request_id` for that occurrence",
+    "If the occurrence already exists, return its existing job state",
+    "do not invent a new occurrence key to bypass idempotency"
+  ]) {
+    assert.ok(contract.includes(phrase), "missing occurrence idempotency rule: " + phrase);
+  }
+});
