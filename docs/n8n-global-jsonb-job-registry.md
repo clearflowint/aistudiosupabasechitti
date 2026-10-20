@@ -58,6 +58,10 @@ Use statuses that reflect evidence. Provider acceptance is not proof of delivery
 
 n8n is the only writer for a job's JSONB progress. Keep recipient processing and JSONB updates sequential within a job so simultaneous writes cannot overwrite one another. The PWA reads the saved document and does not mutate job state.
 
+## Schema preflight (read-only, production)
+
+A read-only production schema check confirmed the migration's tenant foreign-key target exists: `public.tenants` has `UNIQUE (tenant_id, product_id)`, matching the proposed `(tenant_id, product_id)` reference. The current `public.is_active_tenant_owner(p_product_id text, p_tenant_id text)` function also exists and checks the current authenticated email against an active `global_access_list` tenant-owner row and an active tenant for that product/tenant. This confirms those two prerequisites only; the draft migration has not been executed and production rollout is not authorized.
+
 ## Implementation state
 
 - PR #24 contains the additive registry migration as a draft; it has not been merged or applied to production.
