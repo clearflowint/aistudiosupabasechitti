@@ -483,3 +483,24 @@ The future registry adapter must derive final job status from the persisted reci
 - A retryable pre-enqueue failure may be retried only when evidence proves no job was durably created and no provider submission occurred. If persistence outcome is ambiguous, stop and reconcile; do not invent a new occurrence key to bypass idempotency.
 - Scheduling remains in n8n configuration. Do not add schedule tables, RPCs, new cron jobs in Supabase, or changes to existing PWA notification cron jobs.
 - This contract does not activate or configure any schedule and does not authorize production writes.
+
+
+## Controlled non-production test evidence matrix — Batch 37
+
+This is a go/no-go checklist, not authorization to execute against a database. A controlled test run may begin only after the user explicitly approves a specific non-production Supabase project and confirms it has no billable branch or unexpected billing impact.
+
+| Test | Required evidence | Fail-safe on failure |
+|---|---|---|
+| Auth and ownership | Valid owner token sees only its exact active product/tenant; invalid token is 401; unauthorized or cross-tenant scope is denied without details | Stop before private reads or writes |
+| Durable enqueue/idempotency | First request creates one row; same request and concurrent duplicate return the same canonical job ID | No dispatch until durable result is known |
+| Atomic claim | Two workers competing for one queued job yield one winning claim and at most one dispatch-capable worker | Stop dispatch if claim result is ambiguous |
+| Sequential JSONB updates | Two recipient outcomes persist without lost updates; counters match the saved recipient array | Mark unsafe state for review; do not dispatch further recipients |
+| Provider boundary | Mock success, explicit failure, pre-submission timeout, and timeout after possible submission are distinguished | Possible submission with unknown outcome becomes uncertain; no resend |
+| Inbound event | Authenticated event enqueues once; duplicate is recognized; unauthorized receiver/sender reveals no tenant data | HTTP 2xx only after durable enqueue or confirmed duplicate |
+| Manager read model | Owner sees allowlisted progress only; cross-tenant lookup reveals no job details; read does not mutate | Hide progress and fail closed |
+| PWA regression | Existing notification tables, functions, data, and cron jobs are unchanged | Abort integration |
+| Schedule idempotency | Test-only occurrence produces one stable job; duplicate occurrence creates no second dispatch | Keep all schedules inactive until exact approved dates are recovered |
+
+Capture each test's environment, commit SHA, workflow execution ID, expected result, observed result, and cleanup evidence. Use synthetic contacts and provider mocks only. Do not use real phone numbers, real WhatsApp sends, production data, production credentials, or production migration paths.
+
+The readiness review is blocked until actual WAHA-to-n8n authentication is verified from configuration, the approved monthly dates are recovered, and the user has explicitly approved the target non-production environment. Passing static CI alone does not satisfy any live integration gate.
