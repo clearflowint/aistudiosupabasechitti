@@ -62,7 +62,7 @@ test("acknowledgement stays simple and ambiguous external sends are not automati
 });
 
 test("tracked jobs are created by n8n only for work needing progress; CFCF schedules are out of scope", () => {
-  assert.ok(contract.includes("n8n creates and updates the record using its trusted server-side Supabase credential"));
+  assert.ok(contract.includes("n8n updates lifecycle status using its trusted server-side Supabase credential"));
   assert.ok(contract.includes("One shared n8n dispatcher checks for queued jobs whose time has arrived"));
   assert.ok(contract.includes("do not automatically create jobs"));
   assert.ok(contract.includes("PWA, WhatsApp, AI agents, APIs, and future products"));
