@@ -93,6 +93,11 @@ export function AutomationJobProgressCard({ workspace }: AutomationJobProgressCa
             const processed = safeCount(job.progress_summary, "processed_count");
             const total = safeCount(job.progress_summary, "recipient_count");
             const uncertain = safeCount(job.progress_summary, "uncertain_count") ?? 0;
+            const accepted = safeCount(job.progress_summary, "accepted_count");
+            const failedCount = safeCount(job.progress_summary, "failed_count");
+            const skipped = safeCount(job.progress_summary, "skipped_count");
+            const pending = safeCount(job.progress_summary, "pending_count");
+            const submitting = safeCount(job.progress_summary, "submitting_count");
             const needsReview = job.needs_review || job.status === "uncertain" || uncertain > 0;
             return (
               <article key={job.job_id} className="min-w-0 rounded-xl border border-slate-200 p-3">
@@ -102,6 +107,21 @@ export function AutomationJobProgressCard({ workspace }: AutomationJobProgressCa
                 </div>
                 <p className="mt-1 break-words text-xs text-slate-600">{job.job_type.replaceAll("_", " ")}</p>
                 {processed !== null && total !== null && <p className="mt-2 text-sm font-medium text-slate-800">{processed} / {total} recipients processed</p>}
+                <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                  {[
+                    ["Accepted", accepted],
+                    ["Failed", failedCount],
+                    ["Skipped", skipped],
+                    ["Uncertain", uncertain],
+                    ["Pending", pending],
+                    ["Submitting", submitting],
+                  ].filter((entry): entry is [string, number] => entry[1] !== null).map(([label, count]) => (
+                    <div key={label} className="rounded-lg bg-slate-50 px-2.5 py-2">
+                      <p className="text-[11px] text-slate-500">{label}</p>
+                      <p className="text-sm font-semibold text-slate-800">{count}</p>
+                    </div>
+                  ))}
+                </div>
                 <p className="mt-2 flex items-start gap-1.5 text-xs leading-5 text-slate-500"><Clock3 size={14} className="mt-0.5 shrink-0" /> Last updated {formatTime(job.last_safe_update_at)}</p>
                 {needsReview && <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-amber-50 p-2 text-xs font-semibold leading-5 text-amber-900"><AlertTriangle size={14} className="mt-0.5 shrink-0" /> Manual review required. Do not resend automatically.</p>}
               </article>
