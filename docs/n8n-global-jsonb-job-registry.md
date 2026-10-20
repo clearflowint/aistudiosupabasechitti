@@ -18,16 +18,18 @@ One row per job in `public.n8n_global_jobs`:
 - `job_data`: JSONB for request/result details that need to be saved.
 - timestamps: created, updated, and completed.
 
-The draft migration deliberately does not add generated progress columns, a manager progress view, event-history machinery, recipient-count constraints, queue indexes, leases, stored procedures, RPCs, or schedule tables. It does not alter existing PWA notification tables, functions, data, or cron jobs.
+The draft migration deliberately does not add generated progress columns, a manager progress view, event-history machinery, recipient-count constraints, queue indexes, leases, stored procedures, RPCs, or schedule tables. It does not alter existing PWA notification tables, functions, data, or cron jobs. No database function is needed to create jobs.
 
 The manager UI reads only safe status columns, never the private `job_data` payload. Row-level security limits reads to the active tenant owner. The service role is used only by trusted n8n/server-side integration.
 
 ## Request handling
 
-1. The PWA prevents ordinary double taps by disabling the submit button while a request is pending and showing a clear result.
-2. n8n validates the inbound request and checks request/event identity at ingress before running the workflow.
-3. n8n performs the product-specific work and stores the current status and relevant result.
-4. The PWA reads status metadata and shows the saved state.
+1. A request that genuinely needs visible progress is sent to its n8n workflow (for example, through an authenticated webhook).
+2. n8n validates the inbound request and authorization context. It creates a row in `n8n_global_jobs` using its trusted server-side Supabase credential, then executes the requested work and updates that row's status/result.
+3. The PWA reads safe status metadata and shows the saved state.
+4. Ordinary n8n operations that merely fetch, insert, or update business records do not create job rows. A workflow execution is not automatically a tracked job.
+
+The database is the record store, not the job creator or workflow coordinator. A database function/RPC is not required for this flow. Keep the service-role credential only in trusted n8n/server-side configuration, never in the browser.
 
 For the first working version, duplicate suppression at the PWA and n8n entry points is intentionally simple and best-effort. Do not claim exactly-once processing. If testing demonstrates that a particular external action needs restart-safe duplicate protection, add the smallest targeted persistence mechanism for that action rather than expanding the general job table into a queue framework.
 
