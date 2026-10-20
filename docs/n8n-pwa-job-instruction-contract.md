@@ -411,6 +411,14 @@ Batch 30 adds contract tests and design documentation only. It does not implemen
 
 A controlled non-production end-to-end test may start only after each gate below has evidence, not merely a design note or synthetic model:
 
+Explicit readiness checklist:
+- Gate: WAHA-to-n8n authentication is verified.
+- Gate: durable idempotent enqueue is implemented and tested.
+- Gate: atomic job claim and sequential JSONB updates are implemented.
+- Gate: tenant-scoped read-only progress retrieval is implemented.
+- Gate: uncertain provider outcomes cannot trigger automatic resend.
+- Until these gates pass, both inbound workflows remain inactive, the draft migration has not been applied, and there are no live provider sends.
+
 1. **Ingress authentication:** inspect the actual WAHA deployment and verify the real transport/authentication mechanism end to end. Generic n8n credential names are not proof.
 2. **Durable persistence:** apply the approved migration only to an explicitly approved non-production database, then verify insert, duplicate conflict, exact tenant scope, and safe read behavior. Do not create a billable Supabase branch.
 3. **Worker coordination:** implement and verify atomic job claims, serialized JSONB updates, lease handling, and bounded event history. Repository models alone do not satisfy this gate.
