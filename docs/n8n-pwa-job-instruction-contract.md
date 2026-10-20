@@ -439,3 +439,16 @@ Until the owner approves the next test environment and the prerequisites are evi
 - For quick operations, do not send a separate queued/receipt message; send the actual result after completion. For work that genuinely takes longer than a normal interactive response, send at most one human receipt and only after durable enqueue. Receipt delivery uncertainty must not trigger a blind resend.
 - Keep provider message body and sender data out of manager-facing progress summaries and routine logs. Do not include secrets, auth headers, or raw provider payloads in errors.
 - This batch is a static contract only. Both inbound workflows remain inactive and their current 503 placeholder remains; no webhook auth, durable queue, credentials, or live messaging was changed.
+
+
+## Worker-to-registry compatibility boundary — Batch 34
+
+The current inactive worker and the proposed global registry do not yet share a fully implemented live contract. Treat the following as a mandatory adapter contract before wiring any registry I/O:
+
+- Every PWA-to-n8n or n8n-to-product-workflow handover must carry and validate `product_id`, `tenant_id`, and `person_id`. `person_id` must be resolved from trusted authenticated identity/contact data; never trust a body-supplied person ID as proof of authorization.
+- Product-neutral instruction actions remain `campaign`, `pending_reminder`, and `report`. The CFCF reminder worker's internal job type is `pending_due_reminder`; a validated adapter may map `pending_reminder` to `pending_due_reminder` only after confirming the intended fund and schedule occurrence. Preserve the external action and schedule occurrence in job metadata for auditability.
+- Campaign dispatch is not supported by the current reminder/report worker. Route it only to a separately approved CFCF campaign path; do not pass campaign jobs into the reminder worker or silently translate action names.
+- A reminder/report job must include a trusted, tenant-scoped `fund_id` where that job type requires a fund. Validate the fund against the exact product and tenant before reading shares or creating provider payloads.
+- The draft worker's legacy CFCF RPC paths, legacy communication/delivery table placeholders, and WAHA session inventory node remain disabled. The global-registry claim/read/write/finalization placeholders remain disabled. Do not re-enable these old paths or attach credentials as a shortcut.
+- Before implementation, add a single-winner atomic claim against `n8n_global_jobs`, durable sequential JSONB updates, and a finalization adapter that maps recipient evidence to job status. A pure model or a mock execution does not prove these database guarantees.
+- Keep the existing worker inactive and mock-only until the adapter passes static tests and approved non-production tests. No migration or workflow activation is authorized by this contract.
