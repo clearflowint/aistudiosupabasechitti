@@ -339,3 +339,16 @@ This is a synthetic contract model, not a PostgreSQL or n8n integration test. It
 The enqueue contract model now checks that an existing request is considered a duplicate only when product ID, tenant ID, and request ID all match. A matching request ID from a different tenant or product must not be returned as the caller's job; it remains a distinct scope. This complements the database's scoped unique index and the separate inbound provider-event identity key.
 
 This is a synthetic test of decision rules, not a live database query or authorization implementation. A real ingress still must authenticate the source, resolve authoritative tenant scope, and confirm a duplicate row within that exact scope before returning success.
+
+
+## Recipient submission transitions — Batch 27
+
+Recipient dispatch state is a safety boundary, not a generic retry loop:
+
+- A recipient may be reclaimed as `pending` only when durable state proves no provider submission was attempted (for example, the worker failed before the external-call boundary).
+- Once submission may have started, a timeout, lost response, connection reset, or otherwise ambiguous provider result must become `uncertain`. Do not automatically submit that recipient again; expose it for manager/manual review.
+- A definitive provider acceptance becomes `provider_accepted` and must not be dispatched again by a later worker run. Provider acceptance does not prove delivery or read status.
+- A definitive provider rejection becomes `failed`. Do not turn it into an automatic retry unless a separately approved rule proves the rejection is transient and the operation safe; this batch does not add such retry behavior.
+- State transitions must be persisted before a worker proceeds to the next recipient, with sequential updates to the same job JSONB row and bounded event history (maximum 500). Do not add per-recipient tables, RPCs, or schedule tables.
+
+Batch 27 validation is repository-only. Its pure model tests state-decision rules and does not prove a real worker lease, durable update, or provider outcome. The worker remains mock-only and inactive; the migration remains unapplied; no live provider call, retry, requeue, PWA notification change, or deployment was performed.
