@@ -9,19 +9,20 @@ Use one global table, `public.n8n_global_jobs`, for job tracking across ClearFlo
 - `product_id`, `tenant_id`, `job_type`, `status`, and timestamps are searchable columns.
 - `job_data` is the single JSONB document for the instruction, prepared payload, recipients, per-recipient statuses, acknowledgement events, progress, errors and summary.
 - No per-recipient delivery table, separate communication table, automation RPC, or generic database function is introduced.
-- The PWA can read only jobs for its active product/tenant owner. n8n is the writer using credentials stored in n8n, never in browser code.
+- The PWA can read only jobs for its active product/tenant owner. n8n is the writer using server-side credentials, never browser code.
 
 ## Flow
 
-1. The PWA sends the manager's instruction, product ID, tenant ID and selected IDs to the n8n webhook. The PWA is the source of the active tenant context.
-2. n8n validates the signed-in user's token and confirms that the user is an active owner of that product/tenant before acting on the instruction.
-3. n8n fetches authoritative data from the existing Supabase tables, prepares the payload, and creates one job row with a database-generated job ID.
-4. n8n executes the requested work and updates the same row's `status`, `job_data`, and `updated_at` as progress and acknowledgements arrive.
-5. The PWA reads the row and displays progress. It does not prepare messages, reports, recipient payloads, or schedules.
+1. The PWA sends the manager's instruction, product ID, tenant ID, action and selected IDs.
+2. n8n validates the authenticated user's identity and confirms active owner access for the exact product/tenant before reading private data or writing a job.
+3. n8n fetches authoritative data from existing Supabase tables, deduplicates recipients, and resolves the actual recipient count.
+4. For an approved production job, n8n creates one job row and uses the returned database `job_id` as the canonical Job ID.
+5. n8n updates the same row's `status` and `job_data` as progress and acknowledgements arrive.
+6. The PWA reads the row and displays progress. It does not prepare messages, reports, recipient payloads, or schedules.
 
 ## Campaign batch limit
 
-A campaign batch contains 1–100 unique contacts. n8n must count the resolved contacts and reject a larger batch before any provider call. The database constraint also rejects any campaign job document that contains a `recipients` array longer than 100. Do not silently split a batch into multiple jobs.
+A campaign batch contains 1–100 unique resolved contacts. n8n must reject a larger batch before any provider call. The database constraint also rejects any campaign job document that contains a `recipients` array longer than 100. Do not silently split a batch into multiple jobs.
 
 ## Example `job_data`
 
@@ -56,6 +57,12 @@ Use statuses that reflect evidence. Provider acceptance is not proof of delivery
 
 n8n is the only writer for a job's JSONB progress. Keep recipient processing and JSONB updates sequential within a job so simultaneous writes cannot overwrite one another. The PWA reads the saved document and does not mutate job state.
 
-## Scope and safety
+## Implementation state
 
-This is an additive, PR-only schema proposal. It does not create or activate n8n workflows, configure credentials, deploy the PWA, or apply a production migration. It does not touch the existing PWA push-notification tables, functions, data, or cron jobs. Existing rolled-back CFCF scheduled-automation tables/functions are not recreated here.
+- PR #24 contains the additive registry migration as a draft; it has not been merged or applied to production.
+- The n8n workflow **ClearFlow — JSONB Job Contract Preview (Draft Only)** exists in the personal n8n project, is confirmed inactive, and has three nodes: Webhook → validation-only Code node → JSON response.
+- That workflow performs structural validation only. It does not authenticate a caller, read Supabase, create/update a job, schedule work, call WAHA/provider APIs, or send callbacks. Do not activate it or connect the PWA to it.
+- The workflow was validated by the n8n Workflow SDK. Runtime preview validation and authenticated tenant checks remain outstanding.
+- The PWA still uses its existing `campaign-dispatch` path. It has not been changed in this batch.
+- No production migration, deployment, credential changes, workflow activation, or provider sends occurred.
+- Existing PWA push tables/functions/data/cron jobs remain untouched. The rolled-back CFCF schedule/job tables and prototype functions are not recreated here.
