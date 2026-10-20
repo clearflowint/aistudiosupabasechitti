@@ -309,7 +309,7 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
     const key = slot.jobType + ":" + slot.slotNumber;
     if (!scheduleFundId || savingScheduleKey) return;
     const day = Number(slot.dayOfMonth);
-    if (!Number.isInteger(day) || day < 1 || day > 31 || !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(slot.timeOfDay)) {
+    if (!Number.isInteger(day) || day < 1 || day > 31 || !/^([01]\d|2[0-3]):[0-5]\d$/.test(slot.timeOfDay)) {
       setScheduleError("Enter a day from 1 to 31 and a valid time before saving this slot.");
       return;
     }
