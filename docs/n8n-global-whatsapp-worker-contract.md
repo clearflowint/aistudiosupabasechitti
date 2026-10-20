@@ -438,3 +438,12 @@ A repository contract test asserts the mapping guard. This remains static/source
 - Updated both the importable monthly schedule evaluator JSON and the existing n8n workflow draft `CFCF — Monthly Schedule Evaluator (Setup Required)` (ID `u6OT8nIQIQrd9aM3`) to call the new global-registration RPC and pass the exact claimed lease. The live workflow remains inactive with no active version or triggers. Its RPC URL points to the existing Supabase project, but the new function is not deployed, so activating it now would fail; no workflow node was executed.
 - Added a static contract test that verifies the schedule bridge uses the global registry, stable occurrence idempotency, claim-lease validation, and does not insert into the legacy `cfcf_automation_jobs` queue.
 - Runtime SQL validation remains pending in a non-billable disposable Supabase environment. Do not deploy the migration or activate the schedule evaluator/worker before that validation. No PWA notification objects, production data, billable branch, or live sender were changed.
+
+
+## Batch 45 — Complete scoped delivery retrieval
+
+- Added PR-only service-role RPC migration `20261020143000_n8n_scoped_delivery_snapshot_rpc.sql`. It validates the communication, product and tenant scope, then returns one JSON snapshot containing the full ordered delivery list, its exact `expectedDeliveryCount`, and `complete: true`.
+- Updated the inactive worker's scoped delivery read to call this RPC rather than relying on REST range pagination. The downstream draft validator rejects missing completeness markers, invalid counts, count mismatches, duplicate delivery IDs, unknown statuses, and cross-tenant rows before it considers queued deliveries.
+- The RPC returns the exact count and rows together, so no page boundary or REST response cap can silently make the finalization count look complete. The worker path remains disconnected from triggers; sender and result writes remain blocked.
+- Added static regression assertions for the scoped snapshot RPC, service-role-only execution, complete count contract and workflow validator.
+- **Validation status:** waiting for GitHub Actions on this commit. SQL runtime validation still requires a non-billable disposable Supabase environment. No migration deployed, no live messages, no billable branch, no PWA notification changes, and no retries/requeue/blind resend.
