@@ -54,7 +54,7 @@ test("draft schema avoids workflow-engine machinery and duplicate indexes", () =
   assert.equal(migration.includes("campaign_limit"), false);
   assert.equal(migration.includes("n8n_global_job_progress"), false);
   assert.equal(migration.includes("create or replace function"), false);
-  assert.ok(contract.includes("Supabase is the durable record store; n8n is the request router, job creator, scheduler/dispatcher, and execution engine."));
+  assert.ok(contract.includes("Supabase is the durable record store; n8n is the validator, router, dispatcher, and execution engine."));
   assert.ok(contract.includes("The table is storage, not a workflow engine."));
   assert.ok(contract.includes("best-effort"));
   assert.ok(contract.includes("One shared n8n dispatcher checks queued rows"));
@@ -110,5 +110,5 @@ test("PWA can enqueue only tenant-owned manual CFCF campaign requests", () => {
   assert.ok(progressService.includes('window.dispatchEvent(new Event("clearflow:cfcf-job-queued"))'));
   assert.ok(workspacePage.includes('queueCampaign("pending_reminder_campaign")'));
   assert.ok(workspacePage.includes('queueCampaign("share_report_campaign")'));
-  assert.ok(workspacePage.includes("delivery remains blocked until the n8n worker and WhatsApp session are configured."));
+  assert.ok(workspacePage.includes("delivery remains blocked until the WAHA endpoint, session, and authentication are configured."));
 });
