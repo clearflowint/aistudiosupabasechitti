@@ -2761,6 +2761,71 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
       </Modal>
 
       <Modal
+        isOpen={isMonthlyScheduleOpen}
+        title="Monthly automation schedule"
+        description={scheduleFundName ? "Fund: " + scheduleFundName + " · Choose recurring dates and times for Pending reminders and Reports." : "Choose recurring monthly dates and times."}
+        size="large"
+        onClose={() => { if (!savingScheduleKey) setIsMonthlyScheduleOpen(false); }}
+      >
+        <div className="space-y-4">
+          <div className="rounded-xl border border-sky-100 bg-sky-50 p-3 text-sm leading-5 text-sky-900">
+            Schedules repeat every month in India time (Asia/Kolkata). If you choose day 29, 30 or 31 and that day does not exist in a month, the run is on that month’s final calendar day. A schedule only stores the plan; the n8n scheduler/worker must be enabled and validated before messages are sent.
+          </div>
+          {isLoadingScheduleSlots ? <LoadingCard message="Loading saved schedule slots…" /> : (
+            <div className="space-y-4">
+              {([
+                { jobType: "pending_due_reminder" as const, title: "Pending reminders", description: "Up to 3 recurring slots per Fund" },
+                { jobType: "report" as const, title: "Reports", description: "Up to 2 recurring slots per Fund" },
+              ]).map((group) => (
+                <section key={group.jobType} className="space-y-2">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">{group.title}</h3>
+                    <p className="text-xs text-slate-500">{group.description}</p>
+                  </div>
+                  {scheduleSlots.filter((slot) => slot.jobType === group.jobType).map((slot) => {
+                    const key = slot.jobType + ":" + slot.slotNumber;
+                    const isSaving = savingScheduleKey === key;
+                    const hasDayTime = Number.isInteger(Number(slot.dayOfMonth)) && Number(slot.dayOfMonth) >= 1 && Number(slot.dayOfMonth) <= 31 && /^([01]\d|2[0-3]):[0-5]\d$/.test(slot.timeOfDay);
+                    return (
+                      <article key={key} className="rounded-xl border border-slate-200 p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-semibold text-slate-800">Slot {slot.slotNumber}</p>
+                          <label className="inline-flex min-h-9 items-center gap-2 text-sm font-medium text-slate-700">
+                            <input type="checkbox" checked={slot.isEnabled} disabled={Boolean(savingScheduleKey)} onChange={(event) => updateScheduleDraft(slot.jobType, slot.slotNumber, { isEnabled: event.target.checked })} className="h-4 w-4 rounded border-slate-300" />
+                            {slot.isEnabled ? "Enabled" : "Disabled"}
+                          </label>
+                        </div>
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                          <label className="block text-xs font-medium text-slate-600">Day of month
+                            <input type="number" min="1" max="31" step="1" inputMode="numeric" value={slot.dayOfMonth} onChange={(event) => updateScheduleDraft(slot.jobType, slot.slotNumber, { dayOfMonth: event.target.value })} placeholder="1–31" disabled={Boolean(savingScheduleKey)} className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-900" />
+                          </label>
+                          <label className="block text-xs font-medium text-slate-600">Time (India)
+                            <input type="time" value={slot.timeOfDay} onChange={(event) => updateScheduleDraft(slot.jobType, slot.slotNumber, { timeOfDay: event.target.value })} disabled={Boolean(savingScheduleKey)} className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-900" />
+                          </label>
+                        </div>
+                        {slot.nextRunAt && <p className="mt-2 text-xs text-slate-500">Next run: {new Date(slot.nextRunAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}</p>}
+                        {slot.lastRunAt && <p className="mt-1 text-xs text-slate-500">Last run: {new Date(slot.lastRunAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}</p>}
+                        <div className="mt-3 flex justify-end">
+                          <button type="button" onClick={() => void handleSaveScheduleSlot(slot)} disabled={Boolean(savingScheduleKey) || !hasDayTime} className={"inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-white disabled:opacity-50 " + (group.jobType === "pending_due_reminder" ? "bg-amber-700" : "bg-sky-700")}>
+                            {isSaving ? <><RefreshCw size={15} className="animate-spin" /> Saving…</> : "Save slot"}
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </section>
+              ))}
+            </div>
+          )}
+          {scheduleError && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{scheduleError}</p>}
+          {scheduleNotice && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{scheduleNotice}</p>}
+          <div className="flex justify-end border-t border-slate-100 pt-3">
+            <button type="button" onClick={() => setIsMonthlyScheduleOpen(false)} disabled={Boolean(savingScheduleKey)} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700">Close</button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
         isOpen={databaseResult !== null}
         closeOnOverlayClick={false}
         closeOnEscape={false}
