@@ -117,7 +117,7 @@ begin
     set last_run_at = p_scheduled_for,
         next_run_at = p_next_run_at,
         claimed_until = null,
-        last_error = null,
+        last_error = 'No eligible saved Contacts with usable phone numbers; occurrence skipped',
         updated_at = now()
     where schedule_id = v_schedule.schedule_id;
 
