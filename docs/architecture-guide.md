@@ -82,7 +82,7 @@ Do not move fund selectors, cycle cards, share cards, CFCF tab state, or CFCF da
 - Large membership reads are paginated. Email campaigns warn about Contacts without email addresses; recipient records retain phone/email values for the future automation workflow.
 - The current Launch Campaign action only prepares and previews the request. It does not send messages. A future MIX integration may dispatch to the configured n8n webhook and must report success only after n8n acknowledges acceptance.
 
-- CFCF manager home automation progress is a product-owned widget: `src/features/cfcf/components/AutomationJobProgressCard.tsx` reads only the safe `n8n_global_job_progress` view through `src/features/cfcf/services/automation-jobs.service.ts`. It is disabled by default and requires `VITE_CFCF_JOB_PROGRESS_ENABLED=true` only after the draft registry view is approved, applied in the target environment, and verified. It does not read raw `job_data`, send messages, mutate job state, or poll automatically.
+- CFCF manager home automation progress is a product-owned widget: `src/features/cfcf/components/AutomationJobProgressCard.tsx` reads only safe status columns from `public.n8n_global_jobs` through `src/features/cfcf/services/automation-jobs.service.ts`. It is disabled by default and requires `VITE_CFCF_JOB_PROGRESS_ENABLED=true` only after the draft registry table is approved, applied in the target environment, and verified. It does not read raw `job_data`, send messages, mutate job state, or poll automatically.
 
 
 ## Portability-first architecture — approved direction
@@ -104,7 +104,7 @@ ClearFlow owns product behavior and business rules. Supabase, n8n, WhatsApp/WAHA
 
 ### Current implementation implications
 
-- Treat the draft n8n_global_jobs migration and simple status card as proposals under review, not mandatory architecture. Do not apply them until the simplified working flow and required data fields are agreed.
+- Treat the draft n8n_global_jobs migration and simple status card as proposals under review, not mandatory architecture. For tasks that need progress, n8n itself inserts and updates the row using its trusted server-side credential; no database function/RPC is needed. Ordinary n8n operations do not create tracked job rows. Do not apply the migration until the simplified working flow and required data fields are agreed.
 - Keep the CFCF progress card feature flag disabled until its data source is settled and tested.
 - Keep draft n8n ingress/worker workflows inactive until the smallest working request-to-result path is validated in a controlled non-production environment.
 - Do not change existing PWA notification tables, functions, data, or cron jobs as part of this review.
