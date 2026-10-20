@@ -405,3 +405,18 @@ Batch 30 adds contract tests and design documentation only. It does not implemen
 - A non-owner must receive no job data. Cross-tenant or cross-product lookups must return no job details, whether the job exists or not; do not leak existence through different error messages.
 - Reads must be side-effect-free: no status changes, counter repair, job claims, dispatch, or event writes. The PWA remains read-only.
 - This batch's pure model tests do not implement Supabase authorization, RLS, or a live API endpoint. The migration remains unapplied; use the verified auth context and server-side tenant scoping when implementing the read adapter.
+
+
+## Readiness gates before controlled non-production integration — Batch 32
+
+A controlled non-production end-to-end test may start only after each gate below has evidence, not merely a design note or synthetic model:
+
+1. **Ingress authentication:** inspect the actual WAHA deployment and verify the real transport/authentication mechanism end to end. Generic n8n credential names are not proof.
+2. **Durable persistence:** apply the approved migration only to an explicitly approved non-production database, then verify insert, duplicate conflict, exact tenant scope, and safe read behavior. Do not create a billable Supabase branch.
+3. **Worker coordination:** implement and verify atomic job claims, serialized JSONB updates, lease handling, and bounded event history. Repository models alone do not satisfy this gate.
+4. **Provider safety:** use a controlled mock first. Unknown outcomes must become **uncertain**; there must be no blind resend or automatic requeue.
+5. **Manager view:** verify the PWA reads only the authenticated manager's exact product/tenant scope and exposes safe progress without modifying records.
+6. **Schedule readiness:** recover the approved three monthly pending-reminder dates and two report dates from an authoritative decision record. Do not guess dates or create a parallel schedule table.
+7. **Protected systems:** verify that existing PWA notification tables, functions, data, and cron jobs remain unchanged.
+
+Until the owner approves the next test environment and the prerequisites are evidenced, both inbound workflows remain inactive, the worker remains mock-only, the draft migration remains unapplied, and there are no live provider sends or deployments. No credential changes or production writes are authorized by this checklist.
