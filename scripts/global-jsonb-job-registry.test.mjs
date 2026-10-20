@@ -24,7 +24,7 @@ test("request IDs are unique per product and tenant to prevent duplicate jobs", 
   assert.ok(migration.includes("n8n_global_jobs_request_id_unique_idx"));
   assert.ok(migration.includes("(product_id, tenant_id, (job_data ->> 'request_id'))"));
   assert.ok(migration.includes("where nullif(btrim(job_data ->> 'request_id'), '') is not null"));
-  assert.ok(contract.includes("duplicate request_id must return the existing job"));
+  assert.ok(contract.includes("return that job receipt and do not dispatch again"));
 });
 
 test("campaign recipient arrays have a hard 100-contact ceiling", () => {
