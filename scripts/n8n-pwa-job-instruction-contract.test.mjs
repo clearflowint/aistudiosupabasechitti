@@ -124,3 +124,127 @@ test("global registry and CFCF workflows have separate ownership and established
     assert.ok(contract.includes(phrase), `missing global/product workflow boundary: ${phrase}`);
   }
 });
+
+function normalizePhoneForMock(value) {
+  return String(value ?? "").replace(/[^0-9]/g, "");
+}
+
+// Contract-model only: this pure function models the intended routing rules.
+// It does not call WAHA, Supabase, n8n, or any network service.
+function routeInboundMock({ routingMode, productId, receiverNumber, senderNumber, sharedNumber, tenantOwnedNumbers, tenantContacts, allowUnknownTenantOwned = false }) {
+  const receiver = normalizePhoneForMock(receiverNumber);
+  const sender = normalizePhoneForMock(senderNumber);
+  if (!receiver || !sender) return { outcome: "invalid_event" };
+
+  if (routingMode === "shared_agency") {
+    if (productId !== "CFCF" || receiver !== normalizePhoneForMock(sharedNumber)) {
+      return { outcome: "unrecognized_entry_point" };
+    }
+    const matches = tenantContacts.filter(row => normalizePhoneForMock(row.phone) === sender);
+    if (matches.length === 0) return { outcome: "unknown_sender", productId: "CFCF", tenantId: null, notifyTenant: false };
+    if (matches.length !== 1) return { outcome: "ambiguous_sender", productId: "CFCF", tenantId: null, notifyTenant: false };
+    const match = matches[0];
+    return { outcome: "routed", productId: "CFCF", tenantId: match.tenantId, personId: match.personId, role: match.role ?? null };
+  }
+
+  if (routingMode === "tenant_owned") {
+    const tenantMatches = tenantOwnedNumbers.filter(row => normalizePhoneForMock(row.number) === receiver);
+    if (tenantMatches.length !== 1) return { outcome: "unrecognized_or_ambiguous_receiver" };
+    const tenantId = tenantMatches[0].tenantId;
+    const matches = tenantContacts.filter(row => row.tenantId === tenantId && normalizePhoneForMock(row.phone) === sender);
+    if (matches.length === 0) {
+      return { outcome: "unknown_sender", productId: "CFCF", tenantId, notifyTenant: allowUnknownTenantOwned };
+    }
+    if (matches.length !== 1) return { outcome: "ambiguous_sender", productId: "CFCF", tenantId: null, notifyTenant: false };
+    const match = matches[0];
+    return { outcome: "routed", productId: "CFCF", tenantId, personId: match.personId, role: match.role ?? null };
+  }
+
+  return { outcome: "unconfigured_routing_mode" };
+}
+
+test("mock routing: CFCF shared number resolves a registered sender to one tenant", () => {
+  const result = routeInboundMock({
+    routingMode: "shared_agency",
+    productId: "CFCF",
+    receiverNumber: "+91 90000 00001",
+    senderNumber: "+91-90000-00002",
+    sharedNumber: "+919000000001",
+    tenantOwnedNumbers: [],
+    tenantContacts: [{ tenantId: "tenant-a", personId: "person-a", phone: "+919000000002", role: "customer" }]
+  });
+  assert.deepEqual(result, { outcome: "routed", productId: "CFCF", tenantId: "tenant-a", personId: "person-a", role: "customer" });
+});
+
+test("mock routing: unknown shared-number sender is not assigned or notified to a guessed tenant", () => {
+  const result = routeInboundMock({
+    routingMode: "shared_agency",
+    productId: "CFCF",
+    receiverNumber: "+919000000001",
+    senderNumber: "+919000000099",
+    sharedNumber: "+919000000001",
+    tenantOwnedNumbers: [],
+    tenantContacts: [{ tenantId: "tenant-a", personId: "person-a", phone: "+919000000002", role: "owner" }]
+  });
+  assert.deepEqual(result, { outcome: "unknown_sender", productId: "CFCF", tenantId: null, notifyTenant: false });
+});
+
+test("mock routing: ambiguous shared sender match stops tenant-specific routing", () => {
+  const result = routeInboundMock({
+    routingMode: "shared_agency",
+    productId: "CFCF",
+    receiverNumber: "+919000000001",
+    senderNumber: "+919000000002",
+    sharedNumber: "+919000000001",
+    tenantOwnedNumbers: [],
+    tenantContacts: [
+      { tenantId: "tenant-a", personId: "person-a", phone: "+919000000002" },
+      { tenantId: "tenant-b", personId: "person-b", phone: "+919000000002" }
+    ]
+  });
+  assert.equal(result.outcome, "ambiguous_sender");
+  assert.equal(result.tenantId, null);
+});
+
+test("mock routing: tenant-owned receiver scopes sender lookup to that tenant", () => {
+  const result = routeInboundMock({
+    routingMode: "tenant_owned",
+    productId: "CFCF",
+    receiverNumber: "+919000000010",
+    senderNumber: "+919000000002",
+    sharedNumber: "+919000000001",
+    tenantOwnedNumbers: [{ tenantId: "tenant-a", number: "+919000000010" }],
+    tenantContacts: [
+      { tenantId: "tenant-a", personId: "person-a", phone: "+919000000002", role: "staff" },
+      { tenantId: "tenant-b", personId: "person-b", phone: "+919000000002", role: "owner" }
+    ]
+  });
+  assert.deepEqual(result, { outcome: "routed", productId: "CFCF", tenantId: "tenant-a", personId: "person-a", role: "staff" });
+});
+
+test("mock routing: tenant-owned unknown sender can only notify the receiver-resolved tenant when policy allows", () => {
+  const result = routeInboundMock({
+    routingMode: "tenant_owned",
+    productId: "CFCF",
+    receiverNumber: "+919000000010",
+    senderNumber: "+919000000099",
+    sharedNumber: "+919000000001",
+    tenantOwnedNumbers: [{ tenantId: "tenant-a", number: "+919000000010" }],
+    tenantContacts: [],
+    allowUnknownTenantOwned: true
+  });
+  assert.deepEqual(result, { outcome: "unknown_sender", productId: "CFCF", tenantId: "tenant-a", notifyTenant: true });
+});
+
+test("mock routing: unmapped or duplicate tenant-owned receiver is not guessed", () => {
+  const base = {
+    routingMode: "tenant_owned",
+    productId: "CFCF",
+    receiverNumber: "+919000000010",
+    senderNumber: "+919000000002",
+    sharedNumber: "+919000000001",
+    tenantContacts: [{ tenantId: "tenant-a", personId: "person-a", phone: "+919000000002", role: "owner" }]
+  };
+  assert.equal(routeInboundMock({ ...base, tenantOwnedNumbers: [] }).outcome, "unrecognized_or_ambiguous_receiver");
+  assert.equal(routeInboundMock({ ...base, tenantOwnedNumbers: [{ tenantId: "tenant-a", number: "+919000000010" }, { tenantId: "tenant-b", number: "+919000000010" }] }).outcome, "unrecognized_or_ambiguous_receiver");
+});
