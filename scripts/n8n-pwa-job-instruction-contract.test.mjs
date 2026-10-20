@@ -55,7 +55,7 @@ test("safety and existing architecture constraints are explicit", () => {
   assert.ok(contract.includes("No database write, WAHA/provider call, schedule, or callback"));
   assert.ok(contract.includes("The PWA is a read-only consumer of the global job registry"));
   assert.ok(contract.includes("Do not add automatic retries"));
-  assert.ok(contract.includes("not in new Supabase schedule tables or generic database functions"));
+  assert.ok(contract.includes("do not create a schedule table/RPC"));
 });
 
 test("multi-trigger design distinguishes PWA, WhatsApp, and schedule authentication", () => {
@@ -849,12 +849,12 @@ test("finalization adapter contract: stale counters and lease expiry cannot auth
 
 
 // Batch 36 — monthly occurrence idempotency contract.
-test("schedule contract: monthly dates are recovered, not guessed, and schedules remain in n8n", () => {
+test("schedule contract: manager-selected slots are not hard-coded and remain gated", () => {
   for (const phrase of [
     "Monthly occurrence idempotency contract — Batch 36",
     "not a set of fixed dates",
     "safe persistence location for these per-Fund slots remains unresolved",
-    "Do not add schedule tables, RPCs, new cron jobs in Supabase",
+    "Do not add schedule tables/RPCs, new Supabase cron jobs",
     "does not authorize production writes"
   ]) {
     assert.ok(contract.includes(phrase), "missing schedule safety rule: " + phrase);
