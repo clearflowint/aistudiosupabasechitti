@@ -767,5 +767,5 @@ test("readiness gate: no live integration until authentication and persistence p
 test("readiness gate: recurring dates and protected PWA notifications cannot be guessed or changed", () => {
   assert.ok(contract.includes("recover the approved three monthly pending-reminder dates and two report dates"));
   assert.ok(contract.includes("Do not change PWA notification tables, functions, data, or cron jobs"));
-  assert.ok(contract.includes("No production migration applied"));
+  assert.ok(contract.includes("migration remains unapplied"));
 });
