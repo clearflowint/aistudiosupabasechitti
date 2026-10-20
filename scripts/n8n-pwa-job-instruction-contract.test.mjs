@@ -53,7 +53,7 @@ test("draft preview cannot claim persistence or sending", () => {
 
 test("safety and existing architecture constraints are explicit", () => {
   assert.ok(contract.includes("No database write, WAHA/provider call, schedule, or callback"));
-  assert.ok(contract.includes("PWA is read-only for job progress"));
+  assert.ok(contract.includes("The PWA is a read-only consumer of the global job registry"));
   assert.ok(contract.includes("Do not add automatic retries"));
   assert.ok(contract.includes("not in new Supabase schedule tables or generic database functions"));
 });
@@ -664,15 +664,15 @@ test("manager PWA progress contract is read-only and exposes actionable safe sta
     "read-only consumer",
     "job reference",
     "current status",
-    "processed and total recipients",
+    "processed recipients / total recipients",
     "pending",
     "submitting",
     "provider_accepted",
     "failed",
     "uncertain",
     "last safe update",
-    "manual review",
-    "must not write to the job registry"
+    "Needs review",
+    "must not create jobs, change job status, dispatch messages, or repair progress counters"
   ]) {
     assert.ok(contract.includes(phrase), `missing manager progress presentation rule: ${phrase}`);
   }
