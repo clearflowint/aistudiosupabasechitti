@@ -46,11 +46,10 @@ test("acknowledgement stays simple and ambiguous external sends are not automati
   assert.ok(contract.includes("Do not build a general retry engine"));
 });
 
-test("monthly schedule requirements stay documented without changing protected notification infrastructure", () => {
-  assert.ok(contract.includes("three manager-selected monthly pending-reminder slots"));
-  assert.ok(contract.includes("two manager-selected monthly report slots"));
-  assert.ok(contract.includes("persistence location is not yet agreed"));
-  assert.ok(contract.includes("Do not add a schedule table/RPC"));
+test("tracked jobs are created by n8n only for work needing progress; CFCF schedules are out of scope", () => {
+  assert.ok(contract.includes("n8n creates and updates this record"));
+  assert.ok(contract.includes("do not automatically create job records"));
+  assert.ok(contract.includes("CFCF automatic scheduled reminders and reports are out of scope"));
   assert.ok(contract.includes("change existing PWA notification tables, functions, data, or cron jobs"));
   for (const protectedName of ["clearflow_push_subscriptions", "clearflow_push_outbox", "clearflow_push_alert_state"]) {
     assert.equal(migration.includes(protectedName), false);
