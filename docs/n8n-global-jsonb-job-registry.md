@@ -20,15 +20,15 @@ One row per job in `public.n8n_global_jobs`:
 - `job_data`: JSONB for request/result details that need to be saved.
 - timestamps: created, updated, and completed.
 
-The registry deliberately does not add generated progress columns, a manager progress view, event-history machinery, recipient-count constraints, leases, stored procedures, RPCs, or separate schedule tables. It uses one partial index to let a shared n8n dispatcher find due jobs. It does not alter existing PWA notification tables, functions, data, or cron jobs. For CFCF manual campaign requests only, a narrow insert grant and RLS policy let an authenticated active tenant owner enqueue a request; private `job_data` remains unreadable to the browser and browser updates/deletes are not granted.
+The registry deliberately does not add generated progress columns, a manager progress view, event-history machinery, recipient-count constraints, leases, stored procedures, RPCs, or separate schedule tables. It uses one partial index to let a shared n8n dispatcher find due jobs. It does not alter existing PWA notification tables, functions, data, or cron jobs. For CFCF manual campaign requests, the PWA submits an authenticated request to n8n. A temporary direct-PWA insert grant/policy was revoked. Only n8n creates the job row; the browser reads safe status fields and cannot update/delete jobs.
 
 The UI reads only safe status columns, never the private `job_data` payload. Row-level security is product-aware: CFCF status remains manager-only; other products use their own active tenant-access rules. Every read remains scoped by product and tenant. The service role is used only by trusted n8n/server-side integration.
 
 ## Request handling
 
-1. Every source—PWA, WhatsApp, AI agent, API, or future product—uses its appropriate adapter. CFCF manual reminder/report buttons insert a narrowly scoped request directly into Supabase through the authenticated session; RLS verifies the active tenant owner and allow-listed job type. Other sources may use source-specific n8n ingress mappings.
+1. Every source—PWA, WhatsApp, AI agent, API, or future product—uses its appropriate adapter. CFCF manual reminder/report buttons send the request plus the current Supabase bearer token to the n8n webhook. n8n verifies the token, active tenant-owner access, and Fund ownership before creating the job. Other sources may use source-specific n8n ingress mappings.
 2. n8n resolves the product/tenant/person context and classifies the requested action using the fields supplied by the source. A report request or other task needing lifecycle tracking becomes a job; an ordinary fetch/insert/update operation can run without a job row.
-3. CFCF manual campaign requests are inserted by the PWA through RLS and are queued with `scheduled_at = null`. n8n reads them using its trusted server-side Supabase credential, validates the payload, and owns subsequent status transitions. Other tracked tasks may be created by n8n.
+3. n8n creates CFCF campaign jobs with `scheduled_at = null` after authenticating and validating the request. n8n owns all subsequent status transitions. Other tracked tasks are also created by n8n.
 4. One shared n8n dispatcher checks queued rows with `scheduled_at <= now()` and routes due work to the appropriate product workflow. It is a single central mechanism, not one scheduler per job or a CFCF-specific recurring schedule system.
 5. n8n updates the row as the task progresses and completes. The PWA or any other authorized source may read the appropriate safe status through its own interface.
 
@@ -56,10 +56,10 @@ Use ordinary n8n execution/error handling first. Do not add a general retry engi
 
 ## Current status
 
-- Registry and manual campaign insert-policy migrations: applied to the development-stage project.
+- Registry migration and the follow-up revocation of browser job inserts: applied to the development-stage project.
 - PWA status card: enabled by default, reads safe status columns only, and can be disabled with `VITE_CFCF_JOB_PROGRESS_ENABLED=false`.
-- CFCF manual campaign queue gate: active on a one-minute poll, validates the request shape and records a no-send failure until the WAHA delivery adapter is configured. It never calls a messaging provider.
+- Authenticated campaign-request workflow draft: created but inactive until `SUPABASE_URL` and `SUPABASE_ANON_KEY` are configured in n8n and the ingress is tested. It validates the bearer token, owner access, and Fund scope before n8n creates a job. The previous no-send queue gate is inactive.
 - Inbound WhatsApp workflows: remain inactive drafts.
 - Live registry smoke test: passed in n8n; synthetic job #101 moved from `queued` to `completed`.
 - Authenticated PWA two-tenant browser/cache test: still pending.
-- Development-stage migrations were explicitly approved and applied. Cloudflare deployment and authenticated browser/cache testing remain pending. No live WhatsApp send or credential change has been performed.
+- Development-stage migrations were explicitly approved and applied. Cloudflare deployment and authenticated browser/cache testing remain pending; configure `VITE_CFCF_N8N_CAMPAIGN_WEBHOOK_URL` in the PWA environment before browser testing. No live WhatsApp send or credential change has been performed.
