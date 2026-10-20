@@ -118,7 +118,7 @@ test("manager progress view exposes only sanitized summary fields", () => {
   assert.ok(migration.includes("grant select on public.n8n_global_job_progress to authenticated"));
   assert.ok(migration.includes("grant select ("));
   assert.ok(migration.includes("job_id, product_id, tenant_id, job_type, status"));
-  assert.ok(migration.includes("created_at, updated_at as last_safe_update_at, completed_at, progress_summary"));
+  assert.ok(migration.includes("created_at, updated_at as last_safe_update_at, completed_at"));\n  assert.ok(migration.includes("progress_summary,"));
   assert.ok(migration.includes("(status in ('uncertain', 'partial')) as needs_review"));
   assert.equal(migration.includes("grant select on table public.n8n_global_jobs to authenticated"), false);
   const viewStart = migration.indexOf("create view public.n8n_global_job_progress");
