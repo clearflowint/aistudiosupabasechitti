@@ -427,3 +427,14 @@ A repository contract test asserts the mapping guard. This remains static/source
 - The UI explains monthly recurrence, `Asia/Kolkata`, and last-calendar-day behavior for days 29–31. Saving a schedule stores configuration only; it does not send a WhatsApp message.
 - **Integration blocker discovered:** the older schedule evaluator design enqueues into `cfcf_automation_jobs`, while the current global worker and Manager Home progress view use `n8n_global_jobs` and `n8n_whatsapp_deliveries`. These are two different queues. Do not activate either worker or present scheduled runs as processed until the scheduler-to-global-registry handoff is reconciled. Next implementation batch should bridge due schedule occurrences into the global registry with stable schedule-occurrence idempotency, then test against synthetic fixtures.
 - The worker remains inactive; no sender call, production migration, billable branch, PWA notification-object change, or UI-gate change occurred.
+
+
+## Batch 49 — Scheduled-to-global-registry handoff
+
+- Added PR-only migration `20261020140000_n8n_scheduled_cfcf_global_registration.sql` with service-role-only RPC `n8n_register_scheduled_cfcf_job`.
+- The RPC validates the active schedule occurrence and exact claim lease, loads current Fund/Share/saved Contact data at due time, filters Pending reminders to Shares with positive stored pending balances, groups multiple Shares per Contact, registers the communication and deliveries through the existing global registry RPC, and advances the monthly schedule in the same transaction.
+- Stable idempotency key format is `cfcf-schedule:<schedule_id>:<scheduled_for UTC>`. Scheduled work bypasses the manual-click hourly limiter but uses the same global worker queue, recipient records and Manager Home progress history.
+- If there are no eligible saved Contacts with usable phone numbers, the occurrence advances without creating an empty global job or sending a message.
+- Updated the importable monthly schedule evaluator JSON to call the new global-registration RPC and pass the exact claimed lease. The evaluator JSON remains inactive and uses placeholder Supabase URLs/credential setup; it has not been imported or activated in the n8n instance.
+- Added a static contract test that verifies the schedule bridge uses the global registry, stable occurrence idempotency, claim-lease validation, and does not insert into the legacy `cfcf_automation_jobs` queue.
+- Runtime SQL validation remains pending in a non-billable disposable Supabase environment. Do not deploy the migration or activate the schedule evaluator/worker before that validation. No PWA notification objects, production data, billable branch, or live sender were changed.
