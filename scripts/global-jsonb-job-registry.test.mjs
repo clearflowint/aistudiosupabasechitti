@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const migration = readFileSync(new URL("../supabase/migrations/20261020150000_n8n_global_jsonb_job_registry.sql", import.meta.url), "utf8");
+const policyMigration = readFileSync(new URL("../supabase/migrations/20261020164000_n8n_job_registry_product_scoped_read_policy.sql", import.meta.url), "utf8");
 const contract = readFileSync(new URL("../docs/n8n-global-jsonb-job-registry.md", import.meta.url), "utf8");
 const architecture = readFileSync(new URL("../docs/architecture-guide.md", import.meta.url), "utf8");
 const progressService = readFileSync(new URL("../src/features/cfcf/services/automation-jobs.service.ts", import.meta.url), "utf8");
@@ -35,6 +36,13 @@ test("database contains only the basic lifecycle status and tenant scope", () =>
   assert.ok(migration.includes("references public.tenants (tenant_id, product_id)"));
   assert.ok(migration.includes("on public.n8n_global_jobs\n  for select to authenticated"));
   assert.ok(migration.includes("is_active_tenant_owner(product_id, tenant_id)"));
+});
+
+test("global registry status access is tenant-scoped and product-specific", () => {
+  assert.ok(policyMigration.includes("when product_id = 'CFCF'"));
+  assert.ok(policyMigration.includes("then public.is_active_tenant_owner(product_id, tenant_id)"));
+  assert.ok(policyMigration.includes("else public.has_active_access(product_id, tenant_id)"));
+  assert.ok(contract.includes("CFCF status reads remain manager-only"));
 });
 
 test("draft schema avoids workflow-engine machinery and duplicate indexes", () => {
