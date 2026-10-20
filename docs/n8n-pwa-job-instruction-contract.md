@@ -35,11 +35,12 @@ The PWA sends only IDs and manager-entered options. Example:
 
 ## Storage record
 
-Use the minimal `public.n8n_global_jobs` draft table only if needed for the first progress/status view. A record contains a generated reference, product/tenant scope, action type, simple status, optional request ID, JSON request/result data, and timestamps.
+Use the minimal `public.n8n_global_jobs` draft table only for work that genuinely needs a progress/status view. A record contains a generated reference, product/tenant scope, action type, simple status, optional request ID, JSON request/result data, and timestamps. n8n creates and updates this record using its trusted server-side Supabase credential when a tracked task is requested. A database function/RPC is not needed.
 
 Allowed statuses for the first version: `queued`, `processing`, `completed`, `failed`, `cancelled`.
 
-- n8n owns the workflow and updates the status.
+- n8n owns the workflow, creates the record for tracked tasks, and updates its status.
+- Ordinary n8n executions that only fetch, insert, or update business records do not automatically create job records.
 - The PWA reads safe status metadata only.
 - Private request/result JSON is not exposed to browser clients.
 - No generated progress view, recipient-state machine, event-history framework, lease/claim RPC, or generic retry engine is required for the first working flow.
@@ -62,15 +63,11 @@ Allowed statuses for the first version: `queued`, `processing`, `completed`, `fa
 - Do not automatically resend an external message when it is unclear whether the provider accepted the first attempt. Surface that specific case for manual review.
 - Do not build a general retry engine before a demonstrated need.
 
-## Monthly schedules
-
-CFCF needs up to three manager-selected monthly pending-reminder slots and two manager-selected monthly report slots per Fund, using Asia/Kolkata by default and clamping days 29–31 to month-end. The persistence location is not yet agreed. Do not add a schedule table/RPC or change existing PWA notification tables, functions, data, or cron jobs to work around that decision.
-
 ## Current status and restrictions
 
 - The JSONB job storage migration remains unapplied.
 - PWA progress UI is feature-flagged off until its data source is approved and verified.
 - Shared-number ingress, tenant-owned ingress, worker, and schedule evaluator remain inactive.
-- WAHA-to-n8n authentication and schedule persistence remain unresolved.
+- WAHA-to-n8n authentication remains unresolved. CFCF automatic scheduled reminders and reports are out of scope.
 - No production migration/deployment, credential change, live WhatsApp send, or billable Supabase branch is authorized.
 - Use synthetic data and mock provider actions for the first controlled test after the non-production environment is explicitly approved.
