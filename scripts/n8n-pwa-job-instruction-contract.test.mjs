@@ -25,6 +25,14 @@ test("authorization trusts the verified Auth identity and enforces active tenant
   assert.ok(contract.includes("service-role credential is held only in n8n"));
 });
 
+test("service-role RLS bypass and safer user-scoped reads are explicit", () => {
+  assert.ok(contract.includes("Supabase `service_role` credentials bypass Row Level Security."));
+  assert.ok(contract.includes("not restricted by the authenticated tenant-owner SELECT policy"));
+  assert.ok(contract.includes("Prefer the caller's verified access token for user-authorized reads"));
+  assert.ok(contract.includes("project-wide privileged access, not a tenant-scoped credential"));
+  assert.ok(contract.includes("verify its target and access through a safe, non-mutating check"));
+});
+
 test("security matrix covers unauthorized and ambiguous outcomes", () => {
   for (const phrase of ["Missing Authorization header → 401", "Invalid or expired Supabase access token → 401", "Active non-owner or owner for a different tenant/product → 403", "101+ unique", "mark `uncertain`"]) {
     assert.ok(contract.includes(phrase), `missing security matrix case: ${phrase}`);
