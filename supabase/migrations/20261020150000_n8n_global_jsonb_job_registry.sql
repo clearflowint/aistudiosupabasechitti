@@ -38,6 +38,12 @@ create index n8n_global_jobs_queue_idx
   on public.n8n_global_jobs (status, created_at)
   where status in ('queued', 'processing');
 
+-- The same client instruction must not create two job rows for the same tenant/product.
+-- A duplicate request should resolve to the existing job, never trigger another send.
+create unique index n8n_global_jobs_request_id_unique_idx
+  on public.n8n_global_jobs (product_id, tenant_id, (job_data ->> 'request_id'))
+  where nullif(btrim(job_data ->> 'request_id'), '') is not null;
+
 alter table public.n8n_global_jobs enable row level security;
 
 revoke all on table public.n8n_global_jobs from anon, authenticated;
