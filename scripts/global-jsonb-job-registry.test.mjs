@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 const migration = readFileSync(new URL("../supabase/migrations/20261020150000_n8n_global_jsonb_job_registry.sql", import.meta.url), "utf8");
 const policyMigration = readFileSync(new URL("../supabase/migrations/20261020164000_n8n_job_registry_product_scoped_read_policy.sql", import.meta.url), "utf8");
 const campaignMigration = readFileSync(new URL("../supabase/migrations/20261020180000_cfcf_manual_campaign_job_requests.sql", import.meta.url), "utf8");
+const campaignScopeMigration = readFileSync(new URL("../supabase/migrations/20261020182000_cfcf_manual_campaign_fund_scope.sql", import.meta.url), "utf8");
 const workspacePage = readFileSync(new URL("../src/features/cfcf/pages/WorkspacePage.tsx", import.meta.url), "utf8");
 const contract = readFileSync(new URL("../docs/n8n-global-jsonb-job-registry.md", import.meta.url), "utf8");
 const architecture = readFileSync(new URL("../docs/architecture-guide.md", import.meta.url), "utf8");
@@ -104,6 +105,9 @@ test("PWA can enqueue only tenant-owned manual CFCF campaign requests", () => {
   assert.ok(campaignMigration.includes("status = 'queued'"));
   assert.ok(campaignMigration.includes("scheduled_at is null"));
   assert.ok(campaignMigration.includes("job_data ->> 'execution_mode' = 'manual_send'"));
+  assert.ok(campaignScopeMigration.includes("from public.cfcf_funds as fund"));
+  assert.ok(campaignScopeMigration.includes("fund.tenant_id = public.n8n_global_jobs.tenant_id"));
+  assert.ok(campaignScopeMigration.includes("fund.status = 'active'"));
   assert.ok(progressService.includes("requestCfcfCampaignJob"));
   assert.ok(progressService.includes('source_type: "pwa"'));
   assert.ok(progressService.includes("campaign_kind: campaignKind"));
