@@ -302,3 +302,22 @@ Before connecting any live trigger, verify without provider sends or production 
 - Keep independent queues/pacing per assigned WAHA session/manager. Do not fall back to another tenant's or another product's session if the assigned session is unavailable.
 - If a queue is backed up, report queued/waiting state and progress; do not create duplicate jobs or tell the sender to resend.
 - Never activate the new inbound drafts until server-boundary authentication, authoritative tenant resolution, durable idempotent enqueue, sender-ack deduplication, failure review, and mock integration tests all pass.
+
+## Inbound webhook authentication gate — Batch 21
+
+The current CFCF inbound workflow drafts are intentionally inactive and their Webhook nodes use `authentication: none`. This is a known blocking condition, not an acceptable production configuration. They must not be activated or exposed publicly in this state.
+
+Before implementing the live ingress path, inspect the actual WAHA deployment and its reachable network boundary. Select and verify one supported protection method that matches that deployment, such as a configured n8n webhook authentication mechanism or a reverse-proxy rule that permits only the trusted WAHA source and validates a secret/signature. Do not assume that a credential with a generic name is configured for WAHA; do not attach it until its type, expected header/token format, and sender-side configuration are verified. Never put a secret in workflow code, a webhook URL, logs, or repository files.
+
+Fail-closed requirements:
+
+- Missing, malformed, or invalid authentication must stop before tenant/contact lookup, durable enqueue, or any human WhatsApp acknowledgement.
+- Authentication failure must not reveal whether a tenant, phone number, session, or contact exists.
+- Trust the receiver/session mapping only after ingress authentication. Ignore payload-supplied tenant identifiers as an authority.
+- Validate the provider event ID and required sender/receiver/session fields; reject malformed events without creating jobs.
+- Resolve a shared-number sender to exactly one authoritative CFCF contact/tenant; resolve a tenant-owned receiver to exactly one tenant/session mapping and then check sender/role authorization. Ambiguity is a hard stop.
+- Only after the above gates pass may the workflow attempt idempotent durable enqueue. HTTP 2xx is permitted only after enqueue succeeds or the same provider event is confirmed as already stored.
+- A human sender receipt is separate and conditional: only long-running work, after durable enqueue; quick operations get their result after success. Duplicate events do not cause duplicate receipts.
+- Keep both inbound workflows inactive until authentication, routing, durable enqueue, duplicate handling, acknowledgement suppression, and fail-closed tests are implemented and verified.
+
+Current blocker: the actual WAHA-to-n8n authentication configuration has not been verified in the available workflow configuration. Therefore this batch documents and tests the required gate; it does not claim the webhook is secured or ready to activate.
