@@ -139,3 +139,12 @@ Enqueue sequence for an inbound event:
 6. If insert fails for any reason other than a confirmed duplicate, return retryable non-2xx. Never return accepted/queued before the write commits.
 
 The index is additive to the existing scoped `request_id` uniqueness. It does not replace request-level idempotency and does not authorize the sender. The migration remains draft-only and has not been applied to any database. No live enqueue or provider operation is implemented by this schema change.
+
+
+## Inbound enqueue contract guards — Batch 24
+
+Static repository tests now assert that the draft inbound-event uniqueness index is partial and scoped by product, tenant, provider, trusted session, and provider event ID; it applies only to whatsapp_inbound rows with all three event identity fields nonblank. The separate request_id uniqueness guard remains in place for business-job idempotency.
+
+The tests also pin the required conflict behavior: only a confirmed duplicate may return the existing same-scope job with transport success; any other persistence error must remain retryable non-2xx. Event deduplication is not an authorization shortcut: ingress authentication and authoritative session/tenant/contact resolution must happen first.
+
+These are repository-level contract tests only. They do not execute PostgreSQL, prove unique-index behavior against a live database, or implement the ingress queue. The migration remains draft-only, all relevant n8n workflows remain inactive, and no PWA notification objects are changed.
