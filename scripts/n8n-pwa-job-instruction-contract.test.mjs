@@ -745,3 +745,27 @@ test("read-only progress model: returned fields are allowlisted and never mutate
   assert.equal(Object.hasOwn(result.job, "secret"), false);
   assert.deepEqual(job, before);
 });
+
+
+// Batch 32 — non-production test readiness gate contract.
+test("readiness gate: no live integration until authentication and persistence prerequisites are verified", () => {
+  for (const phrase of [
+    "Readiness gates before controlled non-production integration — Batch 32",
+    "WAHA-to-n8n authentication is verified",
+    "durable idempotent enqueue is implemented and tested",
+    "atomic job claim and sequential JSONB updates are implemented",
+    "tenant-scoped read-only progress retrieval is implemented",
+    "uncertain provider outcomes cannot trigger automatic resend",
+    "both inbound workflows remain inactive",
+    "draft migration has not been applied",
+    "no live provider sends"
+  ]) {
+    assert.ok(contract.includes(phrase), "missing readiness gate: " + phrase);
+  }
+});
+
+test("readiness gate: recurring dates and protected PWA notifications cannot be guessed or changed", () => {
+  assert.ok(contract.includes("recover the approved three monthly pending-reminder dates and two report dates before implementing schedules; do not guess them"));
+  assert.ok(contract.includes("Do not change PWA notification tables, functions, data, or cron jobs"));
+  assert.ok(contract.includes("No production migration applied"));
+});
