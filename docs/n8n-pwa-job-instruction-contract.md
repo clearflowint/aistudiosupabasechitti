@@ -374,3 +374,25 @@ Batch 28 is repository-only contract testing. It does not verify a database comp
 - Append state-change events in serialized order and retain only the newest 500 events per job. Event history is diagnostic history, not a substitute for the current recipient states.
 - If stored progress counters disagree with the current recipient states, recompute from the authoritative JSONB recipient array and surface a safe diagnostic; do not change a recipient state just to make counters align.
 - This batch adds a pure repository model only. It does not implement a live database writer, concurrency control, PWA screen, or n8n execution logic. Keep the worker mock-only/inactive, migration unapplied, and existing PWA notification tables/functions/cron jobs untouched.
+
+
+## Manager PWA job-progress presentation — Batch 30
+
+The manager home page should show a compact, mobile-friendly list/card of automation jobs without changing the existing notification infrastructure. This is a presentation contract; actual PWA wiring remains a later integration step.
+
+Each visible job should show:
+- A safe job reference and plain-language job type/status.
+- Progress as **processed recipients / total recipients**, with pending and currently submitting counts available when useful.
+- Separate accepted, failed, skipped, and uncertain counts; do not label provider acceptance as delivered.
+- Last safe update time and a clear **Needs review** indicator for uncertain outcomes.
+- A final state of completed, partial, failed, uncertain, or cancelled when present. Keep active jobs visibly processing; do not display a success state while recipients remain active.
+- A neutral message when no jobs are available, and a safe error state when progress cannot be fetched.
+
+Security and data boundaries:
+- The PWA is a read-only consumer of the global job registry. It must not create jobs, change job status, dispatch messages, or repair progress counters.
+- Only show jobs authorized for the signed-in manager's active product and tenant. Do not trust tenant IDs supplied by client state without the existing authorization boundary.
+- Keep the layout mobile-first and avoid horizontal scrolling. Show concise progress first, with details available by opening a job card.
+- Do not change PWA notification tables, functions, data, or cron jobs. Do not create new notification tables or reintroduce the rolled-back schedule tables/RPCs.
+- Monthly reminder/report dates remain unimplemented until the previously approved three reminder dates and two report dates are recovered from an authoritative decision record. Do not guess dates or build a parallel schedule store.
+
+Batch 30 adds contract tests and design documentation only. It does not implement a PWA screen, database access, a schedule, or notification changes.
