@@ -33,11 +33,18 @@ test("request IDs are unique per product and tenant to prevent duplicate jobs", 
 });
 
 test("campaign recipient arrays have a hard 100-contact ceiling", () => {
-  assert.ok(migration.includes("jsonb_array_length(job_data -> 'recipients') <= 100"));
+  assert.ok(migration.includes("jsonb_array_length(job_data -> 'recipients') between 1 and 100"));
   assert.ok(migration.includes("or case"));
   assert.ok(migration.includes("when jsonb_typeof(job_data -> 'recipients') = 'array'"));
   assert.ok(contract.includes("1–100 unique resolved contacts"));
   assert.ok(contract.includes("before any provider call"));
+});
+
+test("JSONB event history is an array capped at 500 entries", () => {
+  assert.ok(migration.includes("constraint n8n_global_jobs_event_history_limit"));
+  assert.ok(migration.includes("jsonb_array_length(job_data -> 'events') <= 500"));
+  assert.ok(migration.includes("when jsonb_typeof(job_data -> 'events') = 'array'"));
+  assert.ok(contract.includes("500-event history"));
 });
 
 test("schema avoids the protected PWA push subsystem and general automation RPCs", () => {
