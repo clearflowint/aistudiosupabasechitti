@@ -543,8 +543,7 @@ function modelJobFinalization(recipientStates) {
     return { status: "processing", terminal: false };
   }
   const accepted = recipientStates.filter(state => state === "provider_accepted").length;
-  const failed = recipientStates.filter(state => state === "failed").length;
-  if (failed === 0) return { status: "completed", terminal: true };
+  if (accepted === recipientStates.length) return { status: "completed", terminal: true };
   if (accepted === 0) return { status: "failed", terminal: true };
   return { status: "partial", terminal: true };
 }
@@ -587,7 +586,9 @@ test("job finalization model: uncertain outcome takes precedence and requires re
 });
 
 test("job finalization model: terminal recipients derive completed, partial, or failed consistently", () => {
-  assert.deepEqual(modelJobFinalization(["provider_accepted", "skipped"]), { status: "completed", terminal: true });
+  assert.deepEqual(modelJobFinalization(["provider_accepted", "skipped"]), { status: "partial", terminal: true });
+  assert.deepEqual(modelJobFinalization(["skipped", "skipped"]), { status: "failed", terminal: true });
+  assert.deepEqual(modelJobFinalization(["provider_accepted", "provider_accepted"]), { status: "completed", terminal: true });
   assert.deepEqual(modelJobFinalization(["provider_accepted", "failed"]), { status: "partial", terminal: true });
   assert.deepEqual(modelJobFinalization(["failed", "failed"]), { status: "failed", terminal: true });
   assert.deepEqual(modelJobFinalization([]), { status: "failed", terminal: true, reason: "no_recipients" });
