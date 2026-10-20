@@ -17,14 +17,20 @@ The global table is not a global business workflow. Keep product-specific execut
 
 - `public.n8n_global_jobs` is the global registry; each row is scoped by `product_id` and `tenant_id`.
 - **ClearFlow — JSONB Job Contract Preview (Draft Only)** is the global PWA contract preview only; it is not a CFCF business or WhatsApp workflow.
-- **CFCF Automation Worker — Draft** is CFCF-specific and remains incomplete/inactive.
-- **CFCF — Monthly Schedule Evaluator (Setup Required)** is CFCF-specific and remains inactive.
+- **CFCF Automation Worker — Draft** is CFCF-specific and remains incomplete/inactive. Its legacy `cfcf_*` RPC nodes, old `n8n_whatsapp_*` placeholders, and WAHA session-inventory HTTP node have been disabled.
+- **CFCF — Monthly Schedule Evaluator (Setup Required)** is CFCF-specific and remains inactive. Its HTTP nodes for rolled-back schedule/job RPCs have been disabled pending redesign against approved n8n configuration and the global registry.
 - **CFCF — Shared Error Handler** is shared only across CFCF workflows, not a global cross-product error handler.
 - **ClearFlow MCP Connection Test** is a connection-test utility, not a business workflow.
 
 For WhatsApp, the selected design is a CFCF-dedicated shared number/session with CFCF-specific routing, plus a separate entry path for tenant-owned CFCF numbers/sessions. Keep inbound product routing out of a global workflow because the dedicated shared number already determines the product. The shared-number entry checks the sender against authoritative CFCF tenant/contact records before tenant-specific routing; the tenant-owned entry resolves the receiver number to a CFCF tenant and then checks the sender within that tenant. Ambiguous or unknown mappings follow the CFCF unknown-sender policy without private-data disclosure.
 
 Do not fan out one inbound event to multiple business workflows. Do not create or activate any new workflow as part of this design note. Reuse the exact existing names above and add a new workflow only when a distinct responsibility is confirmed. The CFCF schedule evaluator remains separate from WhatsApp inbound processing. Existing PWA notification tables/functions/data/cron jobs remain untouched; do not recreate rolled-back CFCF schedule/job tables or prototype RPCs.
+
+## Safety preflight status — 2026-10-20
+
+The existing inactive `CFCF Automation Worker — Draft` and `CFCF — Monthly Schedule Evaluator (Setup Required)` have been inspected. Their obsolete HTTP paths that depend on rolled-back CFCF schedule/job RPCs or the unapproved per-communication/per-delivery table model are disabled. The worker's WAHA session-inventory request is also disabled. No workflow was activated and no provider call was made.
+
+A manual, side-effect-free test of `CFCF Automation Worker — Draft` completed successfully and followed its false safety-gate branch to `Dry Run — no database changes`; the result states that no Supabase request was made. This confirms only that the safety gate remains closed. The WhatsApp entry workflows and production registry worker are still not implemented.
 
 ## Flow
 
