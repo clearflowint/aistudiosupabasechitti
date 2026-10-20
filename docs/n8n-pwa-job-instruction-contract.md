@@ -325,3 +325,10 @@ Current blocker: the actual WAHA-to-n8n authentication configuration has not bee
 ### Batch 22 validation note — mock gate, not deployed authentication
 
 The repository test `modelInboundGate` exercises the required stage ordering with synthetic states: unverified authentication stops before tenant lookup; malformed events and ambiguous routes stop before enqueue; a successful transport 2xx is modeled only for durable storage or recognized duplicate events. These are contract tests only. They do not validate a real Authorization header, signature, reverse-proxy rule, WAHA delivery configuration, or n8n credential. No production ingress security change has been made because the actual WAHA-to-n8n authentication configuration remains unverified.
+
+
+## Durable enqueue and duplicate-conflict model — Batch 25
+
+A repository-only model now covers the intended durable-enqueue decisions: a scoped pre-existing request returns its canonical integer job ID without redispatch; a successful insert returns the database-generated ID; a unique conflict is accepted only after the existing same-scope job is confirmed; and an unclassified persistence error returns retryable non-2xx without a success receipt. The model also asserts that enqueue does not itself perform provider dispatch.
+
+This is a synthetic contract model, not a PostgreSQL or n8n integration test. It does not establish that a database row was created, that the webhook is authenticated, or that a worker is connected. The preview and inbound workflows remain inactive; the draft migration remains unapplied; no provider calls or PWA notification changes were made.
