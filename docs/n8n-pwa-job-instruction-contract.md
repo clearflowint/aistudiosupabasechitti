@@ -51,7 +51,7 @@ Allowed statuses for the first version: `queued`, `processing`, `completed`, `fa
 - The PWA reads safe status metadata only; other authorized interfaces can expose status appropriate to their source.
 - Private request/result JSON is not exposed to browser clients.
 - No generated progress view, recipient-state machine, event-history framework, lease/claim RPC, or generic retry engine is required for the first working flow.
-- The migration is a draft only; do not apply it without explicit approval of a named non-production environment.
+- The registry migration has been applied to the existing development-stage ClearFlow Platform project after explicit user approval.
 
 ## Authentication and tenant boundaries
 
