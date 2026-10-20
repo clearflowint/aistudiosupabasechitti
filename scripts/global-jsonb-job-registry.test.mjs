@@ -19,6 +19,7 @@ test("job storage stays a simple table with a JSON payload", () => {
   assert.ok(migration.includes("source_type text not null default 'system'"));
   assert.ok(migration.includes("scheduled_at timestamptz"));
   assert.ok(migration.includes("n8n_global_jobs_due_idx"));
+  assert.equal((migration.match(/create index n8n_global_jobs_due_idx/g) ?? []).length, 1);
   assert.ok(migration.includes("created_at timestamptz not null default now()"));
   assert.ok(migration.includes("updated_at timestamptz not null default now()"));
   assert.equal(migration.includes("create or replace function"), false);
@@ -68,6 +69,8 @@ test("manager status card is read-only and feature-flagged", () => {
   assert.ok(progressCard.includes('import.meta.env.VITE_CFCF_JOB_PROGRESS_ENABLED === "true"'));
   assert.ok(progressCard.includes("No job data has been requested"));
   assert.ok(progressCard.includes("Read-only status from saved records"));
+  assert.ok(progressCard.includes("job.source_type.replaceAll"));
+  assert.ok(progressCard.includes("Scheduled for {formatTime(job.scheduled_at)}"));
   assert.ok(homeShell.includes("{product.renderHomeContent?.(workspace)}"));
 });
 
