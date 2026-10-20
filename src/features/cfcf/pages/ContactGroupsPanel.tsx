@@ -1,8 +1,8 @@
 // CFCF PRODUCT: Contact Group management and bulk campaign composer.
-// MIX: Receives authorized workspace identity and existing Contacts; campaign dispatch goes through the authenticated Edge Function.
+// MIX: Receives authorized workspace identity; WhatsApp campaign submission registers a scoped job through Supabase RPC.
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { FolderPlus, Pencil, Trash2, UsersRound, Megaphone, MessageCircle, Mail, Smartphone, RefreshCw, CheckCircle2 } from "lucide-react";
+import { FolderPlus, Pencil, Trash2, UsersRound, Megaphone, MessageCircle, RefreshCw, CheckCircle2 } from "lucide-react";
 import { Modal } from "../../../components/ui/Modal";
 import type { AuthorizedWorkspace } from "../../../core/workspace/workspace.types";
 import type { CfcfContactGroupMemberRow, CfcfContactGroupRow, CfcfContactRow } from "../types/database.types";
@@ -28,7 +28,7 @@ interface ContactGroupsPanelProps {
 const buttonClass = "inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50";
 const inputClass = "w-full min-w-0 rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100";
 
-// CFCF PRODUCT: Keep campaign launch disabled until the n8n webhook and callback have been configured and tested.
+// CFCF PRODUCT: Keep campaign launch disabled until direct job registration and the global n8n worker/WAHA route have been validated.
 const CAMPAIGN_AUTOMATION_ENABLED = false;
 
 export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: ContactGroupsPanelProps) {
@@ -236,7 +236,7 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
   async function handlePrepareCampaign(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!CAMPAIGN_AUTOMATION_ENABLED) {
-      setCampaignError("Campaign launch is disabled until the n8n webhook and delivery callback are configured and tested. No messages have been sent.");
+      setCampaignError("Campaign launch is disabled until the global job registry and n8n worker/WAHA route are validated. No jobs have been registered and no messages have been sent.");
       return;
     }
     setCampaignError(null);
@@ -245,12 +245,17 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
     try {
       const receipt = await dispatchCfcfCampaign(
         workspace.tenantId,
+        workspace.personId,
         campaignGroupIds,
         channels,
         message,
       );
       setPreparedCampaign(receipt);
-      setNotice("n8n acknowledged campaign " + receipt.campaign_id + ". Delivery is processing; final results will appear in Notifications.");
+      setNotice(
+        "WhatsApp job #" + receipt.n8n_global_job_id +
+        " registered with " + receipt.recipient_count + " recipients. " +
+        (receipt.was_existing ? "This was an existing idempotent request." : "It will be processed when the n8n worker is active.")
+      );
     } catch (prepareFailure) {
       setCampaignError(prepareFailure instanceof Error ? prepareFailure.message : "Unable to prepare this campaign.");
     } finally {
@@ -298,7 +303,7 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
         </div>
       </div>
 
-      {!CAMPAIGN_AUTOMATION_ENABLED && <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm leading-5 text-amber-900"><strong>Campaign automation is not enabled yet.</strong> Contact Groups and the campaign integration are prepared, but Launch campaign stays disabled until the n8n webhook and delivery callback are configured and tested. No messages will be sent before then.</div>}
+      {!CAMPAIGN_AUTOMATION_ENABLED && <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm leading-5 text-amber-900"><strong>Global WhatsApp job registration is not enabled yet.</strong> Launch campaign stays disabled until the Supabase registration RPC, n8n worker and WAHA session are validated. No jobs or messages will be created before then.</div>}
       {notice && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800">{notice}</div>}
       {error && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-800">{error}</div>}
 
@@ -399,16 +404,14 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
         </div>
       </Modal>
 
-      <Modal isOpen={isCampaignOpen} title="Launch Campaign" description={CAMPAIGN_AUTOMATION_ENABLED ? "Select an audience, choose delivery channels and write your message." : "Preview the campaign setup. Sending is disabled until n8n is configured."} size="large" onClose={() => { if (!isPreparingCampaign) setIsCampaignOpen(false); }}>
+      <Modal isOpen={isCampaignOpen} title="Launch Campaign" description={CAMPAIGN_AUTOMATION_ENABLED ? "Select an audience and write a WhatsApp message. Submission registers a global job ID in Supabase." : "Preview the campaign setup. Job registration and sending remain disabled until the n8n worker is validated."} size="large" onClose={() => { if (!isPreparingCampaign) setIsCampaignOpen(false); }}>
         <form onSubmit={(event) => void handlePrepareCampaign(event)} className="space-y-5">
-          {!CAMPAIGN_AUTOMATION_ENABLED && <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-5 text-amber-900"><strong>Automation not enabled — no messages will be sent.</strong> Configure the n8n webhook and callback secret, test the workflow, then enable the campaign feature flag in this file.</div>}
+          {!CAMPAIGN_AUTOMATION_ENABLED && <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-5 text-amber-900"><strong>Automation not enabled — no jobs or messages will be created.</strong> Validate the direct Supabase job registration RPC and n8n worker/WAHA session, then enable the campaign feature flag in a reviewed change.</div>}
           <fieldset>
             <legend className="mb-2 text-sm font-semibold text-slate-800">Delivery channels</legend>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-2">
               {([
                 { value: "whatsapp" as const, label: "WhatsApp", icon: MessageCircle, color: "emerald" },
-                { value: "sms" as const, label: "SMS", icon: Smartphone, color: "blue" },
-                { value: "email" as const, label: "Email", icon: Mail, color: "violet" },
               ]).map((channel) => {
                 const checked = channels.includes(channel.value);
                 const Icon = channel.icon;
@@ -449,15 +452,15 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
           {preparedCampaign && (
             <div role="status" className="space-y-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
               <div className="flex items-center gap-2 font-semibold"><CheckCircle2 size={17} /> n8n acknowledged receipt</div>
-              <p>{preparedCampaign.recipient_count} unique recipients queued across {preparedCampaign.channels.join(", ")}. This is an acceptance receipt, not a delivery confirmation.</p>
-              <p className="break-all text-xs text-emerald-800">Campaign ID: {preparedCampaign.campaign_id}</p>
+              <p>{preparedCampaign.recipient_count} unique recipients registered for WhatsApp. This confirms job registration only, not that n8n has sent any message.</p>
+              <p className="break-all text-xs text-emerald-800">Global Job ID: {preparedCampaign.n8n_global_job_id} · Communication ID: {preparedCampaign.n8n_whatsapp_communication_id}</p>
               <p className="text-xs text-emerald-800">Final delivery status will be recorded in Notifications when n8n calls the delivery callback.</p>
             </div>
           )}
           <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
             <button type="button" onClick={() => setIsCampaignOpen(false)} disabled={isPreparingCampaign} className={buttonClass + " border border-slate-200 text-slate-700"}>Close</button>
             <button type="submit" disabled={!CAMPAIGN_AUTOMATION_ENABLED || isPreparingCampaign || campaignGroupIds.length === 0 || channels.length === 0 || !message.trim() || campaignEligibleRecipientCount === 0} className={buttonClass + " bg-emerald-600 text-white hover:bg-emerald-700"}>
-              {isPreparingCampaign ? <RefreshCw size={16} className="animate-spin" /> : <Megaphone size={16} />} {isPreparingCampaign ? "Waiting for n8n acknowledgement…" : CAMPAIGN_AUTOMATION_ENABLED ? "Send campaign" : "Campaign launch disabled"}
+              {isPreparingCampaign ? <RefreshCw size={16} className="animate-spin" /> : <Megaphone size={16} />} {isPreparingCampaign ? "Registering job ID…" : CAMPAIGN_AUTOMATION_ENABLED ? "Register WhatsApp job" : "Campaign launch disabled"}
             </button>
           </div>
         </form>

@@ -174,64 +174,108 @@ export async function removeCfcfContactFromGroup(
 }
 
 /**
- * CFCF PRODUCT: Dispatches a campaign to the authenticated Edge Function.
- * The Edge Function resolves the current full recipient records and sends them to n8n,
- * avoiding a second database lookup inside n8n.
+ * CFCF PRODUCT: Registers a WhatsApp campaign directly in the global n8n job
+ * registry through the authenticated Supabase RPC. No Edge Function or public
+ * n8n webhook is called by the browser.
  */
 export interface CfcfCampaignDispatchReceipt {
   accepted: true;
-  status: "accepted";
-  campaign_id: string;
-  accepted_at: string;
+  status: "registered";
+  n8n_global_job_id: number;
+  n8n_whatsapp_communication_id: number;
+  was_existing: boolean;
   recipient_count: number;
-  channels: CfcfCampaignChannel[];
+  channels: ["whatsapp"];
   message: string;
-  execution_id: string | null;
 }
 
 export async function dispatchCfcfCampaign(
   tenantId: string,
+  personId: string,
   groupIds: string[],
   channels: CfcfCampaignChannel[],
   message: string,
 ): Promise<CfcfCampaignDispatchReceipt> {
-  const selectedGroupIds = [...new Set(groupIds.map((id) => id.trim()).filter(Boolean))];
+  const selectedGroupIds = [...new Set(groupIds.map((id) => id.trim()).filter(Boolean))].sort();
   const selectedChannels = [...new Set(channels)];
   const trimmedMessage = message.trim();
 
-  if (!tenantId.trim()) throw new Error("No authorized workspace is selected.");
+  if (!tenantId.trim() || !personId.trim()) throw new Error("No authorized workspace/person is selected.");
   if (selectedGroupIds.length === 0) throw new Error("Select at least one Contact Group.");
-  if (selectedChannels.length === 0) throw new Error("Select at least one delivery channel.");
+  if (selectedChannels.length !== 1 || selectedChannels[0] !== "whatsapp") {
+    throw new Error("The global job registry currently supports WhatsApp only. Select WhatsApp without SMS or email.");
+  }
   if (!trimmedMessage) throw new Error("Enter a campaign message.");
 
-  const { data, error } = await supabase.functions.invoke("campaign-dispatch", {
-    body: {
-      tenant_id: tenantId,
-      group_ids: selectedGroupIds,
-      channels: selectedChannels,
-      message: trimmedMessage,
-    },
-  });
+  const { data: groups, error: groupError } = await supabase
+    .from("contactgroups")
+    .select("group_id, group_name")
+    .eq("product_id", cfcfConfig.productId)
+    .eq("tenant_id", tenantId)
+    .in("group_id", selectedGroupIds);
+  if (groupError) throw new Error("Unable to verify selected Contact Groups: " + groupError.message);
+  if (!groups || groups.length !== selectedGroupIds.length) {
+    throw new Error("One or more Contact Groups are no longer available in this workspace.");
+  }
 
-  if (error) {
-    let details = data && typeof data === "object" && "error" in data
-      ? String((data as { error: unknown }).error)
-      : "";
-    const context = (error as { context?: unknown }).context;
-    if (!details && context instanceof Response) {
-      try {
-        const responseBody = await context.clone().json() as { error?: unknown };
-        if (typeof responseBody.error === "string") details = responseBody.error;
-      } catch {
-        // Fall back to the Supabase function client's safe generic error.
-      }
+  // Reuse the paginated helper so a large selected audience is not silently
+  // truncated by a single Supabase REST response.
+  const memberships = await listCfcfGroupMembers(tenantId, selectedGroupIds);
+  const contactIds = [...new Set(memberships.map((row) => row.contact_id).filter(Boolean))];
+  if (contactIds.length === 0) throw new Error("The selected groups contain no Contacts.");
+
+  const recipients: Array<{ recipient_contact_id: string; recipient_phone: string }> = [];
+  for (let offset = 0; offset < contactIds.length; offset += 500) {
+    const chunk = contactIds.slice(offset, offset + 500);
+    const { data, error } = await supabase
+      .from("contacts")
+      .select("contact_id, phone")
+      .eq("product_id", cfcfConfig.productId)
+      .eq("tenant_id", tenantId)
+      .in("contact_id", chunk);
+    if (error) throw new Error("Unable to resolve recipient phone numbers: " + error.message);
+    for (const contact of data ?? []) {
+      const phone = typeof contact.phone === "string" ? contact.phone.trim() : "";
+      if (phone) recipients.push({ recipient_contact_id: contact.contact_id, recipient_phone: phone });
     }
-    throw new Error(details || error.message || "Campaign dispatch failed. Check Notifications before retrying.");
+  }
+  const uniqueRecipients = [...new Map(recipients.map((recipient) => [recipient.recipient_contact_id, recipient])).values()];
+  if (uniqueRecipients.length === 0) throw new Error("The selected groups have no Contacts with usable phone numbers.");
+
+  const requestKey = "cfcf-campaign:" + tenantId + ":" + crypto.randomUUID();
+  const { data, error } = await supabase.rpc("n8n_register_whatsapp_job", {
+    p_product_id: cfcfConfig.productId,
+    p_tenant_id: tenantId,
+    p_person_id: personId,
+    p_job_type: "manual_campaign",
+    p_source_table: "contactgroups",
+    p_source_record_id: selectedGroupIds.join(","),
+    p_idempotency_key: requestKey,
+    p_communication_type: "campaign",
+    p_message_text: trimmedMessage,
+    p_message_payload: {
+      group_ids: selectedGroupIds,
+      group_names: groups.map((group) => group.group_name),
+      requested_channels: ["whatsapp"],
+    },
+    p_recipients: uniqueRecipients,
+    p_scheduled_at: null,
+  });
+  if (error) throw new Error("Unable to register WhatsApp campaign: " + error.message);
+
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row || !Number.isInteger(row.n8n_global_job_id) || !Number.isInteger(row.n8n_whatsapp_communication_id)) {
+    throw new Error("Supabase did not return valid sequential registry job and communication IDs.");
   }
 
-  if (!data || data.accepted !== true || data.status !== "accepted" || typeof data.campaign_id !== "string") {
-    throw new Error(typeof data?.error === "string" ? data.error : "n8n did not acknowledge campaign receipt.");
-  }
-
-  return data as CfcfCampaignDispatchReceipt;
+  return {
+    accepted: true,
+    status: "registered",
+    n8n_global_job_id: row.n8n_global_job_id,
+    n8n_whatsapp_communication_id: row.n8n_whatsapp_communication_id,
+    was_existing: row.was_existing === true,
+    recipient_count: uniqueRecipients.length,
+    channels: ["whatsapp"],
+    message: "Job registered in Supabase. n8n will process it when the worker is active.",
+  };
 }

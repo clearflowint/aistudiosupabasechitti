@@ -59,16 +59,33 @@ import {
   type CfcfFundOtherAdjustmentSummary,
 } from "../services/workspace.service";
 import type { CfcfBillRow, CfcfContactRow, CfcfFundRow, CfcfShareRow } from "../types/database.types";
+import { registerCfcfBulkWhatsAppJob, type CfcfWorkspaceAutomation } from "../services/workspace-automation.service";
+import { listCfcfAutomationSchedules, saveCfcfAutomationSchedule, type CfcfAutomationSchedule, type CfcfAutomationScheduleType } from "../services/automation-schedules.service";
 
 type WorkspaceTab = "shares" | "ledger";
 type WorkspaceSectionTab = "fund-summary" | "shares";
 type ShareFilter = "all" | "pending" | "drawn" | "undrawn";
+
+interface CfcfAutomationScheduleDraft {
+  jobType: CfcfAutomationScheduleType;
+  slotNumber: number;
+  dayOfMonth: string;
+  timeOfDay: string;
+  isEnabled: boolean;
+  scheduleId?: string;
+  nextRunAt?: string | null;
+  lastRunAt?: string | null;
+  lastError?: string | null;
+}
+
 
 interface WorkspacePageProps {
   workspace: AuthorizedWorkspace;
 }
 
 const MAX_CFCF_CYCLES = 100;
+// Keep manual job creation gated until the inactive n8n worker and WAHA session are validated.
+const CFCF_GLOBAL_WHATSAPP_REGISTRATION_ENABLED = false;
 const emptyFundForm = { fundName: "", startDate: "", numberOfCycles: "" };
 
 function localDateInputValue(): string {
@@ -102,6 +119,15 @@ function readSavedWorkspaceView(tenantId: string): SavedWorkspaceView {
 
 export function WorkspacePage({ workspace }: WorkspacePageProps) {
   const [funds, setFunds] = useState<CfcfFundRow[]>([]);
+  const [isRegisteringBulkWhatsApp, setIsRegisteringBulkWhatsApp] = useState(false);
+  const [isMonthlyScheduleOpen, setIsMonthlyScheduleOpen] = useState(false);
+  const [scheduleFundId, setScheduleFundId] = useState("");
+  const [scheduleFundName, setScheduleFundName] = useState("");
+  const [scheduleSlots, setScheduleSlots] = useState<CfcfAutomationScheduleDraft[]>([]);
+  const [isLoadingScheduleSlots, setIsLoadingScheduleSlots] = useState(false);
+  const [savingScheduleKey, setSavingScheduleKey] = useState<string | null>(null);
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
+  const [scheduleNotice, setScheduleNotice] = useState<string | null>(null);
   const [archivedFunds, setArchivedFunds] = useState<CfcfArchivedFundRow[]>([]);
   const [isLoadingArchivedFunds, setIsLoadingArchivedFunds] = useState(false);
   const [isArchivingFund, setIsArchivingFund] = useState(false);
@@ -215,6 +241,110 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
   function showDatabaseResult(message: string, status: "success" | "error" = "success"): void {
     setDatabaseResult({ status, message });
   }
+
+  async function handleBulkWhatsAppRegistration(automation: CfcfWorkspaceAutomation): Promise<void> {
+    if (!CFCF_GLOBAL_WHATSAPP_REGISTRATION_ENABLED) {
+      showDatabaseResult("Bulk WhatsApp job registration is not enabled until the n8n worker and WAHA session are validated.", "error");
+      return;
+    }
+    if (!selectedFund || isRegisteringBulkWhatsApp) return;
+    setIsRegisteringBulkWhatsApp(true);
+    try {
+      const receipt = await registerCfcfBulkWhatsAppJob(
+        workspace.tenantId,
+        workspace.personId,
+        selectedFund.fund_id,
+        automation,
+      );
+      showDatabaseResult(
+        "WhatsApp job #" + receipt.n8n_global_job_id + " registered for " +
+        receipt.recipient_count + " recipient(s). It will send only after the n8n worker is configured and activated.",
+      );
+    } catch (error) {
+      showDatabaseResult(error instanceof Error ? error.message : "Unable to register WhatsApp job.", "error");
+    } finally {
+      setIsRegisteringBulkWhatsApp(false);
+    }
+  }
+  function makeScheduleDrafts(saved: CfcfAutomationSchedule[]): CfcfAutomationScheduleDraft[] {
+    const definitions: Array<{ jobType: CfcfAutomationScheduleType; count: number }> = [
+      { jobType: "pending_due_reminder", count: 3 },
+      { jobType: "report", count: 2 },
+    ];
+    return definitions.flatMap(({ jobType, count }) => Array.from({ length: count }, (_, index) => {
+      const slotNumber = index + 1;
+      const row = saved.find((item) => item.job_type === jobType && item.slot_number === slotNumber);
+      return {
+        jobType,
+        slotNumber,
+        dayOfMonth: row ? String(row.day_of_month) : "",
+        timeOfDay: row ? String(row.time_of_day).slice(0, 5) : "",
+        isEnabled: row?.is_enabled ?? false,
+        scheduleId: row?.schedule_id,
+        nextRunAt: row?.next_run_at,
+        lastRunAt: row?.last_run_at,
+        lastError: row?.last_error,
+      };
+    }));
+  }
+
+  async function openMonthlyScheduleSettings(): Promise<void> {
+    if (!selectedFund) return;
+    setScheduleFundId(selectedFund.fund_id);
+    setScheduleFundName(selectedFund.fund_name);
+    setIsMonthlyScheduleOpen(true);
+    setIsLoadingScheduleSlots(true);
+    setScheduleError(null);
+    setScheduleNotice(null);
+    try {
+      const saved = await listCfcfAutomationSchedules(workspace.tenantId, selectedFund.fund_id);
+      setScheduleSlots(makeScheduleDrafts(saved));
+    } catch (error) {
+      setScheduleError(error instanceof Error ? error.message : "Unable to load this Fund's monthly schedules.");
+      setScheduleSlots(makeScheduleDrafts([]));
+    } finally {
+      setIsLoadingScheduleSlots(false);
+    }
+  }
+
+  async function handleSaveScheduleSlot(slot: CfcfAutomationScheduleDraft): Promise<void> {
+    const key = slot.jobType + ":" + slot.slotNumber;
+    if (!scheduleFundId || savingScheduleKey) return;
+    const day = Number(slot.dayOfMonth);
+    if (!Number.isInteger(day) || day < 1 || day > 31 || !/^([01]\d|2[0-3]):[0-5]\d$/.test(slot.timeOfDay)) {
+      setScheduleError("Enter a day from 1 to 31 and a valid time before saving this slot.");
+      return;
+    }
+    setSavingScheduleKey(key);
+    setScheduleError(null);
+    setScheduleNotice(null);
+    try {
+      const saved = await saveCfcfAutomationSchedule({
+        tenantId: workspace.tenantId,
+        fundId: scheduleFundId,
+        jobType: slot.jobType,
+        slotNumber: slot.slotNumber,
+        dayOfMonth: day,
+        timeOfDay: slot.timeOfDay,
+        isEnabled: slot.isEnabled,
+      });
+      setScheduleSlots((current) => current.map((item) => item.jobType === slot.jobType && item.slotNumber === slot.slotNumber
+        ? { ...item, dayOfMonth: String(saved.day_of_month), timeOfDay: String(saved.time_of_day).slice(0, 5), isEnabled: saved.is_enabled, scheduleId: saved.schedule_id, nextRunAt: saved.next_run_at, lastRunAt: saved.last_run_at, lastError: saved.last_error }
+        : item));
+      setScheduleNotice((slot.isEnabled ? "Enabled" : "Disabled") + " " + (slot.jobType === "pending_due_reminder" ? "Pending reminder" : "Report") + " slot " + slot.slotNumber + ".");
+    } catch (error) {
+      setScheduleError(error instanceof Error ? error.message : "Unable to save this monthly schedule.");
+    } finally {
+      setSavingScheduleKey(null);
+    }
+  }
+
+  function updateScheduleDraft(jobType: CfcfAutomationScheduleType, slotNumber: number, patch: Partial<CfcfAutomationScheduleDraft>): void {
+    setScheduleSlots((current) => current.map((item) => item.jobType === jobType && item.slotNumber === slotNumber ? { ...item, ...patch } : item));
+    setScheduleError(null);
+    setScheduleNotice(null);
+  }
+
   const [deleteTarget, setDeleteTarget] = useState<{ kind: "share"; id: string; label: string; fundId?: string } | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteStep, setDeleteStep] = useState(1);
@@ -1622,10 +1752,13 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <button type="button" disabled title="Disabled until the n8n reminder workflow is configured." aria-label="Send pending reminder to all shares (disabled)" className="inline-flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-2 py-2 text-center text-xs font-bold leading-4 text-amber-900 opacity-60 cursor-not-allowed"><MessageCircle size={16} className="shrink-0" /><span>Send Pending Reminder to All</span></button>
-              <button type="button" disabled title="Disabled until the n8n report workflow is configured." aria-label="Send report to all shares (disabled)" className="inline-flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-sky-300 bg-sky-50 px-2 py-2 text-center text-xs font-bold leading-4 text-sky-900 opacity-60 cursor-not-allowed"><FileText size={16} className="shrink-0" /><span>Send Report to All</span></button>
+              <button type="button" onClick={() => void handleBulkWhatsAppRegistration("pending-reminder-all")} disabled={!CFCF_GLOBAL_WHATSAPP_REGISTRATION_ENABLED || !selectedFund || isRegisteringBulkWhatsApp} title="Direct Supabase job registration is prepared but remains gated until the n8n worker and WAHA session are validated." aria-label="Register pending reminder job for all shares" className="inline-flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-2 py-2 text-center text-xs font-bold leading-4 text-amber-900 disabled:opacity-50"><MessageCircle size={16} className="shrink-0" /><span>{isRegisteringBulkWhatsApp ? "Registering…" : "Send Pending Reminder to All"}</span></button>
+              <button type="button" onClick={() => void handleBulkWhatsAppRegistration("report-all")} disabled={!CFCF_GLOBAL_WHATSAPP_REGISTRATION_ENABLED || !selectedFund || isRegisteringBulkWhatsApp} title="Direct Supabase job registration is prepared but remains gated until the n8n worker and WAHA session are validated." aria-label="Register report job for all shares" className="inline-flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-sky-300 bg-sky-50 px-2 py-2 text-center text-xs font-bold leading-4 text-sky-900 disabled:opacity-50"><FileText size={16} className="shrink-0" /><span>{isRegisteringBulkWhatsApp ? "Registering…" : "Send Report to All"}</span></button>
             </div>
-            <p className="text-center text-xs text-slate-500">Bulk WhatsApp automation is disabled until the n8n webhook is configured.</p>
+            <p className="text-center text-xs text-slate-500">The direct Supabase job-ID route is prepared. Registration and sending remain disabled until the n8n worker and WAHA session are validated.</p>
+            <button type="button" onClick={() => void openMonthlyScheduleSettings()} disabled={!selectedFund} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-900 disabled:opacity-50">
+              <CalendarDays size={17} /> Configure monthly Pending / Report schedules
+            </button>
 
             <section className="space-y-3">
               <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
@@ -2625,6 +2758,72 @@ export function WorkspacePage({ workspace }: WorkspacePageProps) {
           )}
           <div className="border-t border-slate-100 pt-3">
             <button type="button" onClick={() => setIsFundPaymentLedgerOpen(false)} className="min-h-11 w-full rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white">Close ledger</button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isMonthlyScheduleOpen}
+        title="Monthly automation schedule"
+        description={scheduleFundName ? "Fund: " + scheduleFundName + " · Choose recurring dates and times for Pending reminders and Reports." : "Choose recurring monthly dates and times."}
+        size="large"
+        onClose={() => { if (!savingScheduleKey) setIsMonthlyScheduleOpen(false); }}
+      >
+        <div className="space-y-4">
+          <div className="rounded-xl border border-sky-100 bg-sky-50 p-3 text-sm leading-5 text-sky-900">
+            Schedules repeat every month in India time (Asia/Kolkata). If you choose day 29, 30 or 31 and that day does not exist in a month, the run is on that month’s final calendar day. A schedule only stores the plan; the n8n scheduler/worker must be enabled and validated before messages are sent.
+          </div>
+          {isLoadingScheduleSlots ? <LoadingCard message="Loading saved schedule slots…" /> : (
+            <div className="space-y-4">
+              {([
+                { jobType: "pending_due_reminder" as const, title: "Pending reminders", description: "Up to 3 recurring slots per Fund" },
+                { jobType: "report" as const, title: "Reports", description: "Up to 2 recurring slots per Fund" },
+              ]).map((group) => (
+                <section key={group.jobType} className="space-y-2">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">{group.title}</h3>
+                    <p className="text-xs text-slate-500">{group.description}</p>
+                  </div>
+                  {scheduleSlots.filter((slot) => slot.jobType === group.jobType).map((slot) => {
+                    const key = slot.jobType + ":" + slot.slotNumber;
+                    const isSaving = savingScheduleKey === key;
+                    const hasDayTime = Number.isInteger(Number(slot.dayOfMonth)) && Number(slot.dayOfMonth) >= 1 && Number(slot.dayOfMonth) <= 31 && /^([01]\d|2[0-3]):[0-5]\d$/.test(slot.timeOfDay);
+                    return (
+                      <article key={key} className="rounded-xl border border-slate-200 p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-semibold text-slate-800">Slot {slot.slotNumber}</p>
+                          <label className="inline-flex min-h-9 items-center gap-2 text-sm font-medium text-slate-700">
+                            <input type="checkbox" checked={slot.isEnabled} disabled={Boolean(savingScheduleKey)} onChange={(event) => updateScheduleDraft(slot.jobType, slot.slotNumber, { isEnabled: event.target.checked })} className="h-4 w-4 rounded border-slate-300" />
+                            {slot.isEnabled ? "Enabled" : "Disabled"}
+                          </label>
+                        </div>
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                          <label className="block text-xs font-medium text-slate-600">Day of month
+                            <input type="number" min="1" max="31" step="1" inputMode="numeric" value={slot.dayOfMonth} onChange={(event) => updateScheduleDraft(slot.jobType, slot.slotNumber, { dayOfMonth: event.target.value })} placeholder="1–31" disabled={Boolean(savingScheduleKey)} className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-900" />
+                          </label>
+                          <label className="block text-xs font-medium text-slate-600">Time (India)
+                            <input type="time" value={slot.timeOfDay} onChange={(event) => updateScheduleDraft(slot.jobType, slot.slotNumber, { timeOfDay: event.target.value })} disabled={Boolean(savingScheduleKey)} className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-900" />
+                          </label>
+                        </div>
+                        {slot.nextRunAt && <p className="mt-2 text-xs text-slate-500">Next run: {new Date(slot.nextRunAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}</p>}
+                        {slot.lastRunAt && <p className="mt-1 text-xs text-slate-500">Last run: {new Date(slot.lastRunAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}</p>}
+                        {slot.lastError && <p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs leading-5 text-amber-900">Last occurrence note: {slot.lastError}</p>}
+                        <div className="mt-3 flex justify-end">
+                          <button type="button" onClick={() => void handleSaveScheduleSlot(slot)} disabled={Boolean(savingScheduleKey) || !hasDayTime} className={"inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-white disabled:opacity-50 " + (group.jobType === "pending_due_reminder" ? "bg-amber-700" : "bg-sky-700")}>
+                            {isSaving ? <><RefreshCw size={15} className="animate-spin" /> Saving…</> : "Save slot"}
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </section>
+              ))}
+            </div>
+          )}
+          {scheduleError && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{scheduleError}</p>}
+          {scheduleNotice && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{scheduleNotice}</p>}
+          <div className="flex justify-end border-t border-slate-100 pt-3">
+            <button type="button" onClick={() => setIsMonthlyScheduleOpen(false)} disabled={Boolean(savingScheduleKey)} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700">Close</button>
           </div>
         </div>
       </Modal>

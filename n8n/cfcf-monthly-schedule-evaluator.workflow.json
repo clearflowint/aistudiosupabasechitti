@@ -47,7 +47,7 @@
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "const { DateTime } = require('luxon');\n\nfunction nextMonthlyRun(schedule, after) {\n  const zone = schedule.timezone || 'Asia/Kolkata';\n  const [hour, minute, second = '0'] = String(schedule.time_of_day).split(':');\n  const cursor = after.setZone(zone).startOf('month');\n\n  for (let offset = 0; offset < 15; offset++) {\n    const month = cursor.plus({ months: offset });\n    const day = Math.min(Number(schedule.day_of_month), month.daysInMonth);\n    const candidate = month.set({\n      day,\n      hour: Number(hour),\n      minute: Number(minute),\n      second: Number(second),\n      millisecond: 0,\n    });\n    if (candidate.toMillis() > after.toMillis()) return candidate.toUTC().toISO();\n  }\n  throw new Error('Unable to calculate the next monthly run');\n}\n\n// HTTP Request may return a JSON array directly or as a body property.\n// Empty claim results intentionally produce no output items.\nconst rows = items.flatMap(({ json }) => {\n  const payload = json.body ?? json;\n  if (Array.isArray(payload)) return payload;\n  if (payload && payload.schedule_id) return [payload];\n  return [];\n});\n\nconst now = DateTime.now();\nreturn rows.map(schedule => {\n  if (!schedule.schedule_id || !schedule.time_of_day || !schedule.day_of_month) {\n    throw new Error('Claimed schedule is missing required fields');\n  }\n\n  const next = nextMonthlyRun(schedule, now);\n  if (!schedule.next_run_at) {\n    return { json: { action: 'initialize', schedule_id: schedule.schedule_id, next_run_at: next, claimed_until: schedule.claimed_until } };\n  }\n\n  return {\n    json: {\n      action: 'enqueue',\n      schedule_id: schedule.schedule_id,\n      scheduled_for: schedule.next_run_at,\n      next_run_at: next,\n    },\n  };\n});"
+        "jsCode": "const { DateTime } = require('luxon');\n\nfunction nextMonthlyRun(schedule, after) {\n  const zone = schedule.timezone || 'Asia/Kolkata';\n  const [hour, minute, second = '0'] = String(schedule.time_of_day).split(':');\n  const cursor = after.setZone(zone).startOf('month');\n\n  for (let offset = 0; offset < 15; offset++) {\n    const month = cursor.plus({ months: offset });\n    const day = Math.min(Number(schedule.day_of_month), month.daysInMonth);\n    const candidate = month.set({\n      day,\n      hour: Number(hour),\n      minute: Number(minute),\n      second: Number(second),\n      millisecond: 0,\n    });\n    if (candidate.toMillis() > after.toMillis()) return candidate.toUTC().toISO();\n  }\n  throw new Error('Unable to calculate the next monthly run');\n}\n\n// HTTP Request may return a JSON array directly or as a body property.\n// Empty claim results intentionally produce no output items.\nconst rows = items.flatMap(({ json }) => {\n  const payload = json.body ?? json;\n  if (Array.isArray(payload)) return payload;\n  if (payload && payload.schedule_id) return [payload];\n  return [];\n});\n\nconst now = DateTime.now();\nreturn rows.map(schedule => {\n  if (!schedule.schedule_id || !schedule.time_of_day || !schedule.day_of_month) {\n    throw new Error('Claimed schedule is missing required fields');\n  }\n\n  const next = nextMonthlyRun(schedule, now);\n  if (!schedule.next_run_at) {\n    return { json: { action: 'initialize', schedule_id: schedule.schedule_id, next_run_at: next, claimed_until: schedule.claimed_until } };\n  }\n\n  return {\n    json: {\n      action: 'enqueue',\n      schedule_id: schedule.schedule_id,\n      scheduled_for: schedule.next_run_at,\n      next_run_at: next,\n      claimed_until: schedule.claimed_until,\n    },\n  };\n});"
       },
       "id": "cfcf-calculate-occurrence",
       "name": "Calculate Monthly Occurrence",
@@ -118,12 +118,12 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://YOUR_SUPABASE_PROJECT_REF.supabase.co/rest/v1/rpc/cfcf_enqueue_scheduled_automation_job",
+        "url": "https://YOUR_SUPABASE_PROJECT_REF.supabase.co/rest/v1/rpc/n8n_register_scheduled_cfcf_job",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { p_schedule_id: $json.schedule_id, p_scheduled_for: $json.scheduled_for, p_next_run_at: $json.next_run_at } }}",
+        "jsonBody": "={{ { p_schedule_id: $json.schedule_id, p_scheduled_for: $json.scheduled_for, p_next_run_at: $json.next_run_at, p_claimed_until: $json.claimed_until } }}",
         "options": {}
       },
       "id": "cfcf-enqueue-job",
@@ -135,7 +135,7 @@
         420
       ],
       "notesInFlow": true,
-      "notes": "SETUP REQUIRED: use the same Supabase Custom Auth credential. This RPC atomically creates the queued job and advances the schedule. It does not deliver messages."
+      "notes": "SETUP REQUIRED: use the same Supabase Custom Auth credential. This RPC reads current Fund/Share/Contact data, registers a scoped job and delivery rows in the global n8n WhatsApp registry, then advances the schedule in one transaction. It does not deliver messages. It consumes the occurrence without creating a job when no eligible saved Contact has a usable phone."
     }
   ],
   "connections": {
