@@ -155,7 +155,10 @@ Use the established names and ownership boundaries. Do not route CFCF business l
 - **ClearFlow — JSONB Job Contract Preview (Draft Only)** — global contract preview for the PWA-to-n8n instruction envelope. It is not a CFCF WhatsApp entry workflow and remains inactive.
 - **CFCF Automation Worker — Draft** — CFCF-specific worker skeleton. It is inactive and its processing path is incomplete. Legacy `cfcf_*` RPC nodes, old `n8n_whatsapp_*` placeholder nodes, and the read-only WAHA session inventory node have now been disabled to prevent accidental use of paths that do not match the approved registry. Do not treat it as a working WhatsApp entry point.
 - **CFCF — Monthly Schedule Evaluator (Setup Required)** — CFCF-specific schedule evaluator. It is inactive; the HTTP nodes for the rolled-back schedule/job RPCs have now been disabled. It must be redesigned against approved n8n schedule configuration and the global JSONB registry before activation.
-- **CFCF — Shared Error Handler** — shared only across the CFCF evaluator/worker. It is not a cross-product global error handler. Keep its failure output sanitized.
+- **CFCF — Shared Error Handler** — currently active and shared only across the CFCF evaluator/worker. It captures sanitized workflow/execution metadata only; it does not persist a durable job failure, notify the manager, release a lease, or message the sender. It is not a cross-product global error handler.
+
+- **CFCF — Shared WhatsApp Inbound (Draft)** — CFCF-specific shared-number ingress skeleton; inactive, unprotected webhook, no durable enqueue or sender acknowledgement. Returns retryable queue-not-ready if activated, so it must not be activated as-is.
+- **CFCF — Tenant-Owned WhatsApp Inbound (Draft)** — separate CFCF-specific tenant-owned-number ingress skeleton; inactive, unprotected webhook, ignores payload-supplied tenant IDs, and has no durable enqueue or sender acknowledgement. Must not be activated as-is.
 
 The existing **ClearFlow MCP Connection Test** is a connection-test utility only; it is not a business workflow.
 
@@ -257,3 +260,43 @@ Before connecting any live trigger, verify without provider sends or production 
 - Scheduled execution targets an inactive tenant or disabled schedule → skip safely and record a non-sensitive reason.
 - Repeated PWA request, WhatsApp event ID, or scheduled occurrence → no duplicate job or repeated provider send.
 - All three sources attempt cross-tenant person/contact IDs → reject before private data is returned.
+
+
+## Queueing, acknowledgements, and failure review — required before activation
+
+### Queue the inbound request, not the webhook itself
+
+- Both CFCF inbound paths need a durable, idempotent enqueue step. A webhook execution or an in-memory loop is not a durable queue.
+- Shared-number path: validate the provider event and session, normalize the sender, resolve exactly one tenant/contact from authoritative CFCF records, and only then create the tenant-scoped job. Unknown or ambiguous sender matches must not be assigned to a guessed tenant.
+- Tenant-owned path: resolve the tenant from an authoritative receiver/session-to-tenant mapping. Ignore any payload-supplied `tenant_id`. Then validate the sender/person/role within that tenant before performing private actions.
+- The approved `public.n8n_global_jobs` registry requires a tenant ID. Therefore, an unknown shared-number sender cannot be inserted as a normal tenant job. It receives only a neutral, rate-limited acknowledgement/handling path; do not create a fake tenant to force it into the registry.
+- The JSONB registry migration is still a draft. Until durable persistence and auth are available, both inbound drafts intentionally return `503 DURABLE_QUEUE_NOT_CONFIGURED`; they must stay inactive. A success response must never be sent before the durable queue write commits.
+
+### Two different acknowledgements
+
+1. **Transport acknowledgement to WAHA/provider:** return a 2xx only after the inbound event is durably stored or confirmed as an already-stored duplicate. This tells the webhook delivery mechanism it can stop retrying that event. If durable enqueue fails, return a retryable non-2xx response; the idempotent provider event ID/request key must prevent duplicate jobs if the provider retries.
+2. **WhatsApp acknowledgement to the human sender:** after durable enqueue, send one short receipt with a non-sensitive reference, for example: “Received your request (Ref {reference}). It is queued for processing. Please don’t resend it; we’ll update you when there is a result.” The actual outbound WhatsApp send is not implemented in the drafts. Do not claim queued/accepted until persistence succeeds.
+
+- Keep these acknowledgements separate: an HTTP response to WAHA does not send a WhatsApp message to the sender.
+- Record acknowledgement state in the same job JSONB document (e.g. pending, provider_accepted, failed, uncertain) and suppress duplicate acknowledgement sends for duplicate provider event IDs. Provider acceptance is not proof the sender received/read the message.
+- Unknown/unauthorized/ambiguous senders get no tenant data or tenant-specific status. If a neutral acknowledgement is sent, it must not reveal whether a particular tenant/contact exists. Apply a bounded per-session/sender rate limit to prevent acknowledgement loops.
+- Do not deduplicate distinct inbound requests by message text alone; different messages may represent distinct instructions. Use the provider event ID for transport deduplication and a scoped request ID for job idempotency.
+
+### Failure outcomes and manager review
+
+- **Failure before durable enqueue:** do not send a human “queued” acknowledgement. Return retryable transport failure; record only sanitized diagnostics where available.
+- **Failure after enqueue but before any provider submission:** retain the job and its reference. It can be safely re-claimed only after the worker/lease state proves no provider submission was attempted. Do not create a second job.
+- **Definitive provider rejection:** mark that recipient/job failed with a safe error category; do not retry unless the failure is explicitly classified as transient and the operation is proven idempotent.
+- **Timeout or lost provider response after submission:** mark `uncertain`, stop automatic resend, and flag for manager review. Never infer “not sent” from a timeout.
+- **Sender-acknowledgement send failure:** keep the business job state separate from the acknowledgement state. If provider acceptance is ambiguous, mark the acknowledgement `uncertain`; do not blindly send it again.
+- **Workflow execution failure:** the current `CFCF — Shared Error Handler` captures sanitized execution metadata only. It is not yet a durable alert/recovery system. Once the registry is approved, store a bounded error event and `needs_review`/failure summary on the same job row; expose the safe status/reference in the manager PWA. Do not store secrets, full message bodies, phone numbers, or provider credentials in error summaries.
+- Keep bounded history (maximum 500 events per job), update the single job JSONB row sequentially, and do not add per-recipient tables. If status cannot be safely resolved, show `uncertain` and request manual review rather than retrying.
+- Avoid retry loops. A retry is allowed only for a classified transient failure before external side effects, or when the provider explicitly confirms rejection and the action is safe. Use finite attempts and a visible terminal outcome; no unbounded retries.
+
+### Queue boundaries and pacing
+
+- Inbound event acceptance should be quick: validate, deduplicate, persist, acknowledge. Do not perform a long recipient loop or send a campaign synchronously inside the inbound webhook.
+- A separate CFCF worker claims a small bounded number of jobs, then loops over recipients serially or with a deliberately small concurrency limit. The current mock worker uses batch size 1 and a hard cap of 100 as a test safety ceiling; these are not evidence that the production dispatcher is ready.
+- Keep independent queues/pacing per assigned WAHA session/manager. Do not fall back to another tenant's or another product's session if the assigned session is unavailable.
+- If a queue is backed up, report queued/waiting state and progress; do not create duplicate jobs or tell the sender to resend.
+- Never activate the new inbound drafts until server-boundary authentication, authoritative tenant resolution, durable idempotent enqueue, sender-ack deduplication, failure review, and mock integration tests all pass.
