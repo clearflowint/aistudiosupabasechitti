@@ -8,7 +8,7 @@ interface AutomationJobProgressCardProps {
   workspace: AuthorizedWorkspace;
 }
 
-const enabled = import.meta.env.VITE_CFCF_JOB_PROGRESS_ENABLED === "true";
+const enabled = import.meta.env.VITE_CFCF_JOB_PROGRESS_ENABLED !== "false";
 
 const statusLabels: Record<CfcfAutomationJobStatus["status"], string> = {
   queued: "Queued",
