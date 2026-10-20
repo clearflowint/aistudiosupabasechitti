@@ -20,6 +20,13 @@ test("job IDs start at 100 and jobs are tenant/product scoped", () => {
   assert.ok(migration.includes("for select\n  to authenticated"));
 });
 
+test("request IDs are unique per product and tenant to prevent duplicate jobs", () => {
+  assert.ok(migration.includes("n8n_global_jobs_request_id_unique_idx"));
+  assert.ok(migration.includes("(product_id, tenant_id, (job_data ->> 'request_id'))"));
+  assert.ok(migration.includes("where nullif(btrim(job_data ->> 'request_id'), '') is not null"));
+  assert.ok(contract.includes("duplicate request_id must return the existing job"));
+});
+
 test("campaign recipient arrays have a hard 100-contact ceiling", () => {
   assert.ok(migration.includes("jsonb_array_length(job_data -> 'recipients') <= 100"));
   assert.ok(contract.includes("1–100 unique resolved contacts"));
