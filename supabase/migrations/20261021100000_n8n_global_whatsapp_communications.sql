@@ -45,51 +45,16 @@ comment on column public.n8n_global_whatsapp_communications.outcome_unknown_coun
   'Number of recipients for which the send outcome could not be determined; do not automatically resend.';
 
 
--- Safe manager read path: callers can only read their own active CFCF tenant.
--- The table itself remains inaccessible directly to browser roles.
-create or replace function public.list_cfcf_whatsapp_communications(p_tenant_id text)
-returns table (
-  communication_id bigint,
-  job_id bigint,
-  product_id text,
-  tenant_id text,
-  source_type text,
-  communication_type text,
-  status text,
-  recipient_count integer,
-  waha_accepted_count integer,
-  waha_rejected_count integer,
-  outcome_unknown_count integer,
-  created_at timestamptz,
-  updated_at timestamptz,
-  completed_at timestamptz
-)
-language plpgsql
-security definer
-set search_path = public
-stable
-as $$
-begin
-  if auth.uid() is null
-     or p_tenant_id is null
-     or not public.is_active_tenant_owner('CFCF', p_tenant_id) then
-    raise exception 'Not authorized to read CFCF WhatsApp communications'
-      using errcode = '42501';
-  end if;
 
-  return query
-  select c.communication_id, c.job_id, c.product_id, c.tenant_id,
-         c.source_type, c.communication_type, c.status,
-         c.recipient_count, c.waha_accepted_count,
-         c.waha_rejected_count, c.outcome_unknown_count,
-         c.created_at, c.updated_at, c.completed_at
-  from public.n8n_global_whatsapp_communications c
-  where c.product_id = 'CFCF'
-    and c.tenant_id = p_tenant_id
-  order by c.updated_at desc
-  limit 5;
-end;
-$$;
+-- Managers may read aggregate communication rows for their own active CFCF tenant.
+-- No direct browser writes; n8n service_role owns the communication lifecycle.
+create policy n8n_global_whatsapp_communications_manager_read
+  on public.n8n_global_whatsapp_communications
+  for select
+  to authenticated
+  using (
+    product_id = 'CFCF'
+    and public.is_active_tenant_owner(product_id, tenant_id)
+  );
 
-revoke all on function public.list_cfcf_whatsapp_communications(text) from public, anon;
-grant execute on function public.list_cfcf_whatsapp_communications(text) to authenticated;
+grant select on table public.n8n_global_whatsapp_communications to authenticated;
