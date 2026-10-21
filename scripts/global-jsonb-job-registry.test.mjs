@@ -8,6 +8,7 @@ const campaignMigration = readFileSync(new URL("../supabase/migrations/202610201
 const campaignScopeMigration = readFileSync(new URL("../supabase/migrations/20261020182000_cfcf_manual_campaign_fund_scope.sql", import.meta.url), "utf8");
 const n8nOwnershipMigration = readFileSync(new URL("../supabase/migrations/20261021001000_restore_n8n_owned_job_creation.sql", import.meta.url), "utf8");
 const progressViewMigration = readFileSync(new URL("../supabase/migrations/20261021003000_cfcf_job_progress_summary_view.sql", import.meta.url), "utf8");
+const communicationsMigration = readFileSync(new URL("../supabase/migrations/20261021100000_n8n_global_whatsapp_communications.sql", import.meta.url), "utf8");
 const workspacePage = readFileSync(new URL("../src/features/cfcf/pages/WorkspacePage.tsx", import.meta.url), "utf8");
 const contract = readFileSync(new URL("../docs/n8n-global-jsonb-job-registry.md", import.meta.url), "utf8");
 const architecture = readFileSync(new URL("../docs/architecture-guide.md", import.meta.url), "utf8");
@@ -70,7 +71,12 @@ test("browser can read safe status fields but not private JSON payload", () => {
   assert.ok(migration.includes("job_id, product_id, tenant_id, source_type, job_type, status, request_id"));
   assert.ok(migration.includes("scheduled_at, created_at, updated_at, completed_at"));
   assert.ok(migration.includes("grant all on table public.n8n_global_jobs to service_role"));
-  assert.ok(progressService.includes('from("cfcf_job_progress_summary")'));
+  assert.ok(progressService.includes('from("n8n_global_whatsapp_communications")'));
+  assert.ok(progressService.includes("communication_id, job_id, product_id, tenant_id"));
+  assert.ok(communicationsMigration.includes("public.n8n_global_whatsapp_communications"));
+  assert.ok(communicationsMigration.includes("public.is_active_tenant_owner(product_id, tenant_id)"));
+  assert.ok(communicationsMigration.includes("grant select on table public.n8n_global_whatsapp_communications to authenticated"));
+  assert.equal(communicationsMigration.includes("create or replace function"), false);
   assert.ok(progressService.includes('.eq("product_id", cfcfConfig.productId)'));
   assert.ok(progressService.includes('.eq("tenant_id", tenantId)'));
   assert.ok(progressService.includes('.limit(5)'));
@@ -86,7 +92,9 @@ test("browser can read safe status fields but not private JSON payload", () => {
 test("manager status card is read-only and enabled by default with an opt-out", () => {
   assert.ok(progressCard.includes('import.meta.env.VITE_CFCF_JOB_PROGRESS_ENABLED !== "false"'));
   assert.ok(progressCard.includes("No job data has been requested"));
-  assert.ok(progressCard.includes("Read-only status from saved records"));
+  assert.ok(progressCard.includes("Recent WhatsApp communication outcomes"));
+  assert.ok(progressCard.includes("Accepted by WAHA"));
+  assert.ok(progressCard.includes("does not confirm delivery to a recipient"));
   assert.ok(progressCard.includes("}, 30_000"));
   assert.ok(progressCard.includes("job.source_type.replaceAll"));
   assert.ok(progressCard.includes("Created: {formatTime(job.created_at)}"));
