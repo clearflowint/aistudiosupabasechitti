@@ -7,6 +7,7 @@ const policyMigration = readFileSync(new URL("../supabase/migrations/20261020164
 const campaignMigration = readFileSync(new URL("../supabase/migrations/20261020180000_cfcf_manual_campaign_job_requests.sql", import.meta.url), "utf8");
 const campaignScopeMigration = readFileSync(new URL("../supabase/migrations/20261020182000_cfcf_manual_campaign_fund_scope.sql", import.meta.url), "utf8");
 const n8nOwnershipMigration = readFileSync(new URL("../supabase/migrations/20261021001000_restore_n8n_owned_job_creation.sql", import.meta.url), "utf8");
+const progressViewMigration = readFileSync(new URL("../supabase/migrations/20261021003000_cfcf_job_progress_summary_view.sql", import.meta.url), "utf8");
 const workspacePage = readFileSync(new URL("../src/features/cfcf/pages/WorkspacePage.tsx", import.meta.url), "utf8");
 const contract = readFileSync(new URL("../docs/n8n-global-jsonb-job-registry.md", import.meta.url), "utf8");
 const architecture = readFileSync(new URL("../docs/architecture-guide.md", import.meta.url), "utf8");
@@ -69,12 +70,17 @@ test("browser can read safe status fields but not private JSON payload", () => {
   assert.ok(migration.includes("job_id, product_id, tenant_id, source_type, job_type, status, request_id"));
   assert.ok(migration.includes("scheduled_at, created_at, updated_at, completed_at"));
   assert.ok(migration.includes("grant all on table public.n8n_global_jobs to service_role"));
-  assert.ok(progressService.includes('from("n8n_global_jobs")'));
+  assert.ok(progressService.includes('from("cfcf_job_progress_summary")'));
   assert.ok(progressService.includes('.eq("product_id", cfcfConfig.productId)'));
   assert.ok(progressService.includes('.eq("tenant_id", tenantId)'));
   assert.ok(progressService.includes('.limit(5)'));
-  assert.ok(progressService.includes("Never selects the private job_data payload"));
+  assert.ok(progressService.includes("never exposes private job_data"));
   assert.equal(progressService.includes('"job_data"'), false);
+  assert.ok(progressViewMigration.includes("public.is_active_tenant_owner(product_id, tenant_id)"));
+  assert.ok(progressViewMigration.includes("recipient_count"));
+  assert.ok(progressViewMigration.includes("sent_to_server"));
+  assert.ok(progressViewMigration.includes("rejection_confirmed"));
+  assert.ok(progressViewMigration.includes("uncertain"));
 });
 
 test("manager status card is read-only and enabled by default with an opt-out", () => {
@@ -83,7 +89,12 @@ test("manager status card is read-only and enabled by default with an opt-out", 
   assert.ok(progressCard.includes("Read-only status from saved records"));
   assert.ok(progressCard.includes("}, 30_000"));
   assert.ok(progressCard.includes("job.source_type.replaceAll"));
-  assert.ok(progressCard.includes("Scheduled for {formatTime(job.scheduled_at)}"));
+  assert.ok(progressCard.includes("Created: {formatTime(job.created_at)}"));
+  assert.ok(progressCard.includes('job.completed_at ? formatTime(job.completed_at) : "Pending"'));
+  assert.ok(progressCard.includes('pending_reminder_campaign: "Pending Reminder"'));
+  assert.ok(progressCard.includes('share_report_campaign: "Share Report"'));
+  assert.ok(progressCard.includes("Recipients"));
+  assert.ok(progressCard.includes("Uncertain"));
   assert.ok(homeShell.includes("{product.renderHomeContent?.(workspace)}"));
 });
 
