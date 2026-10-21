@@ -46,6 +46,8 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
   const [groupFormError, setGroupFormError] = useState<string | null>(null);
   const [membershipGroup, setMembershipGroup] = useState<CfcfContactGroupRow | null>(null);
   const [membershipSearch, setMembershipSearch] = useState("");
+  const [selectedMembershipContactIds, setSelectedMembershipContactIds] = useState<string[]>([]);
+  const [isSavingMemberships, setIsSavingMemberships] = useState(false);
   const [busyContactId, setBusyContactId] = useState<string | null>(null);
   const [deletingGroup, setDeletingGroup] = useState<CfcfContactGroupRow | null>(null);
   const [isDeletingGroup, setIsDeletingGroup] = useState(false);
@@ -153,33 +155,45 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
     }
   }
 
-  async function handleToggleMember(contactId: string, checked: boolean) {
-    if (!membershipGroup || busyContactId) return;
+  async function handleSaveMemberships() {
+    if (!membershipGroup || isSavingMemberships) return;
     const groupId = membershipGroup.group_id;
-    setBusyContactId(contactId);
+    const existingIds = members.filter((member) => member.group_id === groupId).map((member) => member.contact_id);
+    const selectedIds = [...new Set(selectedMembershipContactIds)];
+    const toAdd = selectedIds.filter((id) => !existingIds.includes(id));
+    const toRemove = existingIds.filter((id) => !selectedIds.includes(id));
+    if (selectedIds.length === 0) return;
+
+    setIsSavingMemberships(true);
     setError(null);
     try {
-      if (checked) {
+      for (const contactId of toAdd) {
+        setBusyContactId(contactId);
         await addCfcfContactToGroup(workspace.tenantId, groupId, contactId);
-        setMembers((current) => current.some((member) => member.group_id === groupId && member.contact_id === contactId)
-          ? current
-          : [...current, {
-            group_id: groupId,
-            contact_id: contactId,
-            product_id: "CFCF",
-            tenant_id: workspace.tenantId,
-            created_at: new Date().toISOString(),
-          }]);
-        setAcknowledgement({ title: "Contact added to group", message: "Supabase confirmed the membership change." });
-      } else {
-        await removeCfcfContactFromGroup(workspace.tenantId, groupId, contactId);
-        setMembers((current) => current.filter((member) => !(member.group_id === groupId && member.contact_id === contactId)));
-        setAcknowledgement({ title: "Contact removed from group", message: "Supabase confirmed the membership change." });
       }
+      for (const contactId of toRemove) {
+        setBusyContactId(contactId);
+        await removeCfcfContactFromGroup(workspace.tenantId, groupId, contactId);
+      }
+      const savedAt = new Date().toISOString();
+      setMembers((current) => [
+        ...current.filter((member) => member.group_id !== groupId || selectedIds.includes(member.contact_id)),
+        ...toAdd.map((contactId) => ({
+          group_id: groupId,
+          contact_id: contactId,
+          product_id: "CFCF" as const,
+          tenant_id: workspace.tenantId,
+          created_at: savedAt,
+        })),
+      ]);
+      setAcknowledgement({ title: "Group members saved", message: "Supabase confirmed the selected Contact Group membership changes." });
+      setMembershipGroup(null);
     } catch (memberFailure) {
-      setError(memberFailure instanceof Error ? memberFailure.message : "Unable to update group membership.");
+      setError(memberFailure instanceof Error ? memberFailure.message : "Unable to save Contact Group members.");
+      // Keep the selection in the modal so the user can correct the issue without reselecting.
     } finally {
       setBusyContactId(null);
+      setIsSavingMemberships(false);
     }
   }
 
@@ -324,7 +338,7 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
                 </div>
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2">
-                <button type="button" onClick={() => { setMembershipGroup(group); setMembershipSearch(""); }} className={buttonClass + " border border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100"}><UsersRound size={15} /> Members</button>
+                <button type="button" onClick={() => { setMembershipGroup(group); setMembershipSearch(""); setSelectedMembershipContactIds(members.filter((member) => member.group_id === group.group_id).map((member) => member.contact_id)); }} className={buttonClass + " border border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100"}><UsersRound size={15} /> Members</button>
                 <button type="button" onClick={() => openRenameGroup(group)} className={buttonClass + " border border-slate-200 text-slate-700 hover:bg-slate-50"}><Pencil size={14} /> Rename</button>
                 <button type="button" onClick={() => { setDeleteError(null); setDeletingGroup(group); }} className={buttonClass + " col-span-2 border border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100"}><Trash2 size={14} /> Delete group</button>
               </div>
@@ -352,10 +366,10 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
           <input value={membershipSearch} onChange={(event) => setMembershipSearch(event.target.value)} placeholder="Search contacts by name, phone or email" className={inputClass} />
           <div className="max-h-[55vh] space-y-1 overflow-y-auto rounded-xl border border-slate-200 p-2">
             {filteredMembershipContacts.length === 0 ? <p className="p-4 text-center text-sm text-slate-500">No matching contacts.</p> : filteredMembershipContacts.map((contact) => {
-              const checked = members.some((member) => member.group_id === membershipGroup?.group_id && member.contact_id === contact.contact_id);
+              const checked = selectedMembershipContactIds.includes(contact.contact_id);
               return (
                 <label key={contact.contact_id} className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-slate-50">
-                  <input type="checkbox" checked={checked} disabled={busyContactId === contact.contact_id} onChange={(event) => void handleToggleMember(contact.contact_id, event.target.checked)} className="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500" />
+                  <input type="checkbox" checked={checked} disabled={isSavingMemberships} onChange={(event) => setSelectedMembershipContactIds((current) => event.target.checked ? [...new Set([...current, contact.contact_id])] : current.filter((id) => id !== contact.contact_id))} className="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500" />
                   <span className="min-w-0 flex-1">
                     <span className="block break-words text-sm font-medium text-slate-900">{contact.name}</span>
                     <span className="block break-all text-xs text-slate-500">{contact.phone}{contact.email ? " · " + contact.email : ""}</span>
@@ -366,8 +380,11 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
             })}
           </div>
           <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
-            <p className="text-sm text-slate-500">{membershipGroup ? memberCounts.get(membershipGroup.group_id) ?? 0 : 0} selected</p>
-            <button type="button" onClick={() => setMembershipGroup(null)} disabled={Boolean(busyContactId)} className={buttonClass + " bg-slate-900 text-white hover:bg-slate-700"}>Done</button>
+            <p className="text-sm text-slate-500">{selectedMembershipContactIds.length} selected</p>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setMembershipGroup(null)} disabled={isSavingMemberships} className={buttonClass + " border border-slate-200 text-slate-700"}>Cancel</button>
+              <button type="button" onClick={() => void handleSaveMemberships()} disabled={isSavingMemberships || selectedMembershipContactIds.length === 0} className={buttonClass + " bg-slate-900 text-white hover:bg-slate-700"}>{isSavingMemberships ? "Saving…" : "Add members"}</button>
+            </div>
           </div>
         </div>
       </Modal>
