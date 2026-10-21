@@ -28,8 +28,8 @@ interface ContactGroupsPanelProps {
 const buttonClass = "inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50";
 const inputClass = "w-full min-w-0 rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100";
 
-// CFCF PRODUCT: Keep campaign launch disabled until the n8n webhook and callback have been configured and tested.
-const CAMPAIGN_AUTOMATION_ENABLED = false;
+// CFCF PRODUCT: Campaign launch is routed through the authenticated shared n8n ingress.
+const CAMPAIGN_AUTOMATION_ENABLED = true;
 
 export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: ContactGroupsPanelProps) {
   const [groups, setGroups] = useState<CfcfContactGroupRow[]>([]);
