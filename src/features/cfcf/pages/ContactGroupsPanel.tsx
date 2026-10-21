@@ -368,14 +368,16 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
             {filteredMembershipContacts.length === 0 ? <p className="p-4 text-center text-sm text-slate-500">No matching contacts.</p> : filteredMembershipContacts.map((contact) => {
               const checked = selectedMembershipContactIds.includes(contact.contact_id);
               return (
-                <label key={contact.contact_id} className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-slate-50">
-                  <input type="checkbox" checked={checked} disabled={isSavingMemberships} onChange={(event) => { const isChecked = event.currentTarget.checked; setSelectedMembershipContactIds((current) => isChecked ? [...new Set([...current, contact.contact_id])] : current.filter((id) => id !== contact.contact_id)); }} className="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500" />
+                <div key={contact.contact_id} className="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-slate-50">
+                  <input id={"contact-group-member-" + contact.contact_id} type="checkbox" checked={checked} disabled={isSavingMemberships} onChange={(event) => { const isChecked = event.currentTarget.checked; setSelectedMembershipContactIds((current) => isChecked ? (current.includes(contact.contact_id) ? current : [...current, contact.contact_id]) : current.filter((id) => id !== contact.contact_id)); }} className="h-5 w-5 shrink-0 cursor-pointer rounded border-slate-300 text-violet-600 focus:ring-violet-500" />
+                  <label htmlFor={"contact-group-member-" + contact.contact_id} className="min-w-0 flex-1 cursor-pointer">
                   <span className="min-w-0 flex-1">
                     <span className="block break-words text-sm font-medium text-slate-900">{contact.name}</span>
                     <span className="block break-all text-xs text-slate-500">{contact.phone}{contact.email ? " · " + contact.email : ""}</span>
                   </span>
                   {busyContactId === contact.contact_id && <RefreshCw size={15} className="animate-spin text-violet-600" />}
-                </label>
+                  </label>
+                </div>
               );
             })}
           </div>
