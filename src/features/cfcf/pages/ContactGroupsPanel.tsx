@@ -369,7 +369,7 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
               const checked = selectedMembershipContactIds.includes(contact.contact_id);
               return (
                 <label key={contact.contact_id} className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-slate-50">
-                  <input type="checkbox" checked={checked} disabled={isSavingMemberships} onChange={(event) => setSelectedMembershipContactIds((current) => event.target.checked ? [...new Set([...current, contact.contact_id])] : current.filter((id) => id !== contact.contact_id))} className="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500" />
+                  <input type="checkbox" checked={checked} disabled={isSavingMemberships} onChange={(event) => { const isChecked = event.currentTarget.checked; setSelectedMembershipContactIds((current) => isChecked ? [...new Set([...current, contact.contact_id])] : current.filter((id) => id !== contact.contact_id)); }} className="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500" />
                   <span className="min-w-0 flex-1">
                     <span className="block break-words text-sm font-medium text-slate-900">{contact.name}</span>
                     <span className="block break-all text-xs text-slate-500">{contact.phone}{contact.email ? " · " + contact.email : ""}</span>
