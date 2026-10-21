@@ -70,7 +70,8 @@ export async function requestCfcfAutomationJob(
   if (!tenantId.trim()) throw new Error("Authorized tenant scope is required.");
   if (!fundId.trim()) throw new Error("Select a Fund before requesting this CFCF action.");
 
-  const webhookUrl = import.meta.env.VITE_CFCF_N8N_WEBHOOK_URL as string | undefined;
+  const webhookUrl = (import.meta.env.VITE_CFCF_N8N_WEBHOOK_URL as string | undefined)?.trim()
+    || "https://clearflow-automation.duckdns.org/webhook/cfcf-automation-request";
   if (!webhookUrl) {
     throw new Error("CFCF automation service is not configured yet. No job was created.");
   }
