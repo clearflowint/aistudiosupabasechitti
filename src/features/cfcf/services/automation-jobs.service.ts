@@ -31,7 +31,8 @@ export async function listCfcfAutomationJobStatus(tenantId: string): Promise<Cfc
     .select("communication_id, job_id, product_id, tenant_id, source_type, communication_type, status, recipient_count, waha_accepted_count, waha_rejected_count, outcome_unknown_count, created_at, updated_at, completed_at")
     .eq("product_id", cfcfConfig.productId)
     .eq("tenant_id", tenantId)
-    .order("updated_at", { ascending: false })
+    .order("created_at", { ascending: false })
+    .order("communication_id", { ascending: false })
     .limit(5);
   if (error) throw error;
   return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
