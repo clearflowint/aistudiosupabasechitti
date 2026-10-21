@@ -162,7 +162,10 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
     const selectedIds = [...new Set(selectedMembershipContactIds)];
     const toAdd = selectedIds.filter((id) => !existingIds.includes(id));
     const toRemove = existingIds.filter((id) => !selectedIds.includes(id));
-    if (toAdd.length === 0 && toRemove.length === 0) {\n      setMembershipGroup(null);\n      return;\n    }
+    if (toAdd.length === 0 && toRemove.length === 0) {
+      setMembershipGroup(null);
+      return;
+    }
 
     setIsSavingMemberships(true);
     setError(null);
