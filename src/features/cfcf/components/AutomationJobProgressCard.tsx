@@ -41,9 +41,6 @@ function jobTypeLabel(jobType: string): string {
   return labels[jobType] ?? jobType.replaceAll("_", " ");
 }
 
-function countLabel(value: number | null | undefined): string {
-  return typeof value === "number" && Number.isFinite(value) ? String(value) : "—";
-}
 
 export function AutomationJobProgressCard({ workspace }: AutomationJobProgressCardProps) {
   const [jobs, setJobs] = useState<CfcfAutomationJobStatus[]>([]);
@@ -132,12 +129,6 @@ export function AutomationJobProgressCard({ workspace }: AutomationJobProgressCa
                   <p className="mt-0.5 text-xs text-slate-500">Job #{job.job_id} · {job.source_type.replaceAll("_", " ")}</p>
                 </div>
                 <span className={"shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold " + statusStyle(job.status)}>{statusLabels[job.status] ?? job.status}</span>
-              </div>
-              <div className="mt-3 grid grid-cols-4 gap-2">
-                <div className="min-w-0"><p className="text-lg font-bold leading-5 text-slate-900">{countLabel(job.recipient_count)}</p><p className="mt-1 text-[11px] text-slate-500">Recipients</p></div>
-                <div className="min-w-0"><p className="text-lg font-bold leading-5 text-emerald-700">{countLabel(job.sent_count)}</p><p className="mt-1 text-[11px] text-slate-500">Sent</p></div>
-                <div className="min-w-0"><p className="text-lg font-bold leading-5 text-slate-900">{countLabel(job.failed_count)}</p><p className="mt-1 text-[11px] text-slate-500">Failed</p></div>
-                <div className="min-w-0"><p className="text-lg font-bold leading-5 text-slate-900">{countLabel(job.uncertain_count)}</p><p className="mt-1 text-[11px] text-slate-500">Uncertain</p></div>
               </div>
               <div className="mt-2 border-t border-slate-100 pt-2 text-[10px] leading-4 text-slate-500">
                 <p>Created: {formatTime(job.created_at)}</p>
