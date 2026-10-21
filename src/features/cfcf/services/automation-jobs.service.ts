@@ -4,7 +4,8 @@ import { cfcfConfig } from "../config/cfcf.config";
 import type { CfcfProductId } from "../types/database.types";
 
 export interface CfcfAutomationJobStatus {
-  job_id: number;
+  communication_id: number;
+  job_id: number | null;
   product_id: CfcfProductId;
   tenant_id: string;
   source_type: string;
@@ -14,10 +15,10 @@ export interface CfcfAutomationJobStatus {
   created_at: string;
   updated_at: string;
   completed_at: string | null;
-  recipient_count: number | null;
-  sent_count: number | null;
-  failed_count: number | null;
-  uncertain_count: number | null;
+  recipient_count: number;
+  sent_count: number;
+  failed_count: number;
+  uncertain_count: number;
 }
 
 /**
@@ -26,14 +27,30 @@ export interface CfcfAutomationJobStatus {
 export async function listCfcfAutomationJobStatus(tenantId: string): Promise<CfcfAutomationJobStatus[]> {
   if (!tenantId.trim()) throw new Error("Authorized tenant scope is required.");
   const { data, error } = await supabase
-    .from("cfcf_job_progress_summary")
-    .select("job_id, product_id, tenant_id, source_type, job_type, status, scheduled_at, created_at, updated_at, completed_at, recipient_count, sent_count, failed_count, uncertain_count")
+    .from("n8n_global_whatsapp_communications")
+    .select("communication_id, job_id, product_id, tenant_id, source_type, communication_type, status, recipient_count, waha_accepted_count, waha_rejected_count, outcome_unknown_count, created_at, updated_at, completed_at")
     .eq("product_id", cfcfConfig.productId)
     .eq("tenant_id", tenantId)
     .order("updated_at", { ascending: false })
     .limit(5);
   if (error) throw error;
-  return (data ?? []) as CfcfAutomationJobStatus[];
+  return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+    communication_id: Number(row.communication_id),
+    job_id: row.job_id == null ? null : Number(row.job_id),
+    product_id: row.product_id as CfcfProductId,
+    tenant_id: String(row.tenant_id),
+    source_type: String(row.source_type),
+    job_type: String(row.communication_type),
+    status: row.status as CfcfAutomationJobStatus["status"],
+    scheduled_at: null,
+    created_at: String(row.created_at),
+    updated_at: String(row.updated_at),
+    completed_at: row.completed_at == null ? null : String(row.completed_at),
+    recipient_count: Number(row.recipient_count),
+    sent_count: Number(row.waha_accepted_count),
+    failed_count: Number(row.waha_rejected_count),
+    uncertain_count: Number(row.outcome_unknown_count),
+  })) as CfcfAutomationJobStatus[];
 }
 
 export type CfcfAutomationAction = "pending_reminder_campaign" | "share_report_campaign";
