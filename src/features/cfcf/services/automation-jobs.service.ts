@@ -25,9 +25,13 @@ export interface CfcfAutomationJobStatus {
  */
 export async function listCfcfAutomationJobStatus(tenantId: string): Promise<CfcfAutomationJobStatus[]> {
   if (!tenantId.trim()) throw new Error("Authorized tenant scope is required.");
-  const { data, error } = await supabase.rpc("list_cfcf_whatsapp_communications", {
-    p_tenant_id: tenantId,
-  });
+  const { data, error } = await supabase
+    .from("n8n_global_whatsapp_communications")
+    .select("communication_id, job_id, product_id, tenant_id, source_type, communication_type, status, recipient_count, waha_accepted_count, waha_rejected_count, outcome_unknown_count, created_at, updated_at, completed_at")
+    .eq("product_id", cfcfConfig.productId)
+    .eq("tenant_id", tenantId)
+    .order("updated_at", { ascending: false })
+    .limit(5);
   if (error) throw error;
   return (data ?? []).map((row) => ({
     communication_id: Number(row.communication_id),
