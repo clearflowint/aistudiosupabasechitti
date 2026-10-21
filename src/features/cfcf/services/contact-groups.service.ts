@@ -3,6 +3,7 @@
 
 import { supabase } from "../../../core/database/supabaseClient";
 import { cfcfConfig } from "../config/cfcf.config";
+import { requestCfcfHomepageCampaignJob } from "./automation-jobs.service";
 import type { CfcfContactGroupMemberRow, CfcfContactGroupRow } from "../types/database.types";
 
 export type CfcfCampaignChannel = "whatsapp" | "sms" | "email";
@@ -93,6 +94,7 @@ export async function createCfcfContactGroup(
 
   if (error) {
     if (error.code === "42501") throw new Error("You do not have permission to create a Contact Group in this workspace.");
+    if (error.code === "23505") throw new Error("A Contact Group with this name already exists in this workspace. Choose a unique name.");
     throw new Error("Unable to create Contact Group: " + error.message);
   }
   return data as CfcfContactGroupRow;
@@ -116,6 +118,7 @@ export async function renameCfcfContactGroup(
     .select(GROUP_FIELDS)
     .single();
 
+  if (error?.code === "23505") throw new Error("A Contact Group with this name already exists in this workspace. Choose a unique name.");
   if (error) throw new Error("Unable to rename Contact Group: " + error.message);
   return data as CfcfContactGroupRow;
 }
@@ -174,64 +177,37 @@ export async function removeCfcfContactFromGroup(
 }
 
 /**
- * CFCF PRODUCT: Dispatches a campaign to the authenticated Edge Function.
- * The Edge Function resolves the current full recipient records and sends them to n8n,
- * avoiding a second database lookup inside n8n.
+ * Queues a homepage bulk WhatsApp campaign through the shared n8n ingress.
+ * The browser sends group names and the authored body only; it never resolves
+ * or sends recipient phone numbers and never invokes the campaign Edge Function.
  */
 export interface CfcfCampaignDispatchReceipt {
-  accepted: true;
-  status: "accepted";
-  campaign_id: string;
-  accepted_at: string;
-  recipient_count: number;
-  channels: CfcfCampaignChannel[];
-  message: string;
-  execution_id: string | null;
+  job_id: number;
+  product_id: "CFCF";
+  tenant_id: string;
+  source_type: string;
+  job_type: string;
+  status: "queued" | "processing" | "completed" | "failed" | "cancelled";
+  request_id: string | null;
+  scheduled_at: string | null;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+  group_names: string[];
+  channels: ["whatsapp"];
 }
 
 export async function dispatchCfcfCampaign(
   tenantId: string,
-  groupIds: string[],
+  groupNames: string[],
   channels: CfcfCampaignChannel[],
   message: string,
 ): Promise<CfcfCampaignDispatchReceipt> {
-  const selectedGroupIds = [...new Set(groupIds.map((id) => id.trim()).filter(Boolean))];
   const selectedChannels = [...new Set(channels)];
-  const trimmedMessage = message.trim();
-
-  if (!tenantId.trim()) throw new Error("No authorized workspace is selected.");
-  if (selectedGroupIds.length === 0) throw new Error("Select at least one Contact Group.");
-  if (selectedChannels.length === 0) throw new Error("Select at least one delivery channel.");
-  if (!trimmedMessage) throw new Error("Enter a campaign message.");
-
-  const { data, error } = await supabase.functions.invoke("campaign-dispatch", {
-    body: {
-      tenant_id: tenantId,
-      group_ids: selectedGroupIds,
-      channels: selectedChannels,
-      message: trimmedMessage,
-    },
-  });
-
-  if (error) {
-    let details = data && typeof data === "object" && "error" in data
-      ? String((data as { error: unknown }).error)
-      : "";
-    const context = (error as { context?: unknown }).context;
-    if (!details && context instanceof Response) {
-      try {
-        const responseBody = await context.clone().json() as { error?: unknown };
-        if (typeof responseBody.error === "string") details = responseBody.error;
-      } catch {
-        // Fall back to the Supabase function client's safe generic error.
-      }
-    }
-    throw new Error(details || error.message || "Campaign dispatch failed. Check Notifications before retrying.");
+  if (selectedChannels.length !== 1 || selectedChannels[0] !== "whatsapp") {
+    throw new Error("Only WhatsApp bulk campaigns are currently supported.");
   }
-
-  if (!data || data.accepted !== true || data.status !== "accepted" || typeof data.campaign_id !== "string") {
-    throw new Error(typeof data?.error === "string" ? data.error : "n8n did not acknowledge campaign receipt.");
-  }
-
-  return data as CfcfCampaignDispatchReceipt;
+  const names = [...new Set(groupNames.map((name) => name.trim()).filter(Boolean))];
+  const job = await requestCfcfHomepageCampaignJob(tenantId, names, message);
+  return { ...job, request_id: null, group_names: names, channels: ["whatsapp"] };
 }

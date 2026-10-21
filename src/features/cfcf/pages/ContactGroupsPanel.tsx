@@ -1,8 +1,8 @@
 // CFCF PRODUCT: Contact Group management and bulk campaign composer.
-// MIX: Receives authorized workspace identity and existing Contacts; campaign dispatch goes through the authenticated Edge Function.
+// MIX: Sends campaign instructions to n8n; n8n resolves recipients and prepares/delivers WhatsApp messages.
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { FolderPlus, Pencil, Trash2, UsersRound, Megaphone, MessageCircle, Mail, Smartphone, RefreshCw, CheckCircle2 } from "lucide-react";
+import { FolderPlus, Pencil, Trash2, UsersRound, Megaphone, MessageCircle, RefreshCw, CheckCircle2 } from "lucide-react";
 import { Modal } from "../../../components/ui/Modal";
 import type { AuthorizedWorkspace } from "../../../core/workspace/workspace.types";
 import type { CfcfContactGroupMemberRow, CfcfContactGroupRow, CfcfContactRow } from "../types/database.types";
@@ -46,6 +46,8 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
   const [groupFormError, setGroupFormError] = useState<string | null>(null);
   const [membershipGroup, setMembershipGroup] = useState<CfcfContactGroupRow | null>(null);
   const [membershipSearch, setMembershipSearch] = useState("");
+  const [selectedMembershipContactIds, setSelectedMembershipContactIds] = useState<string[]>([]);
+  const [isSavingMemberships, setIsSavingMemberships] = useState(false);
   const [busyContactId, setBusyContactId] = useState<string | null>(null);
   const [deletingGroup, setDeletingGroup] = useState<CfcfContactGroupRow | null>(null);
   const [isDeletingGroup, setIsDeletingGroup] = useState(false);
@@ -153,33 +155,48 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
     }
   }
 
-  async function handleToggleMember(contactId: string, checked: boolean) {
-    if (!membershipGroup || busyContactId) return;
+  async function handleSaveMemberships() {
+    if (!membershipGroup || isSavingMemberships) return;
     const groupId = membershipGroup.group_id;
-    setBusyContactId(contactId);
+    const existingIds = members.filter((member) => member.group_id === groupId).map((member) => member.contact_id);
+    const selectedIds = [...new Set(selectedMembershipContactIds)];
+    const toAdd = selectedIds.filter((id) => !existingIds.includes(id));
+    const toRemove = existingIds.filter((id) => !selectedIds.includes(id));
+    if (toAdd.length === 0 && toRemove.length === 0) {
+      setMembershipGroup(null);
+      return;
+    }
+
+    setIsSavingMemberships(true);
     setError(null);
     try {
-      if (checked) {
+      for (const contactId of toAdd) {
+        setBusyContactId(contactId);
         await addCfcfContactToGroup(workspace.tenantId, groupId, contactId);
-        setMembers((current) => current.some((member) => member.group_id === groupId && member.contact_id === contactId)
-          ? current
-          : [...current, {
-            group_id: groupId,
-            contact_id: contactId,
-            product_id: "CFCF",
-            tenant_id: workspace.tenantId,
-            created_at: new Date().toISOString(),
-          }]);
-        setAcknowledgement({ title: "Contact added to group", message: "Supabase confirmed the membership change." });
-      } else {
-        await removeCfcfContactFromGroup(workspace.tenantId, groupId, contactId);
-        setMembers((current) => current.filter((member) => !(member.group_id === groupId && member.contact_id === contactId)));
-        setAcknowledgement({ title: "Contact removed from group", message: "Supabase confirmed the membership change." });
       }
+      for (const contactId of toRemove) {
+        setBusyContactId(contactId);
+        await removeCfcfContactFromGroup(workspace.tenantId, groupId, contactId);
+      }
+      const savedAt = new Date().toISOString();
+      setMembers((current) => [
+        ...current.filter((member) => member.group_id !== groupId || selectedIds.includes(member.contact_id)),
+        ...toAdd.map((contactId) => ({
+          group_id: groupId,
+          contact_id: contactId,
+          product_id: "CFCF" as const,
+          tenant_id: workspace.tenantId,
+          created_at: savedAt,
+        })),
+      ]);
+      setAcknowledgement({ title: "Group members saved", message: "Supabase confirmed the selected Contact Group membership changes." });
+      setMembershipGroup(null);
     } catch (memberFailure) {
-      setError(memberFailure instanceof Error ? memberFailure.message : "Unable to update group membership.");
+      setError(memberFailure instanceof Error ? memberFailure.message : "Unable to save Contact Group members.");
+      // Keep the selection in the modal so the user can correct the issue without reselecting.
     } finally {
       setBusyContactId(null);
+      setIsSavingMemberships(false);
     }
   }
 
@@ -243,14 +260,15 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
     setPreparedCampaign(null);
     setIsPreparingCampaign(true);
     try {
+      const selectedGroupNames = groups.filter((group) => campaignGroupIds.includes(group.group_id)).map((group) => group.group_name);
       const receipt = await dispatchCfcfCampaign(
         workspace.tenantId,
-        campaignGroupIds,
+        selectedGroupNames,
         channels,
         message,
       );
       setPreparedCampaign(receipt);
-      setNotice("n8n acknowledged campaign " + receipt.campaign_id + ". Delivery is processing; final results will appear in Notifications.");
+      setNotice("n8n queued WhatsApp campaign job " + receipt.job_id + ". Recipient resolution and delivery have not been confirmed yet.");
     } catch (prepareFailure) {
       setCampaignError(prepareFailure instanceof Error ? prepareFailure.message : "Unable to prepare this campaign.");
     } finally {
@@ -322,10 +340,12 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
                   <p className="mt-1 text-sm text-slate-500">{memberCounts.get(group.group_id) ?? 0} contacts</p>
                 </div>
               </div>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <button type="button" onClick={() => { setMembershipGroup(group); setMembershipSearch(""); }} className={buttonClass + " border border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100"}><UsersRound size={15} /> Members</button>
-                <button type="button" onClick={() => openRenameGroup(group)} className={buttonClass + " border border-slate-200 text-slate-700 hover:bg-slate-50"}><Pencil size={14} /> Rename</button>
-                <button type="button" onClick={() => { setDeleteError(null); setDeletingGroup(group); }} className={buttonClass + " col-span-2 border border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100"}><Trash2 size={14} /> Delete group</button>
+              <div className="mt-3 space-y-2">
+                <button type="button" onClick={() => { setMembershipGroup(group); setMembershipSearch(""); setSelectedMembershipContactIds(members.filter((member) => member.group_id === group.group_id).map((member) => member.contact_id)); }} className={buttonClass + " w-full border border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100"}><UsersRound size={15} /> View or Add Members</button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => openRenameGroup(group)} className={buttonClass + " border border-slate-200 text-slate-700 hover:bg-slate-50"}><Pencil size={14} /> Rename</button>
+                  <button type="button" onClick={() => { setDeleteError(null); setDeletingGroup(group); }} className={buttonClass + " border border-rose-200 text-rose-700 hover:bg-rose-50"}><Trash2 size={14} /> Delete group</button>
+                </div>
               </div>
             </article>
           ))}
@@ -349,24 +369,50 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
       <Modal isOpen={Boolean(membershipGroup)} title={membershipGroup ? "Manage members · " + membershipGroup.group_name : "Manage members"} description="Changes are saved one Contact at a time. A Contact can belong to multiple groups." size="large" onClose={() => { if (!busyContactId) setMembershipGroup(null); }}>
         <div className="space-y-3">
           <input value={membershipSearch} onChange={(event) => setMembershipSearch(event.target.value)} placeholder="Search contacts by name, phone or email" className={inputClass} />
-          <div className="max-h-[55vh] space-y-1 overflow-y-auto rounded-xl border border-slate-200 p-2">
-            {filteredMembershipContacts.length === 0 ? <p className="p-4 text-center text-sm text-slate-500">No matching contacts.</p> : filteredMembershipContacts.map((contact) => {
-              const checked = members.some((member) => member.group_id === membershipGroup?.group_id && member.contact_id === contact.contact_id);
-              return (
-                <label key={contact.contact_id} className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-slate-50">
-                  <input type="checkbox" checked={checked} disabled={busyContactId === contact.contact_id} onChange={(event) => void handleToggleMember(contact.contact_id, event.target.checked)} className="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block break-words text-sm font-medium text-slate-900">{contact.name}</span>
-                    <span className="block break-all text-xs text-slate-500">{contact.phone}{contact.email ? " · " + contact.email : ""}</span>
-                  </span>
-                  {busyContactId === contact.contact_id && <RefreshCw size={15} className="animate-spin text-violet-600" />}
-                </label>
-              );
-            })}
+          <div className="max-h-[55vh] space-y-3 overflow-y-auto rounded-xl border border-slate-200 p-2">
+            {filteredMembershipContacts.length === 0 ? <p className="p-4 text-center text-sm text-slate-500">No matching contacts.</p> : (
+              <>
+                <section aria-labelledby="selected-group-members-heading" className="space-y-1">
+                  <div className="sticky top-0 z-10 rounded-lg bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm" id="selected-group-members-heading">Selected members ({filteredMembershipContacts.filter((contact) => selectedMembershipContactIds.includes(contact.contact_id)).length})</div>
+                  {(() => { const filteredContacts = filteredMembershipContacts.filter((contact) => selectedMembershipContactIds.includes(contact.contact_id)); return filteredContacts.length ? filteredContacts.map((contact) => {
+                const checked = selectedMembershipContactIds.includes(contact.contact_id);
+                return (
+                  <div key={contact.contact_id} className="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-slate-50">
+                    <input id={"contact-group-member-" + contact.contact_id} type="checkbox" checked={checked} disabled={isSavingMemberships} onChange={(event) => { const isChecked = event.currentTarget.checked; setSelectedMembershipContactIds((current) => isChecked ? (current.includes(contact.contact_id) ? current : [...current, contact.contact_id]) : current.filter((id) => id !== contact.contact_id)); }} className="h-5 w-5 shrink-0 cursor-pointer rounded border-slate-300 text-violet-600 focus:ring-violet-500" />
+                    <label htmlFor={"contact-group-member-" + contact.contact_id} className="min-w-0 flex-1 cursor-pointer">
+                      <span className="block break-words text-sm font-medium text-slate-900">{contact.name}</span>
+                      <span className="block break-all text-xs text-slate-500">{contact.phone}{contact.email ? " · " + contact.email : ""}</span>
+                    </label>
+                    {busyContactId === contact.contact_id && <RefreshCw size={15} className="animate-spin text-violet-600" />}
+                  </div>
+                );
+              }) : <p className="px-3 py-2 text-sm text-slate-500">No members selected.</p>; })()}
+                </section>
+                <section aria-labelledby="remaining-group-contacts-heading" className="space-y-1">
+                  <div className="sticky top-0 z-10 rounded-lg bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm" id="remaining-group-contacts-heading">Remaining contacts ({filteredMembershipContacts.filter((contact) => !selectedMembershipContactIds.includes(contact.contact_id)).length})</div>
+                  {(() => { const filteredContacts = filteredMembershipContacts.filter((contact) => !selectedMembershipContactIds.includes(contact.contact_id)); return filteredContacts.length ? filteredContacts.map((contact) => {
+                const checked = selectedMembershipContactIds.includes(contact.contact_id);
+                return (
+                  <div key={contact.contact_id} className="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-slate-50">
+                    <input id={"contact-group-member-" + contact.contact_id} type="checkbox" checked={checked} disabled={isSavingMemberships} onChange={(event) => { const isChecked = event.currentTarget.checked; setSelectedMembershipContactIds((current) => isChecked ? (current.includes(contact.contact_id) ? current : [...current, contact.contact_id]) : current.filter((id) => id !== contact.contact_id)); }} className="h-5 w-5 shrink-0 cursor-pointer rounded border-slate-300 text-violet-600 focus:ring-violet-500" />
+                    <label htmlFor={"contact-group-member-" + contact.contact_id} className="min-w-0 flex-1 cursor-pointer">
+                      <span className="block break-words text-sm font-medium text-slate-900">{contact.name}</span>
+                      <span className="block break-all text-xs text-slate-500">{contact.phone}{contact.email ? " · " + contact.email : ""}</span>
+                    </label>
+                    {busyContactId === contact.contact_id && <RefreshCw size={15} className="animate-spin text-violet-600" />}
+                  </div>
+                );
+              }) : <p className="px-3 py-2 text-sm text-slate-500">No remaining contacts.</p>; })()}
+                </section>
+              </>
+            )}
           </div>
           <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
-            <p className="text-sm text-slate-500">{membershipGroup ? memberCounts.get(membershipGroup.group_id) ?? 0 : 0} selected</p>
-            <button type="button" onClick={() => setMembershipGroup(null)} disabled={Boolean(busyContactId)} className={buttonClass + " bg-slate-900 text-white hover:bg-slate-700"}>Done</button>
+            <p className="text-sm text-slate-500">{selectedMembershipContactIds.length} selected</p>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setMembershipGroup(null)} disabled={isSavingMemberships} className={buttonClass + " border border-slate-200 text-slate-700"}>Cancel</button>
+              <button type="button" onClick={() => void handleSaveMemberships()} disabled={isSavingMemberships} className={buttonClass + " bg-slate-900 text-white hover:bg-slate-700"}>{isSavingMemberships ? "Saving…" : "Save changes"}</button>
+            </div>
           </div>
         </div>
       </Modal>
@@ -399,7 +445,7 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
         </div>
       </Modal>
 
-      <Modal isOpen={isCampaignOpen} title="Launch Campaign" description={CAMPAIGN_AUTOMATION_ENABLED ? "Select an audience, choose delivery channels and write your message." : "Preview the campaign setup. Sending is disabled until n8n is configured."} size="large" onClose={() => { if (!isPreparingCampaign) setIsCampaignOpen(false); }}>
+      <Modal isOpen={isCampaignOpen} title="Launch Campaign" description={CAMPAIGN_AUTOMATION_ENABLED ? "Select Contact Groups and write the WhatsApp message. n8n handles recipients and delivery." : "Preview the campaign setup. Sending is disabled until n8n is configured."} size="large" onClose={() => { if (!isPreparingCampaign) setIsCampaignOpen(false); }}>
         <form onSubmit={(event) => void handlePrepareCampaign(event)} className="space-y-5">
           {!CAMPAIGN_AUTOMATION_ENABLED && <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-5 text-amber-900"><strong>Automation not enabled — no messages will be sent.</strong> Configure the n8n webhook and callback secret, test the workflow, then enable the campaign feature flag in this file.</div>}
           <fieldset>
@@ -407,8 +453,6 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               {([
                 { value: "whatsapp" as const, label: "WhatsApp", icon: MessageCircle, color: "emerald" },
-                { value: "sms" as const, label: "SMS", icon: Smartphone, color: "blue" },
-                { value: "email" as const, label: "Email", icon: Mail, color: "violet" },
               ]).map((channel) => {
                 const checked = channels.includes(channel.value);
                 const Icon = channel.icon;
@@ -449,9 +493,9 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
           {preparedCampaign && (
             <div role="status" className="space-y-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
               <div className="flex items-center gap-2 font-semibold"><CheckCircle2 size={17} /> n8n acknowledged receipt</div>
-              <p>{preparedCampaign.recipient_count} unique recipients queued across {preparedCampaign.channels.join(", ")}. This is an acceptance receipt, not a delivery confirmation.</p>
-              <p className="break-all text-xs text-emerald-800">Campaign ID: {preparedCampaign.campaign_id}</p>
-              <p className="text-xs text-emerald-800">Final delivery status will be recorded in Notifications when n8n calls the delivery callback.</p>
+              <p>Contact Group names and your message body were queued for n8n. n8n will resolve the unique recipients from Supabase; this acknowledgement is not a delivery confirmation.</p>
+              <p className="break-all text-xs text-emerald-800">Job ID: {preparedCampaign.job_id}</p>
+              <p className="text-xs text-emerald-800">Only WhatsApp bulk campaigns are supported in this phase.</p>
             </div>
           )}
           <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">

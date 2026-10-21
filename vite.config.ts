@@ -14,7 +14,7 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       // Keep the standard generated Workbox worker and add the shared push/click handlers.
-      workbox: { importScripts: ["/clearflow-push-sw.js"] },
+      workbox: { importScripts: ["/clearflow-push-sw.js"], cleanupOutdatedCaches: true, clientsClaim: true, skipWaiting: true },
       includeAssets: ["icon.svg"],
       manifest: {
         name: "ClearFlow Workspace",
