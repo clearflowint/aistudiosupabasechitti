@@ -209,5 +209,5 @@ export async function dispatchCfcfCampaign(
   }
   const names = [...new Set(groupNames.map((name) => name.trim()).filter(Boolean))];
   const job = await requestCfcfHomepageCampaignJob(tenantId, names, message);
-  return { ...job, group_names: names, channels: ["whatsapp"] };
+  return { ...job, request_id: null, group_names: names, channels: ["whatsapp"] };
 }
