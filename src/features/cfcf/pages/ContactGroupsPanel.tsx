@@ -337,10 +337,12 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
                   <p className="mt-1 text-sm text-slate-500">{memberCounts.get(group.group_id) ?? 0} contacts</p>
                 </div>
               </div>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <button type="button" onClick={() => { setMembershipGroup(group); setMembershipSearch(""); setSelectedMembershipContactIds(members.filter((member) => member.group_id === group.group_id).map((member) => member.contact_id)); }} className={buttonClass + " border border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100"}><UsersRound size={15} /> Members</button>
-                <button type="button" onClick={() => openRenameGroup(group)} className={buttonClass + " border border-slate-200 text-slate-700 hover:bg-slate-50"}><Pencil size={14} /> Rename</button>
-                <button type="button" onClick={() => { setDeleteError(null); setDeletingGroup(group); }} className={buttonClass + " col-span-2 border border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100"}><Trash2 size={14} /> Delete group</button>
+              <div className="mt-3 space-y-2">
+                <button type="button" onClick={() => { setMembershipGroup(group); setMembershipSearch(""); setSelectedMembershipContactIds(members.filter((member) => member.group_id === group.group_id).map((member) => member.contact_id)); }} className={buttonClass + " w-full border border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100"}><UsersRound size={15} /> View or Add Members</button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => openRenameGroup(group)} className={buttonClass + " border border-slate-200 text-slate-700 hover:bg-slate-50"}><Pencil size={14} /> Rename</button>
+                  <button type="button" onClick={() => { setDeleteError(null); setDeletingGroup(group); }} className={buttonClass + " border border-rose-200 text-rose-700 hover:bg-rose-50"}><Trash2 size={14} /> Delete group</button>
+                </div>
               </div>
             </article>
           ))}
@@ -364,22 +366,43 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
       <Modal isOpen={Boolean(membershipGroup)} title={membershipGroup ? "Manage members · " + membershipGroup.group_name : "Manage members"} description="Changes are saved one Contact at a time. A Contact can belong to multiple groups." size="large" onClose={() => { if (!busyContactId) setMembershipGroup(null); }}>
         <div className="space-y-3">
           <input value={membershipSearch} onChange={(event) => setMembershipSearch(event.target.value)} placeholder="Search contacts by name, phone or email" className={inputClass} />
-          <div className="max-h-[55vh] space-y-1 overflow-y-auto rounded-xl border border-slate-200 p-2">
-            {filteredMembershipContacts.length === 0 ? <p className="p-4 text-center text-sm text-slate-500">No matching contacts.</p> : filteredMembershipContacts.map((contact) => {
-              const checked = selectedMembershipContactIds.includes(contact.contact_id);
-              return (
-                <div key={contact.contact_id} className="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-slate-50">
-                  <input id={"contact-group-member-" + contact.contact_id} type="checkbox" checked={checked} disabled={isSavingMemberships} onChange={(event) => { const isChecked = event.currentTarget.checked; setSelectedMembershipContactIds((current) => isChecked ? (current.includes(contact.contact_id) ? current : [...current, contact.contact_id]) : current.filter((id) => id !== contact.contact_id)); }} className="h-5 w-5 shrink-0 cursor-pointer rounded border-slate-300 text-violet-600 focus:ring-violet-500" />
-                  <label htmlFor={"contact-group-member-" + contact.contact_id} className="min-w-0 flex-1 cursor-pointer">
-                  <span className="min-w-0 flex-1">
-                    <span className="block break-words text-sm font-medium text-slate-900">{contact.name}</span>
-                    <span className="block break-all text-xs text-slate-500">{contact.phone}{contact.email ? " · " + contact.email : ""}</span>
-                  </span>
-                  {busyContactId === contact.contact_id && <RefreshCw size={15} className="animate-spin text-violet-600" />}
-                  </label>
-                </div>
-              );
-            })}
+          <div className="max-h-[55vh] space-y-3 overflow-y-auto rounded-xl border border-slate-200 p-2">
+            {filteredMembershipContacts.length === 0 ? <p className="p-4 text-center text-sm text-slate-500">No matching contacts.</p> : (
+              <>
+                <section aria-labelledby="selected-group-members-heading" className="space-y-1">
+                  <div className="sticky top-0 z-10 rounded-lg bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm" id="selected-group-members-heading">Selected members ({filteredMembershipContacts.filter((contact) => selectedMembershipContactIds.includes(contact.contact_id)).length})</div>
+                  {(() => { const filteredContacts = filteredMembershipContacts.filter((contact) => selectedMembershipContactIds.includes(contact.contact_id)); return filteredContacts.length ? {filteredContacts.map((contact) => {
+                const checked = selectedMembershipContactIds.includes(contact.contact_id);
+                return (
+                  <div key={contact.contact_id} className="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-slate-50">
+                    <input id={"contact-group-member-" + contact.contact_id} type="checkbox" checked={checked} disabled={isSavingMemberships} onChange={(event) => { const isChecked = event.currentTarget.checked; setSelectedMembershipContactIds((current) => isChecked ? (current.includes(contact.contact_id) ? current : [...current, contact.contact_id]) : current.filter((id) => id !== contact.contact_id)); }} className="h-5 w-5 shrink-0 cursor-pointer rounded border-slate-300 text-violet-600 focus:ring-violet-500" />
+                    <label htmlFor={"contact-group-member-" + contact.contact_id} className="min-w-0 flex-1 cursor-pointer">
+                      <span className="block break-words text-sm font-medium text-slate-900">{contact.name}</span>
+                      <span className="block break-all text-xs text-slate-500">{contact.phone}{contact.email ? " · " + contact.email : ""}</span>
+                    </label>
+                    {busyContactId === contact.contact_id && <RefreshCw size={15} className="animate-spin text-violet-600" />}
+                  </div>
+                );
+              })} : <p className="px-3 py-2 text-sm text-slate-500">No members selected.</p>; })()}
+                </section>
+                <section aria-labelledby="remaining-group-contacts-heading" className="space-y-1">
+                  <div className="sticky top-0 z-10 rounded-lg bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm" id="remaining-group-contacts-heading">Remaining contacts ({filteredMembershipContacts.filter((contact) => !selectedMembershipContactIds.includes(contact.contact_id)).length})</div>
+                  {(() => { const filteredContacts = filteredMembershipContacts.filter((contact) => !selectedMembershipContactIds.includes(contact.contact_id)); return filteredContacts.length ? {filteredContacts.map((contact) => {
+                const checked = selectedMembershipContactIds.includes(contact.contact_id);
+                return (
+                  <div key={contact.contact_id} className="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-slate-50">
+                    <input id={"contact-group-member-" + contact.contact_id} type="checkbox" checked={checked} disabled={isSavingMemberships} onChange={(event) => { const isChecked = event.currentTarget.checked; setSelectedMembershipContactIds((current) => isChecked ? (current.includes(contact.contact_id) ? current : [...current, contact.contact_id]) : current.filter((id) => id !== contact.contact_id)); }} className="h-5 w-5 shrink-0 cursor-pointer rounded border-slate-300 text-violet-600 focus:ring-violet-500" />
+                    <label htmlFor={"contact-group-member-" + contact.contact_id} className="min-w-0 flex-1 cursor-pointer">
+                      <span className="block break-words text-sm font-medium text-slate-900">{contact.name}</span>
+                      <span className="block break-all text-xs text-slate-500">{contact.phone}{contact.email ? " · " + contact.email : ""}</span>
+                    </label>
+                    {busyContactId === contact.contact_id && <RefreshCw size={15} className="animate-spin text-violet-600" />}
+                  </div>
+                );
+              })} : <p className="px-3 py-2 text-sm text-slate-500">No remaining contacts.</p>; })()}
+                </section>
+              </>
+            )}
           </div>
           <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
             <p className="text-sm text-slate-500">{selectedMembershipContactIds.length} selected</p>
