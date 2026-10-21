@@ -1,6 +1,6 @@
 // CFCF PRODUCT: Simple, read-only manager view of recent automation job status.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Activity, Clock3, RefreshCw } from "lucide-react";
+import { Activity, RefreshCw } from "lucide-react";
 import { listCfcfAutomationJobStatus, type CfcfAutomationJobStatus } from "../services/automation-jobs.service";
 import type { AuthorizedWorkspace } from "../../../core/workspace/workspace.types";
 
@@ -18,7 +18,8 @@ const statusLabels: Record<CfcfAutomationJobStatus["status"], string> = {
   cancelled: "Cancelled",
 };
 
-function formatTime(value: string): string {
+function formatTime(value: string | null | undefined): string {
+  if (!value) return "Pending";
   const timestamp = Date.parse(value);
   if (!Number.isFinite(timestamp)) return "Time unavailable";
   return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(timestamp);
@@ -29,6 +30,19 @@ function statusStyle(status: CfcfAutomationJobStatus["status"]): string {
   if (status === "failed") return "border-amber-200 bg-amber-50 text-amber-900";
   if (status === "processing") return "border-sky-200 bg-sky-50 text-sky-800";
   return "border-slate-200 bg-slate-100 text-slate-700";
+}
+
+function jobTypeLabel(jobType: string): string {
+  const labels: Record<string, string> = {
+    pending_reminder_campaign: "Pending Reminder",
+    share_report_campaign: "Share Report",
+    send_campaign: "WhatsApp Message",
+  };
+  return labels[jobType] ?? jobType.replaceAll("_", " ");
+}
+
+function countLabel(value: number | null | undefined): string {
+  return typeof value === "number" && Number.isFinite(value) ? String(value) : "—";
 }
 
 export function AutomationJobProgressCard({ workspace }: AutomationJobProgressCardProps) {
@@ -113,12 +127,22 @@ export function AutomationJobProgressCard({ workspace }: AutomationJobProgressCa
           {jobs.map((job) => (
             <article key={job.job_id} className="min-w-0 rounded-xl border border-slate-200 p-3">
               <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-                <p className="text-sm font-bold text-slate-900">Job #{job.job_id}</p>
-                <span className={"rounded-full border px-2.5 py-1 text-xs font-semibold " + statusStyle(job.status)}>{statusLabels[job.status] ?? job.status}</span>
+                <div className="min-w-0">
+                  <p className="break-words text-sm font-bold text-slate-900">{jobTypeLabel(job.job_type)}</p>
+                  <p className="mt-0.5 text-xs text-slate-500">Job #{job.job_id} · {job.source_type.replaceAll("_", " ")}</p>
+                </div>
+                <span className={"shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold " + statusStyle(job.status)}>{statusLabels[job.status] ?? job.status}</span>
               </div>
-              <p className="mt-1 break-words text-xs text-slate-600">{job.source_type.replaceAll("_", " ")} · {job.job_type.replaceAll("_", " ")}</p>
-              {job.scheduled_at && <p className="mt-2 text-xs leading-5 text-slate-600">Scheduled for {formatTime(job.scheduled_at)}</p>}
-              <p className="mt-2 flex items-start gap-1.5 text-xs leading-5 text-slate-500"><Clock3 size={14} className="mt-0.5 shrink-0" /> Updated {formatTime(job.updated_at)}</p>
+              <div className="mt-3 grid grid-cols-4 gap-2">
+                <div className="min-w-0"><p className="text-lg font-bold leading-5 text-slate-900">{countLabel(job.recipient_count)}</p><p className="mt-1 text-[11px] text-slate-500">Recipients</p></div>
+                <div className="min-w-0"><p className="text-lg font-bold leading-5 text-emerald-700">{countLabel(job.sent_count)}</p><p className="mt-1 text-[11px] text-slate-500">Sent</p></div>
+                <div className="min-w-0"><p className="text-lg font-bold leading-5 text-slate-900">{countLabel(job.failed_count)}</p><p className="mt-1 text-[11px] text-slate-500">Failed</p></div>
+                <div className="min-w-0"><p className="text-lg font-bold leading-5 text-slate-900">{countLabel(job.uncertain_count)}</p><p className="mt-1 text-[11px] text-slate-500">Uncertain</p></div>
+              </div>
+              <div className="mt-2 border-t border-slate-100 pt-2 text-[10px] leading-4 text-slate-500">
+                <p>Created: {formatTime(job.created_at)}</p>
+                <p>Completed: {job.completed_at ? formatTime(job.completed_at) : "Pending"}</p>
+              </div>
             </article>
           ))}
         </div>
