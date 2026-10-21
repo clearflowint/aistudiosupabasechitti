@@ -209,5 +209,7 @@ export async function dispatchCfcfCampaign(
   }
   const names = [...new Set(groupNames.map((name) => name.trim()).filter(Boolean))];
   const job = await requestCfcfHomepageCampaignJob(tenantId, names, message);
-  return { ...job, request_id: null, group_names: names, channels: ["whatsapp"] };
+  const jobId = job.job_id;
+  if (jobId == null) throw new Error("n8n did not return a valid job ID for the campaign.");
+  return { ...job, job_id: jobId, request_id: null, group_names: names, channels: ["whatsapp"] };
 }
