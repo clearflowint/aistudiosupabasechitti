@@ -162,7 +162,7 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
     const selectedIds = [...new Set(selectedMembershipContactIds)];
     const toAdd = selectedIds.filter((id) => !existingIds.includes(id));
     const toRemove = existingIds.filter((id) => !selectedIds.includes(id));
-    if (selectedIds.length === 0) return;
+    if (toAdd.length === 0 && toRemove.length === 0) {\n      setMembershipGroup(null);\n      return;\n    }
 
     setIsSavingMemberships(true);
     setError(null);
@@ -408,7 +408,7 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
             <p className="text-sm text-slate-500">{selectedMembershipContactIds.length} selected</p>
             <div className="flex gap-2">
               <button type="button" onClick={() => setMembershipGroup(null)} disabled={isSavingMemberships} className={buttonClass + " border border-slate-200 text-slate-700"}>Cancel</button>
-              <button type="button" onClick={() => void handleSaveMemberships()} disabled={isSavingMemberships || selectedMembershipContactIds.length === 0} className={buttonClass + " bg-slate-900 text-white hover:bg-slate-700"}>{isSavingMemberships ? "Saving…" : "Add members"}</button>
+              <button type="button" onClick={() => void handleSaveMemberships()} disabled={isSavingMemberships} className={buttonClass + " bg-slate-900 text-white hover:bg-slate-700"}>{isSavingMemberships ? "Saving…" : "Save changes"}</button>
             </div>
           </div>
         </div>
