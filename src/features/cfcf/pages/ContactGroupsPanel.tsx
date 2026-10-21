@@ -371,7 +371,7 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
               <>
                 <section aria-labelledby="selected-group-members-heading" className="space-y-1">
                   <div className="sticky top-0 z-10 rounded-lg bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm" id="selected-group-members-heading">Selected members ({filteredMembershipContacts.filter((contact) => selectedMembershipContactIds.includes(contact.contact_id)).length})</div>
-                  {(() => { const filteredContacts = filteredMembershipContacts.filter((contact) => selectedMembershipContactIds.includes(contact.contact_id)); return filteredContacts.length ? {filteredContacts.map((contact) => {
+                  {(() => { const filteredContacts = filteredMembershipContacts.filter((contact) => selectedMembershipContactIds.includes(contact.contact_id)); return filteredContacts.length ? filteredContacts.map((contact) => {
                 const checked = selectedMembershipContactIds.includes(contact.contact_id);
                 return (
                   <div key={contact.contact_id} className="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-slate-50">
@@ -383,11 +383,11 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
                     {busyContactId === contact.contact_id && <RefreshCw size={15} className="animate-spin text-violet-600" />}
                   </div>
                 );
-              })} : <p className="px-3 py-2 text-sm text-slate-500">No members selected.</p>; })()}
+              }) : <p className="px-3 py-2 text-sm text-slate-500">No members selected.</p>; })()}
                 </section>
                 <section aria-labelledby="remaining-group-contacts-heading" className="space-y-1">
                   <div className="sticky top-0 z-10 rounded-lg bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm" id="remaining-group-contacts-heading">Remaining contacts ({filteredMembershipContacts.filter((contact) => !selectedMembershipContactIds.includes(contact.contact_id)).length})</div>
-                  {(() => { const filteredContacts = filteredMembershipContacts.filter((contact) => !selectedMembershipContactIds.includes(contact.contact_id)); return filteredContacts.length ? {filteredContacts.map((contact) => {
+                  {(() => { const filteredContacts = filteredMembershipContacts.filter((contact) => !selectedMembershipContactIds.includes(contact.contact_id)); return filteredContacts.length ? filteredContacts.map((contact) => {
                 const checked = selectedMembershipContactIds.includes(contact.contact_id);
                 return (
                   <div key={contact.contact_id} className="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-slate-50">
@@ -399,7 +399,7 @@ export function ContactGroupsPanel({ workspace, contacts, contactsLoaded }: Cont
                     {busyContactId === contact.contact_id && <RefreshCw size={15} className="animate-spin text-violet-600" />}
                   </div>
                 );
-              })} : <p className="px-3 py-2 text-sm text-slate-500">No remaining contacts.</p>; })()}
+              }) : <p className="px-3 py-2 text-sm text-slate-500">No remaining contacts.</p>; })()}
                 </section>
               </>
             )}
