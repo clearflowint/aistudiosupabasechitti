@@ -106,7 +106,7 @@ export function AutomationJobProgressCard({ workspace }: AutomationJobProgressCa
         <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-700"><Activity size={20} /></div>
         <div className="min-w-0 flex-1">
           <h3 className="text-base font-bold text-slate-900">Automation progress</h3>
-          <p className="mt-1 text-sm leading-5 text-slate-600">Recent explicitly tracked tasks. Ordinary record updates are not listed.</p>
+          <p className="mt-1 text-sm leading-5 text-slate-600">Recent WhatsApp communication outcomes. WAHA acceptance does not confirm recipient delivery.</p>
         </div>
         {enabled && <button type="button" onClick={() => void refresh()} disabled={loading} aria-label="Refresh automation progress" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50"><RefreshCw size={17} className={loading ? "animate-spin" : ""} /></button>}
       </div>
@@ -125,17 +125,17 @@ export function AutomationJobProgressCard({ workspace }: AutomationJobProgressCa
       ) : (
         <div className="mt-3 space-y-2">
           {jobs.map((job) => (
-            <article key={job.job_id} className="min-w-0 rounded-xl border border-slate-200 p-3">
+            <article key={job.communication_id} className="min-w-0 rounded-xl border border-slate-200 p-3">
               <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0">
                   <p className="break-words text-sm font-bold text-slate-900">{jobTypeLabel(job.job_type)}</p>
-                  <p className="mt-0.5 text-xs text-slate-500">Job #{job.job_id} · {job.source_type.replaceAll("_", " ")}</p>
+                  <p className="mt-0.5 text-xs text-slate-500">Communication #{job.communication_id}{job.job_id != null ? ` · Job #${job.job_id}` : ""} · {job.source_type.replaceAll("_", " ")}</p>
                 </div>
                 <span className={"shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold " + statusStyle(job.status)}>{statusLabels[job.status] ?? job.status}</span>
               </div>
               <div className="mt-3 grid grid-cols-4 gap-2">
                 <div className="min-w-0"><p className="text-lg font-bold leading-5 text-slate-900">{countLabel(job.recipient_count)}</p><p className="mt-1 text-[11px] text-slate-500">Recipients</p></div>
-                <div className="min-w-0"><p className="text-lg font-bold leading-5 text-emerald-700">{countLabel(job.sent_count)}</p><p className="mt-1 text-[11px] text-slate-500">Sent</p></div>
+                <div className="min-w-0"><p className="text-lg font-bold leading-5 text-emerald-700">{countLabel(job.sent_count)}</p><p className="mt-1 text-[11px] text-slate-500">Accepted by WAHA</p></div>
                 <div className="min-w-0"><p className="text-lg font-bold leading-5 text-slate-900">{countLabel(job.failed_count)}</p><p className="mt-1 text-[11px] text-slate-500">Failed</p></div>
                 <div className="min-w-0"><p className="text-lg font-bold leading-5 text-slate-900">{countLabel(job.uncertain_count)}</p><p className="mt-1 text-[11px] text-slate-500">Uncertain</p></div>
               </div>
@@ -147,7 +147,7 @@ export function AutomationJobProgressCard({ workspace }: AutomationJobProgressCa
           ))}
         </div>
       )}
-      <p className="mt-3 text-[11px] leading-4 text-slate-500">Read-only status from saved records. Refresh to check for updates.</p>
+      <p className="mt-3 text-[11px] leading-4 text-slate-500">Read-only aggregate outcomes. “Accepted by WAHA” means the server accepted the request; it does not confirm delivery to a recipient. Unknown outcomes are not automatically resent.</p>
     </section>
   );
 }
