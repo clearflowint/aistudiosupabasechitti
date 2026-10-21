@@ -11,6 +11,7 @@ export interface CfcfAutomationJobStatus {
   source_type: string;
   job_type: string;
   status: "queued" | "processing" | "completed" | "failed" | "cancelled";
+  scheduled_at: string | null;
   created_at: string;
   updated_at: string;
   completed_at: string | null;
@@ -33,21 +34,22 @@ export async function listCfcfAutomationJobStatus(tenantId: string): Promise<Cfc
     .order("updated_at", { ascending: false })
     .limit(5);
   if (error) throw error;
-  return (data ?? []).map((row) => ({
+  return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
     communication_id: Number(row.communication_id),
     job_id: row.job_id == null ? null : Number(row.job_id),
     product_id: row.product_id as CfcfProductId,
-    tenant_id: row.tenant_id,
-    source_type: row.source_type,
-    job_type: row.communication_type,
+    tenant_id: String(row.tenant_id),
+    source_type: String(row.source_type),
+    job_type: String(row.communication_type),
     status: row.status as CfcfAutomationJobStatus["status"],
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-    completed_at: row.completed_at,
-    recipient_count: row.recipient_count,
-    sent_count: row.waha_accepted_count,
-    failed_count: row.waha_rejected_count,
-    uncertain_count: row.outcome_unknown_count,
+    scheduled_at: null,
+    created_at: String(row.created_at),
+    updated_at: String(row.updated_at),
+    completed_at: row.completed_at == null ? null : String(row.completed_at),
+    recipient_count: Number(row.recipient_count),
+    sent_count: Number(row.waha_accepted_count),
+    failed_count: Number(row.waha_rejected_count),
+    uncertain_count: Number(row.outcome_unknown_count),
   })) as CfcfAutomationJobStatus[];
 }
 
