@@ -1,4 +1,4 @@
-// CFCF PRODUCT: Read-only manager job status and aggregate counts from a safe summary view.
+// CFCF PRODUCT: Read-only manager job status from the existing safe job registry.
 import { supabase } from "../../../core/database/supabaseClient";
 import { cfcfConfig } from "../config/cfcf.config";
 import type { CfcfProductId } from "../types/database.types";
@@ -14,20 +14,16 @@ export interface CfcfAutomationJobStatus {
   created_at: string;
   updated_at: string;
   completed_at: string | null;
-  recipient_count: number | null;
-  sent_count: number | null;
-  failed_count: number | null;
-  uncertain_count: number | null;
 }
 
 /**
- * Reads safe status metadata and extracted aggregate counts only. The view never exposes private job_data.
+ * Reads only the existing safe status columns. Private job_data remains inaccessible to the PWA.
  */
 export async function listCfcfAutomationJobStatus(tenantId: string): Promise<CfcfAutomationJobStatus[]> {
   if (!tenantId.trim()) throw new Error("Authorized tenant scope is required.");
   const { data, error } = await supabase
-    .from("cfcf_job_progress_summary")
-    .select("job_id, product_id, tenant_id, source_type, job_type, status, scheduled_at, created_at, updated_at, completed_at, recipient_count, sent_count, failed_count, uncertain_count")
+    .from("n8n_global_jobs")
+    .select("job_id, product_id, tenant_id, source_type, job_type, status, scheduled_at, created_at, updated_at, completed_at")
     .eq("product_id", cfcfConfig.productId)
     .eq("tenant_id", tenantId)
     .order("updated_at", { ascending: false })
